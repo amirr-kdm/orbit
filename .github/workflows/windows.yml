@@ -1,0 +1,34 @@
+name: Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npx tauri icon ../Resources/icon-source.jpeg
+      - run: npx tauri build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orbit-windows
+          path: |
+            windows/src-tauri/target/release/bundle/nsis/*.exe
+            windows/src-tauri/target/release/bundle/msi/*.msi
