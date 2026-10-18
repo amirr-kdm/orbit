@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Copy this file to Resources/Supabase.plist and fill in your project (Project Settings → API Keys) -->
+    <key>URL</key>
+    <string>https://YOUR-PROJECT.supabase.co</string>
+    <key>PublishableKey</key>
+    <string>sb_publishable_...</string>
+</dict>
+</plist>
