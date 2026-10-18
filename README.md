@@ -19,6 +19,18 @@ Orbit brings your weekly timetable, daily to-do list, study timer and progress r
 
 ---
 
+## ⬇️ Download
+
+**[Download the latest Orbit.zip](https://github.com/amirr-kdm/orbit/releases/latest/download/Orbit.zip)** — a ready-to-use app for macOS 14+ (Apple Silicon and Intel).
+
+1. Unzip it and drag **Orbit.app** into your **Applications** folder.
+2. The first time, **right-click** Orbit.app → **Open** → **Open**. macOS asks because the app isn't notarized by Apple. You only need to do this once.
+3. Want to study with friends? Open **Friends**, create your profile and add each other's friend codes. The download is already connected to the shared Orbit server, so there's nothing to set up.
+
+All releases: [github.com/amirr-kdm/orbit/releases](https://github.com/amirr-kdm/orbit/releases)
+
+---
+
 ## Contents
 
 1. [Installation](#installation)
@@ -42,6 +54,8 @@ Orbit brings your weekly timetable, daily to-do list, study timer and progress r
 
 ## Installation
 
+> Just want to use the app? Grab it from **[Download](#️-download)** above. This section is for building from source.
+
 ### Requirements
 - A Mac running **macOS 14 Sonoma or later** (Apple Silicon or Intel)
 - **Xcode 15+**, or just the Command Line Tools. If you don't have them, run:
@@ -64,6 +78,9 @@ open build/Orbit.app
 
 # Optional: install into ~/Applications so it shows up in Launchpad and Spotlight
 ./build.sh install
+
+# Universal (Apple Silicon + Intel) build, zipped for sharing → build/Orbit.zip
+./build.sh release
 ```
 
 The first build takes about a minute. Later builds are faster.
@@ -256,7 +273,7 @@ The Friends feature needs a free [Supabase](https://supabase.com) project, which
    Open `Resources/Supabase.plist` and replace the placeholder `URL` and `PublishableKey` values with yours.
 6. Rebuild: `./build.sh install`.
 
-To use Friends together, everyone has to run a build that points to **the same** Supabase project. Send your friends the built `Orbit.app` (zip it), or share your `Supabase.plist` with them privately.
+To use Friends together, everyone has to run a build that points to **the same** Supabase project. The app on the [Releases page](https://github.com/amirr-kdm/orbit/releases) is connected to the shared Orbit server. If you build from source with your own project, share your build (`./build.sh release`) with your friends.
 
 > ⚠️ Only ever use the **publishable** key. Never put the **secret / service_role** key in the app or in the repository.
 >

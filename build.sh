@@ -2,10 +2,17 @@
 # Builds "Orbit.app"
 #   ./build.sh           → build/Orbit.app
 #   ./build.sh install   → also copies it to ~/Applications
+#   ./build.sh release   → Universal (Apple Silicon + Intel) build zipped to build/Orbit.zip
 set -euo pipefail
 cd "$(dirname "$0")"
 
-swift build -c release
+if [ "${1:-}" = "release" ]; then
+    swift build -c release --arch arm64 --arch x86_64
+    BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/ClaudeSchedule"
+else
+    swift build -c release
+    BIN=.build/release/ClaudeSchedule
+fi
 
 # App icon (regenerated when the source image changes)
 if [ ! -f Resources/AppIcon.icns ] || [ Resources/icon-source.jpeg -nt Resources/AppIcon.icns ]; then
@@ -23,7 +30,7 @@ fi
 APP="build/Orbit.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/ClaudeSchedule "$APP/Contents/MacOS/Orbit"
+cp "$BIN" "$APP/Contents/MacOS/Orbit"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 if [ -f Resources/Supabase.plist ]; then
@@ -34,6 +41,12 @@ fi
 codesign --force --sign - "$APP" >/dev/null
 
 echo "✅ Built: $APP"
+
+if [ "${1:-}" = "release" ]; then
+    rm -f build/Orbit.zip
+    ditto -c -k --keepParent "$APP" build/Orbit.zip
+    echo "✅ Release zip: build/Orbit.zip ($(du -h build/Orbit.zip | cut -f1))"
+fi
 
 if [ "${1:-}" = "install" ]; then
     mkdir -p ~/Applications
