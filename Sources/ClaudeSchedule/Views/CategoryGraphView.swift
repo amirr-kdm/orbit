@@ -20,6 +20,10 @@ struct CategoryGraphView: View {
     @State private var dragNode: Int?
     @State private var panStart: CGSize?
     @State private var monitor: Any?
+    @AppStorage("graphHubSize") private var hubSize = 1.0
+    @AppStorage("graphLeafSize") private var leafSize = 1.0
+    @AppStorage("graphLinkLength") private var linkLength = 1.0
+    @State private var showLook = false
 
     var body: some View {
         let graph = buildGraph()
@@ -52,11 +56,15 @@ struct CategoryGraphView: View {
             }
         }
         .onAppear {
+            sim.setLook(hub: hubSize, leaf: leafSize, link: linkLength)
             sim.sync(graph)
             installMonitor()
         }
         .onDisappear(perform: removeMonitor)
         .onChange(of: graph) { _, g in sim.sync(g) }
+        .onChange(of: hubSize) { _, _ in sim.setLook(hub: hubSize, leaf: leafSize, link: linkLength) }
+        .onChange(of: leafSize) { _, _ in sim.setLook(hub: hubSize, leaf: leafSize, link: linkLength) }
+        .onChange(of: linkLength) { _, _ in sim.setLook(hub: hubSize, leaf: leafSize, link: linkLength) }
     }
 
     // MARK: Data
@@ -275,10 +283,11 @@ struct CategoryGraphView: View {
         let dark = scheme == .dark
         let bg = Color(nsColor: .underPageBackgroundColor)
         let scale = sim.scale
+        let now = Date()
 
-        // Dot grid that moves with the view
-        let spacing = 28 * scale
-        if spacing > 9 {
+        // Soft dot grid that moves with the view
+        let spacing = 30 * scale
+        if spacing > 10 {
             var dots = Path()
             let ox = (size.width / 2 + sim.pan.width).truncatingRemainder(dividingBy: spacing)
             let oy = (size.height / 2 + sim.pan.height).truncatingRemainder(dividingBy: spacing)
@@ -286,85 +295,146 @@ struct CategoryGraphView: View {
             while x < size.width {
                 var y = oy
                 while y < size.height {
-                    dots.addEllipse(in: CGRect(x: x - 0.8, y: y - 0.8, width: 1.6, height: 1.6))
+                    dots.addEllipse(in: CGRect(x: x - 0.7, y: y - 0.7, width: 1.4, height: 1.4))
                     y += spacing
                 }
                 x += spacing
             }
-            ctx.fill(dots, with: .color(.primary.opacity(dark ? 0.07 : 0.09)))
+            ctx.fill(dots, with: .color(.primary.opacity(dark ? 0.06 : 0.08)))
         }
 
+        // Hover / selection highlight eases in and out
         let focus = sim.hovered ?? selected
+        if focus != nil { sim.lastFocus = focus }
+        sim.focusLevel += ((focus == nil ? 0 : 1) - sim.focusLevel) * 0.18
+        if focus == nil && sim.focusLevel < 0.01 { sim.lastFocus = nil }
+        let f = sim.focusLevel
+        let shown = focus ?? sim.lastFocus
         var near: Set<String> = []
-        if let focus {
-            near.insert(focus)
-            for (a, b) in sim.links where sim.nodes[a].id == focus || sim.nodes[b].id == focus {
+        if let shown {
+            near.insert(shown)
+            for (a, b) in sim.links where sim.nodes[a].id == shown || sim.nodes[b].id == shown {
                 near.insert(sim.nodes[a].id); near.insert(sim.nodes[b].id)
             }
         }
+        func dimFactor(_ id: String) -> Double { near.contains(id) ? 1 : 1 - 0.8 * f }
 
-        // Links
+        // Links: gently curved, fading from the category colour to the item's colour
         for (a, b) in sim.links {
             let A = sim.nodes[a], B = sim.nodes[b]
+            let grow = min(sim.appear(A, at: now), sim.appear(B, at: now))
+            guard grow > 0.02 else { continue }
+            let p1 = sim.toScreen(A.point, size), p2 = sim.toScreen(B.point, size)
+            let mid = CGPoint(x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2)
+            let dx = p2.x - p1.x, dy = p2.y - p1.y
+            let ctrl = CGPoint(x: mid.x - dy * 0.08, y: mid.y + dx * 0.08)
+            let k = min(1, grow)
+            let end = CGPoint(x: p1.x + dx * k, y: p1.y + dy * k)
             var path = Path()
-            path.move(to: sim.toScreen(A.point, size))
-            path.addLine(to: sim.toScreen(B.point, size))
-            let lit = focus != nil && near.contains(A.id) && near.contains(B.id)
-            let opacity = lit ? 0.75 : (focus == nil ? 0.28 : 0.07)
-            ctx.stroke(path, with: .color(Color(hex: A.color).opacity(opacity)),
-                       lineWidth: (lit ? 1.8 : 1.1) * min(1.4, max(0.7, scale)))
+            path.move(to: p1)
+            path.addQuadCurve(to: end, control: ctrl)
+            let lit = shown != nil && near.contains(A.id) && near.contains(B.id)
+            let base = lit ? 0.32 + 0.45 * f : 0.3 * (1 - 0.75 * f)
+            ctx.stroke(path, with: .linearGradient(
+                Gradient(colors: [Color(hex: A.color).opacity(base), Color(hex: B.color).opacity(base * 0.8)]),
+                startPoint: p1, endPoint: p2),
+                style: StrokeStyle(lineWidth: (lit ? 1 + 0.8 * f : 1) * min(1.5, max(0.7, scale)), lineCap: .round))
         }
 
-        // Nodes
+        // Nodes: round, softly lit, with a faint halo
         for n in sim.nodes {
+            let grow = sim.appear(n, at: now)
+            guard grow > 0.01 else { continue }
             let p = sim.toScreen(n.point, size)
-            let r = n.radius * scale
-            let dim = focus != nil && !near.contains(n.id)
+            let r = sim.radius(n) * scale * grow
+            let o = dimFactor(n.id)
             let color = Color(hex: n.color)
-            let alpha = dim ? 0.18 : 1.0
             let rect = CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)
+            let isHover = n.id == sim.hovered
 
-            if n.isHub {
-                let glow = rect.insetBy(dx: -r * 1.2, dy: -r * 1.2)
-                ctx.fill(Path(ellipseIn: glow), with: .radialGradient(
-                    Gradient(colors: [color.opacity(dim ? 0.05 : 0.35), color.opacity(0)]),
-                    center: p, startRadius: r * 0.6, endRadius: glow.width / 2))
-            }
-            let shape = n.isSchedule
-                ? Path(roundedRect: rect.insetBy(dx: r * 0.08, dy: r * 0.08), cornerRadius: r * 0.45)
-                : Path(ellipseIn: rect)
+            // Halo
+            let haloR = r * (n.isHub ? 2.4 : 1.9) * (isHover ? 1.25 : 1)
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - haloR, y: p.y - haloR, width: haloR * 2, height: haloR * 2)),
+                     with: .radialGradient(Gradient(colors: [color.opacity((n.isHub ? 0.32 : 0.18) * o), color.opacity(0)]),
+                                           center: p, startRadius: r * 0.5, endRadius: haloR))
+
             if n.isDone {
-                ctx.fill(shape, with: .color(bg))
-                ctx.stroke(shape, with: .color(color.opacity(0.7 * alpha)), lineWidth: max(1.2, r * 0.28))
+                // Done: a quiet ring with a check
+                ctx.fill(Path(ellipseIn: rect), with: .color(bg.opacity(o)))
+                ctx.stroke(Path(ellipseIn: rect.insetBy(dx: r * 0.12, dy: r * 0.12)),
+                           with: .color(color.opacity(0.75 * o)), lineWidth: max(1.2, r * 0.24))
+                if r > 5 {
+                    ctx.draw(Text(Image(systemName: "checkmark")).font(.system(size: r * 0.85, weight: .bold))
+                        .foregroundStyle(color.opacity(o)), at: p)
+                }
             } else {
-                ctx.fill(shape, with: .linearGradient(
-                    Gradient(colors: [color.opacity(alpha), color.opacity(alpha * 0.78)]),
-                    startPoint: CGPoint(x: rect.minX, y: rect.minY), endPoint: CGPoint(x: rect.maxX, y: rect.maxY)))
-                ctx.stroke(shape, with: .color(bg.opacity(alpha)), lineWidth: max(1, r * 0.18))
+                // Lit from the top-left like a small sphere
+                var lit = ctx
+                lit.opacity = o
+                lit.fill(Path(ellipseIn: rect), with: .color(color))
+                lit.fill(Path(ellipseIn: rect), with: .radialGradient(
+                    Gradient(colors: [Color.white.opacity(0.45), Color.white.opacity(0), Color.black.opacity(0.18)]),
+                    center: CGPoint(x: p.x - r * 0.35, y: p.y - r * 0.4), startRadius: 0, endRadius: r * 1.6))
+                if n.isSchedule {
+                    // Weekly to-dos carry a small inner ring
+                    lit.stroke(Path(ellipseIn: rect.insetBy(dx: r * 0.42, dy: r * 0.42)),
+                               with: .color(.white.opacity(0.8)), lineWidth: max(0.8, r * 0.16))
+                }
             }
-            if n.id == selected || n.id == sim.hovered {
-                ctx.stroke(Path(ellipseIn: rect.insetBy(dx: -3.5, dy: -3.5)),
-                           with: .color(n.id == selected ? Color.primary.opacity(0.85) : color.opacity(0.6)), lineWidth: 1.6)
+            ctx.stroke(Path(ellipseIn: rect), with: .color(bg.opacity(0.7 * o)), lineWidth: max(0.8, r * 0.12))
+            if n.id == selected {
+                ctx.stroke(Path(ellipseIn: rect.insetBy(dx: -4, dy: -4)), with: .color(.primary.opacity(0.8)), lineWidth: 1.6)
             }
 
-            let showLabel = n.isHub || scale >= 1.15 || n.id == focus || (focus != nil && near.contains(n.id))
-            if showLabel {
+            let showLabel = n.isHub || scale >= 1.15 || n.id == shown || (shown != nil && near.contains(n.id) && f > 0.3)
+            if showLabel && grow > 0.6 {
                 let title = n.title.count > 26 ? String(n.title.prefix(25)) + "…" : n.title
                 let label = Text(title)
-                    .font(n.isHub ? .system(size: 12.5, weight: .semibold) : .system(size: 10.5))
-                    .foregroundStyle(n.isHub ? Color.primary.opacity(dim ? 0.3 : 0.9) : Color.secondary.opacity(dim ? 0.3 : 1))
-                ctx.draw(label, at: CGPoint(x: p.x, y: p.y + r + (n.isHub ? 6 : 4)), anchor: .top)
+                    .font(n.isHub ? .system(size: 12.5, weight: .semibold, design: .rounded) : .system(size: 10.5, design: .rounded))
+                    .foregroundStyle(n.isHub ? Color.primary.opacity(0.9 * o) : Color.secondary.opacity(o))
+                ctx.draw(label, at: CGPoint(x: p.x, y: p.y + r + (n.isHub ? 7 : 5)), anchor: .top)
             }
         }
     }
 
     // MARK: Overlays
 
+    private var lookPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Graph look").font(.headline)
+            lookSlider("Category size", "circle.circle", $hubSize, 0.5...2.2)
+            lookSlider("To-do size", "circle.fill", $leafSize, 0.5...2.8)
+            lookSlider("Link length", "line.diagonal", $linkLength, 0.4...3)
+            HStack {
+                Button("Reset") { hubSize = 1; leafSize = 1; linkLength = 1 }
+                Spacer()
+                Button("Re-arrange ✨") { sim.shake() }
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(16)
+        .frame(width: 270)
+    }
+
+    private func lookSlider(_ title: String, _ icon: String, _ value: Binding<Double>, _ range: ClosedRange<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label(title, systemImage: icon).font(.callout)
+                Spacer()
+                Text("\(Int((value.wrappedValue * 100).rounded()))%").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: range)
+        }
+    }
+
     private var legend: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) { Circle().frame(width: 12, height: 12); Text("Category") }
             HStack(spacing: 6) { Circle().frame(width: 7, height: 7).padding(.horizontal, 2.5); Text("Task") }
-            HStack(spacing: 6) { RoundedRectangle(cornerRadius: 2.5).frame(width: 8, height: 8).padding(.horizontal, 2); Text("Weekly to-do") }
+            HStack(spacing: 6) {
+                Circle().frame(width: 8, height: 8).overlay(Circle().inset(by: 2.3).stroke(Color.white, lineWidth: 1.2)).padding(.horizontal, 2)
+                Text("Weekly to-do")
+            }
             HStack(spacing: 6) { Circle().strokeBorder(lineWidth: 1.5).frame(width: 8, height: 8).padding(.horizontal, 2); Text("Done") }
             Toggle("Show done", isOn: $showDone).toggleStyle(.checkbox).padding(.top, 2)
         }
@@ -379,7 +449,10 @@ struct CategoryGraphView: View {
             Button { sim.zoom(by: 1 / 1.25, at: nil) } label: { Image(systemName: "minus.magnifyingglass") }.help("Zoom out")
             Button { withAnimation(.easeInOut) { sim.fit() } } label: { Image(systemName: "scope") }.help("Fit everything")
             Button { sim.zoom(by: 1.25, at: nil) } label: { Image(systemName: "plus.magnifyingglass") }.help("Zoom in")
-            Button { sim.shake() } label: { Image(systemName: "wand.and.rays") }.help("Re-arrange")
+            Button { sim.shake() } label: { Image(systemName: "wand.and.rays") }.help("Re-arrange with an animation")
+            Button { showLook.toggle() } label: { Image(systemName: "slider.horizontal.3") }
+                .help("Node size and link length")
+                .popover(isPresented: $showLook, arrowEdge: .top) { lookPanel }
         }
         .buttonStyle(.borderless)
         .padding(8)
@@ -705,12 +778,32 @@ final class GraphSim {
         var vx: CGFloat = 0
         var vy: CGFloat = 0
         var pinned = false
+        /// When the node starts to grow in (for the appear / re-arrange animation)
+        var birth = Date()
 
         var point: CGPoint { CGPoint(x: x, y: y) }
-        var radius: CGFloat {
-            isHub ? min(26, 12 + 2.2 * sqrt(CGFloat(degree))) : (isSchedule ? 6.5 : 6)
-        }
     }
+
+    /// User settings: category size, to-do size and link length multipliers
+    @ObservationIgnored var hubSize: CGFloat = 1
+    @ObservationIgnored var leafSize: CGFloat = 1
+    @ObservationIgnored var linkLength: CGFloat = 1
+
+    func radius(_ n: Node) -> CGFloat {
+        n.isHub ? min(30, 11 + 2.2 * sqrt(CGFloat(n.degree))) * hubSize : 6.2 * leafSize
+    }
+
+    /// 0 → 1 with a little overshoot, so nodes pop in softly
+    func appear(_ n: Node, at now: Date) -> CGFloat {
+        let t = min(1, max(0, now.timeIntervalSince(n.birth) / 0.55))
+        guard t < 1 else { return 1 }
+        let c1 = 1.70158, c3 = c1 + 1
+        return CGFloat(1 + c3 * pow(t - 1, 3) + c1 * pow(t - 1, 2))
+    }
+
+    /// Hover highlight fades in and out instead of switching instantly
+    @ObservationIgnored var focusLevel: CGFloat = 0
+    @ObservationIgnored var lastFocus: String?
 
     @ObservationIgnored var nodes: [Node] = []
     @ObservationIgnored var links: [(Int, Int)] = []
@@ -740,7 +833,7 @@ final class GraphSim {
         var best: Int?
         var bestD = CGFloat.infinity
         for i in nodes.indices {
-            let d = hypot(nodes[i].x - w.x, nodes[i].y - w.y) - nodes[i].radius
+            let d = hypot(nodes[i].x - w.x, nodes[i].y - w.y) - radius(nodes[i])
             if d < bestD { bestD = d; best = i }
         }
         return bestD <= 5 / scale ? best : nil
@@ -783,8 +876,9 @@ final class GraphSim {
             var node = Node(id: n.id, title: n.title, color: n.color, isHub: n.isHub, isSchedule: n.isSchedule,
                             isDone: n.isDone, detail: n.detail, ref: n.ref, x: 0, y: 0)
             if let p = old[n.id] {
-                node.x = p.x; node.y = p.y; node.vx = p.vx; node.vy = p.vy
+                node.x = p.x; node.y = p.y; node.vx = p.vx; node.vy = p.vy; node.birth = p.birth
             } else {
+                node.birth = Date().addingTimeInterval(n.isHub ? 0 : 0.15 + min(1, Double(i) * 0.02))
                 added = true
                 // Start each item close to its category, on a little spiral
                 let c = n.isHub ? hubCenters[n.id]! : (parent[n.id].flatMap { hubCenters[$0] } ?? .zero)
@@ -810,27 +904,53 @@ final class GraphSim {
         if settled { settled = false }
     }
 
+    /// The ✨ button: everything gathers in the middle, then the categories bloom outward
+    /// and their items pop in one after another
     func shake() {
-        for i in nodes.indices {
-            nodes[i].x = .random(in: -300...300)
-            nodes[i].y = .random(in: -220...220)
+        let now = Date()
+        var leaf = 0
+        let hubs = nodes.indices.filter { nodes[$0].isHub }
+        for (k, i) in hubs.enumerated() {
+            let a = CGFloat(k) / CGFloat(max(1, hubs.count)) * 2 * .pi
+            nodes[i].x = cos(a) * 6; nodes[i].y = sin(a) * 6
+            nodes[i].vx = cos(a) * 14; nodes[i].vy = sin(a) * 14
+            nodes[i].birth = now.addingTimeInterval(Double(k) * 0.08)
         }
-        reheat(1)
+        for i in nodes.indices where !nodes[i].isHub {
+            let a = CGFloat.random(in: 0...(2 * .pi))
+            nodes[i].x = cos(a) * 3; nodes[i].y = sin(a) * 3
+            nodes[i].vx = 0; nodes[i].vy = 0
+            nodes[i].birth = now.addingTimeInterval(0.25 + min(1.4, Double(leaf) * 0.035))
+            leaf += 1
+        }
+        alpha = 1
+        settled = false
+    }
+
+    /// Size / length settings changed: let the layout adjust smoothly
+    func setLook(hub: CGFloat, leaf: CGFloat, link: CGFloat) {
+        guard hub != hubSize || leaf != leafSize || link != linkLength else { return }
+        hubSize = hub; leafSize = leaf; linkLength = link
+        reheat(0.5)
     }
 
     func tick() {
         if pinnedCount > 0 { alphaTarget = 0.3 } else { alphaTarget = 0 }
-        alpha += (alphaTarget - alpha) * 0.0228
-        guard alpha > 0.003, !nodes.isEmpty else {
+        alpha += (alphaTarget - alpha) * 0.016
+        let now = Date()
+        let animating = nodes.contains { now.timeIntervalSince($0.birth) < 0.6 }
+            || abs(focusLevel - (lastFocus == nil ? 0 : 1)) > 0.01
+        guard alpha > 0.003 || animating, !nodes.isEmpty else {
             if !settled { DispatchQueue.main.async { self.settled = true } }
             return
         }
+        guard alpha > 0.003 else { return }
         let n = nodes.count
 
         // Links: pull each item towards its category, at a distance that grows with the category's size
         for (a, b) in links {
-            let ra = nodes[a].radius, rb = nodes[b].radius
-            let target = 34 + ra + rb + 3 * sqrt(CGFloat(nodes[a].degree))
+            let ra = radius(nodes[a]), rb = radius(nodes[b])
+            let target = (34 + 3 * sqrt(CGFloat(nodes[a].degree))) * linkLength + ra + rb
             var dx = nodes[b].x + nodes[b].vx - nodes[a].x - nodes[a].vx
             var dy = nodes[b].y + nodes[b].vy - nodes[a].y - nodes[a].vy
             if dx == 0 && dy == 0 { dx = .random(in: -0.5...0.5); dy = .random(in: -0.5...0.5) }
@@ -869,7 +989,7 @@ final class GraphSim {
         for i in 0..<n {
             for j in (i + 1)..<n {
                 let dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y
-                let minD = nodes[i].radius + nodes[j].radius + 5
+                let minD = radius(nodes[i]) + radius(nodes[j]) + 5
                 let d2 = dx * dx + dy * dy
                 guard d2 < minD * minD else { continue }
                 let d = max(0.01, sqrt(d2))
@@ -882,8 +1002,8 @@ final class GraphSim {
         // Move with friction
         for i in 0..<n {
             if nodes[i].pinned { nodes[i].vx = 0; nodes[i].vy = 0; continue }
-            nodes[i].vx *= 0.6
-            nodes[i].vy *= 0.6
+            nodes[i].vx *= 0.58
+            nodes[i].vy *= 0.58
             nodes[i].x += nodes[i].vx
             nodes[i].y += nodes[i].vy
         }
