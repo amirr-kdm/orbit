@@ -147,7 +147,11 @@ export default function Schedule() {
                         <div className={`text ${done ? "strike" : ""}`} style={{ fontSize, color: done ? undefined : textColor }}>{e.text}</div>
                         {c && <div className="cat">🏷 {c.name}</div>}
                       </>
-                    ) : null}
+                    ) : (() => {
+                      // Empty this week but used in other weeks (e.g. an every-other-week class)
+                      const others = data.schedule.filter((x) => x.weekday === day && x.slotID === s.id && (x.recurrence === "even" || x.recurrence === "odd"));
+                      return others.length ? <div className="small muted" style={{ opacity: 0.7, whiteSpace: "pre-line" }}>{others.map((x) => `${RECURRENCE_TITLE[x.recurrence]}: ${titleOf(x)}`).join("\n")}</div> : null;
+                    })()}
                   </div>
                 );
               }),

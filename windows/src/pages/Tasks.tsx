@@ -12,11 +12,12 @@ type Mode = "week" | "day" | "list" | "graph";
 export default function Tasks() {
   const { data, actions } = useStore();
   const nav = useNav();
-  const [mode, setMode] = useState<Mode>((new URLSearchParams(location.search).get("mode") as Mode) || "week");
+  const [mode, setMode] = useState<Mode>((new URLSearchParams(location.search).get("mode") as Mode) || (localStorage.getItem("tasks-mode") as Mode) || "week");
   const [anchor, setAnchor] = useState(new Date());
   const [catFilter, setCatFilter] = useState("");
   const [editing, setEditing] = useState<TaskItem | null>(null);
   const kind = data.settings.primaryCalendar;
+  useEffect(() => { try { localStorage.setItem("tasks-mode", mode); } catch { /* ignore */ } }, [mode]);
 
   useEffect(() => { if (nav.focusDay) { setAnchor(nav.focusDay); setMode("day"); nav.clearFocus(); } }, [nav]);
 

@@ -262,7 +262,34 @@ function Notes({ planner }: { planner: PlannerT }) {
   });
   useEffect(() => () => save(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cmd = (name: string, value?: string) => { editor.current?.focus(); document.execCommand(name, false, value); save(); };
+  const saved = useRef<Range | null>(null);
+  const [fg, setFg] = useState<string | null>(null);
+  const [bg, setBg] = useState<string | null>(null);
+  const cmd = (name: string, value?: string) => {
+    editor.current?.focus();
+    const sel = window.getSelection();
+    if (saved.current && sel && !editor.current?.contains(sel.anchorNode)) { sel.removeAllRanges(); sel.addRange(saved.current); }
+    document.execCommand(name, false, value); save(); readColors();
+  };
+  /** Remember the selection (so the colour popover can apply to it) and show the colours under the cursor */
+  const readColors = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && editor.current?.contains(sel.anchorNode)) saved.current = sel.getRangeAt(0).cloneRange();
+    const toHex = (v: string) => { const m = v.match(/\d+/g); return m && m.length >= 3 ? "#" + m.slice(0, 3).map((x) => (+x).toString(16).padStart(2, "0")).join("").toUpperCase() : null; };
+    const f = toHex(document.queryCommandValue("foreColor")), b = toHex(document.queryCommandValue("hiliteColor") || document.queryCommandValue("backColor"));
+    const text = toHex(getComputedStyle(editor.current ?? document.body).color);
+    setFg(f && f !== text ? f : null); setBg(b && b !== "#000000" ? b : null);
+  };
+  /** Right-to-left (Persian) or left-to-right for the paragraphs in the selection */
+  const direction = (dir: "rtl" | "ltr") => {
+    editor.current?.focus();
+    const sel = window.getSelection();
+    let el = sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+    if (!el || el === editor.current || !editor.current?.contains(el)) { document.execCommand("formatBlock", false, "<p>"); el = window.getSelection()?.anchorNode?.parentElement; }
+    const block = el?.closest("p, div, li, h1, h2, blockquote, td, th") as HTMLElement | null;
+    if (block && editor.current?.contains(block) && block !== editor.current) { block.dir = dir; block.style.textAlign = dir === "rtl" ? "right" : "left"; }
+    save();
+  };
   const cellOf = () => { const n = window.getSelection()?.anchorNode; const el = n instanceof Element ? n : n?.parentElement; return el?.closest("td, th") as HTMLTableCellElement | null; };
 
   const checklist = () => {
@@ -331,12 +358,13 @@ function Notes({ planner }: { planner: PlannerT }) {
             <B t="•" title="Bulleted list" on={() => cmd("insertUnorderedList")} /><B t="1." title="Numbered list" on={() => cmd("insertOrderedList")} />
             <B t="☑" title="Checklist (click a box to tick it)" on={checklist} />
             <span className="sep" />
-            <select value="" title="Text colour" onChange={(e) => { cmd("foreColor", e.target.value); e.target.value = ""; }} style={{ padding: "3px 6px" }}>
-              <option value="" disabled>A colour</option><option value="inherit">Default</option>{colors.map((c) => <option key={c} value={c} style={{ color: c }}>■ {c}</option>)}
-            </select>
-            <select value="" title="Highlight" onChange={(e) => { cmd("hiliteColor", e.target.value); e.target.value = ""; }} style={{ padding: "3px 6px" }}>
-              <option value="" disabled>Highlight</option><option value="transparent">None</option>{colors.map((c) => <option key={c} value={`${c}59`} style={{ color: c }}>■ {c}</option>)}
-            </select>
+            <B t="⇤" title="Align left" on={() => cmd("justifyLeft")} /><B t="↔" title="Centre" on={() => cmd("justifyCenter")} />
+            <B t="⇥" title="Align right" on={() => cmd("justifyRight")} /><B t="☰" title="Justify" on={() => cmd("justifyFull")} />
+            <span className="sep" />
+            <B t="LTR" title="Left to right (English)" on={() => direction("ltr")} /><B t="RTL" title="Right to left (Persian / فارسی)" on={() => direction("rtl")} />
+            <span className="sep" />
+            <NoteColor highlight={false} current={fg} colors={colors} onPick={(c) => cmd("foreColor", c ?? "inherit")} onAddColor={actions.addColor} />
+            <NoteColor highlight current={bg} colors={colors} onPick={(c) => cmd("hiliteColor", c ? `${c}59` : "transparent")} onAddColor={actions.addColor} />
             <span className="sep" />
             <select value="" title="Insert a table" onChange={(e) => { const [r, c] = e.target.value.split("x").map(Number); table(r, c); e.target.value = ""; }} style={{ padding: "3px 6px" }}>
               <option value="" disabled>▦ Table</option><option value="3x2">2 × 3</option><option value="3x3">3 × 3</option><option value="4x3">3 × 4</option><option value="5x4">4 × 5</option>
@@ -351,8 +379,8 @@ function Notes({ planner }: { planner: PlannerT }) {
           <div ref={editor} className="note-editor" contentEditable suppressContentEditableWarning data-placeholder="Brainstorm here… headings, lists, checklists and tables"
             onInput={() => { window.clearTimeout(pending.current); pending.current = window.setTimeout(save, 500); }}
             onBlur={save}
-            onKeyUp={() => setInTable(!!cellOf())}
-            onMouseUp={() => setInTable(!!cellOf())}
+            onKeyUp={() => { setInTable(!!cellOf()); readColors(); }}
+            onMouseUp={() => { setInTable(!!cellOf()); readColors(); }}
             onClick={(e) => {
               // Tick a checklist item by clicking its box
               const li = (e.target as HTMLElement).closest("ul.checklist > li") as HTMLElement | null;
@@ -362,5 +390,36 @@ function Notes({ planner }: { planner: PlannerT }) {
       ) : <button className="btn" onClick={add}>New note</button>}
       {menu.node}
     </div>
+  );
+}
+
+/** Text colour / highlight picker: swatches, the colour at the cursor, and custom colours */
+function NoteColor({ highlight, current, colors, onPick, onAddColor }: { highlight: boolean; current: string | null; colors: string[]; onPick: (c: string | null) => void; onAddColor: (c: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState("#22C55E");
+  const same = (a: string | null, b: string) => !!a && a.slice(0, 7).toUpperCase() === b.toUpperCase();
+  return (
+    <span style={{ position: "relative" }}>
+      <button className="icon-btn" title={highlight ? "Highlight" : "Text colour"} onMouseDown={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+        style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 1, minWidth: 30 }}>
+        <span>{highlight ? "🖍" : "A"}</span>
+        <span style={{ width: 16, height: 3.5, borderRadius: 2, background: current ?? (highlight ? "transparent" : "var(--text)"), border: !current && highlight ? "1px solid var(--muted)" : undefined }} />
+      </button>
+      {open && (
+        <div className="popover" style={{ top: 34, left: 0, width: 240 }} onMouseDown={(e) => { if ((e.target as HTMLElement).tagName !== "INPUT") e.preventDefault(); }}>
+          <b>{highlight ? "Highlight" : "Text colour"}</b>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 28px)", gap: 8 }}>
+            <button className="swatch" title={highlight ? "No highlight" : "Default colour"} style={{ background: "transparent", outline: !current ? "2px solid var(--accent)" : undefined, outlineOffset: 2 }}
+              onClick={() => { onPick(null); setOpen(false); }}>{highlight ? "⌀" : "A"}</button>
+            {colors.map((c) => <button key={c} className="swatch" title={c} style={{ background: c, outline: same(current, c) ? "2px solid var(--accent)" : undefined, outlineOffset: 2 }}
+              onClick={() => { onPick(c); setOpen(false); }}>{same(current, c) ? "✓" : ""}</button>)}
+          </div>
+          <div className="row"><input type="color" value={custom} onChange={(e) => setCustom(e.target.value.toUpperCase())} style={{ width: 48, height: 30, padding: 2 }} />
+            <span className="small muted">{custom}</span><span className="spacer" />
+            <button className="btn primary small" onClick={() => { onAddColor(custom); onPick(custom); setOpen(false); }}>Use</button></div>
+          <div className="small muted">Custom colours are saved with your other colours.</div>
+        </div>
+      )}
+    </span>
   );
 }

@@ -88,7 +88,7 @@ export default function Reports() {
           {!undone.length ? <div className="muted">{days[0] > new Date() ? `This ${period} hasn't started yet.` : "Everything planned so far was done 🎉"}</div> : <>
             <div className="small muted" style={{ marginBottom: 4 }}>{undone.length} to-do{undone.length === 1 ? "" : "s"} planned for days that have already started weren't ticked off.</div>
             {undone.map((u) => <div key={`${u.ref.kind}:${u.ref.id}|${u.day.toDateString()}`} className="list-row"><span className="dot" style={{ background: u.color }} />
-              <div style={{ flex: 1 }}>{u.title} <span className="small muted">{u.detail}</span></div><span className="small muted">{monthDay(u.day, kind, true)}</span></div>)}
+              <div style={{ flex: 1 }}>{u.title} <span className="small muted">{u.detail}</span>{u.isSkipped && <span className="small" style={{ color: "#F97316" }}> · Skipped</span>}</div><span className="small muted">{monthDay(u.day, kind, true)}</span></div>)}
           </>}
         </div>
         <div className="card"><h3>✅ Tasks completed</h3>
