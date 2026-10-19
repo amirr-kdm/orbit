@@ -98,6 +98,8 @@ final class FriendsService {
     /// Friend requests sent to me / by me
     private(set) var incoming: [UUID] = []
     private(set) var outgoing: [UUID] = []
+    /// A message when you just won a weekly group prize
+    var groupPrize: String?
     private(set) var isLoading = false
     private(set) var hasSession = false
     private(set) var lastSync: Date?
@@ -302,8 +304,28 @@ final class FriendsService {
             }
             self.people = Dictionary(cards.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             self.friends = cards.filter { friendIDs.contains($0.id) }.sorted { $0.weekMinutes > $1.weekMinutes }
+            self.awardGroupWins(me: uid)
             self.lastSync = Date()
         }
+    }
+
+    // MARK: Group prizes
+
+    /// Last week's group winners: whoever studied the most (ties included) gets 100 rockets, once per group per week
+    private func awardGroupWins(me: UUID) {
+        let thisWeek = Cal.weekStart(Date())
+        guard let lastWeek = Cal.persian.date(byAdding: .day, value: -7, to: thisWeek) else { return }
+        let days = (0..<7).compactMap { Cal.persian.date(byAdding: .day, value: $0, to: lastWeek) }
+        let myMinutes = Int(store.studyTime(in: DateInterval(start: lastWeek, end: thisWeek)) / 60)
+        guard myMinutes > 0 else { return }
+        var won: [String] = []
+        for g in groups where g.members.count >= 2 {
+            let best = g.members.filter { $0 != me }
+                .map { id in days.reduce(0) { $0 + (people[id]?.minutes(on: $1) ?? 0) } }
+                .max() ?? 0
+            if myMinutes >= best, store.recordGroupWin(group: g.id, weekStart: lastWeek) { won.append(g.name) }
+        }
+        if !won.isEmpty { groupPrize = "🏆 You studied the most last week in \(won.joined(separator: ", ")): +\(AppStore.groupWinRockets * won.count) rockets!" }
     }
 
     // MARK: Sync my data

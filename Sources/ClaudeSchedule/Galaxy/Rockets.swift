@@ -60,7 +60,22 @@ extension AppStore {
     var rocketsFromStudy: Int { Int(sessions.reduce(0) { $0 + $1.duration } / 3600 * Double(Self.rocketsPerHour)) }
     var rocketsFromBonuses: Int { weekBonuses().reduce(0) { $0 + $1.rockets } }
     var rocketsSpent: Int { purchases.reduce(0) { $0 + $1.price } }
-    var rocketBalance: Int { Self.startingRockets + rocketGrant + rocketsFromStudy + rocketsFromBonuses - rocketsSpent }
+    /// Prize for studying the most in a group in a finished week
+    static let groupWinRockets = 100
+    var rocketsFromGroups: Int { groupWins.count * Self.groupWinRockets }
+
+    var rocketBalance: Int {
+        Self.startingRockets + rocketGrant + rocketsFromStudy + rocketsFromBonuses + rocketsFromGroups - rocketsSpent
+    }
+
+    /// Record a weekly group win once; returns true if it's new
+    @discardableResult
+    func recordGroupWin(group: UUID, weekStart: Date) -> Bool {
+        let key = "\(group.uuidString)|\(Cal.dayKey(weekStart))"
+        guard !groupWins.contains(key) else { return false }
+        groupWins.append(key)
+        return true
+    }
 
     /// Developer tool: make the balance exactly `target` (stored as a one-off grant)
     func setRocketBalance(_ target: Int) {

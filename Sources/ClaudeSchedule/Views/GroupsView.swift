@@ -21,6 +21,18 @@ struct GroupsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if let prize = friends.groupPrize {
+                HStack {
+                    Text(prize).font(.headline)
+                    Spacer()
+                    Button("Nice!") { friends.groupPrize = nil }
+                }
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.18)))
+            }
+            Label("Each week, whoever studies the most in a group wins \(AppStore.groupWinRockets) rockets (paid after Friday).",
+                  systemImage: "trophy")
+                .font(.callout).foregroundStyle(.secondary)
             HStack(alignment: .top, spacing: 14) {
                 Card(title: "New group", systemImage: "person.3") {
                     HStack {

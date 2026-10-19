@@ -173,6 +173,7 @@ Studying earns **rockets** 🚀, the store currency:
 - Everyone starts with **200** rockets.
 - **10 rockets** for every hour you study.
 - A **weekly bonus** when Friday ends: 10h → 50, 15h → 70, 20h → 100, 25h → 120, 30h → 150, more than 30h → 200.
+- **100 rockets** for every group where you studied the most that week (ties included).
 
 Spend them on special planets (100–1000 rockets, by rarity: Common, Rare, Epic, Legendary). Each has its own little story — dinosaurs walking on Jurassic World, penguins on Penguin Pole, rockets, UFOs, stations and asteroid belts in orbit. Bought planets wait in **My Galaxy → Your Store Planets** until you place them. Everyone gets **3 refund tickets** to give a planet back for its full price.
 
