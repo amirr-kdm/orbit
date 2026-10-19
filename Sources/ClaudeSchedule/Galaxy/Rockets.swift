@@ -129,7 +129,8 @@ extension AppStore {
     /// Put an already-bought planet back into the galaxy (free)
     @discardableResult
     func placeOwned(_ planetID: String, into systemID: UUID?) -> Bool {
-        guard unplacedCount(planetID) > 0, let target = systemWithRoom(systemID) else { return false }
+        guard unplacedCount(planetID) > 0, galaxyProgress().credits > 0,
+              let target = systemWithRoom(systemID) else { return false }
         galaxy.append(PlacedPlanet(planetID: planetID, systemID: target.id))
         return true
     }

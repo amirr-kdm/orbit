@@ -94,10 +94,9 @@ extension AppStore {
         let currentWeek = Cal.weekStart(now)
         let weekHours = studyTime(in: DateInterval(start: currentWeek, end: now.addingTimeInterval(1))) / 3600
         let level = min(GalaxyProgress.maxLevel, 1 + Int(total / GalaxyProgress.hoursPerLevel))
-        // Bought planets don't use up level credits
-        let levelPlanets = galaxy.filter { !(PlanetCatalog.planet($0.planetID)?.isStoreItem ?? false) }.count
+        // One planet spot per level, shared by collection and store planets
         return GalaxyProgress(level: level, totalHours: total, weekHours: weekHours,
-                              credits: max(0, level - levelPlanets), placed: galaxy.count)
+                              credits: max(0, level - galaxy.count), placed: galaxy.count)
     }
 
     func planets(in system: SolarSystem) -> [PlacedPlanet] {

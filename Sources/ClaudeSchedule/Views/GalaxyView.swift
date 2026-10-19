@@ -253,7 +253,9 @@ struct GalaxyPage: View {
                             Text(waiting > 0 ? "\(waiting) waiting · \(placed) placed" : "All \(placed) placed")
                                 .font(.caption2).foregroundStyle(.secondary)
                             Button(waiting > 0 ? "Place" : "Placed ✓") {
-                                if store.placeOwned(p.id, into: targetSystem) {
+                                if store.galaxyProgress().credits == 0 {
+                                    showToast("No free planet spot. Reach level \(store.galaxyProgress().level + 1) for one more.")
+                                } else if store.placeOwned(p.id, into: targetSystem) {
                                     showToast("\(p.name) joined your galaxy ✨")
                                 } else {
                                     showToast("That solar system is full. Pick another or create one.")
@@ -262,6 +264,12 @@ struct GalaxyPage: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
                             .disabled(waiting == 0)
+                            Button(store.avatarPlanet == p.id ? "Profile ✓" : "Use as Profile") {
+                                store.avatarPlanet = p.id
+                                showToast("\(p.name) is your profile picture")
+                            }
+                            .controlSize(.small)
+                            .disabled(store.avatarPlanet == p.id)
                         }
                         .frame(width: 130)
                         .padding(10)
@@ -271,7 +279,7 @@ struct GalaxyPage: View {
                     }
                 }
             }
-            Text("Buy planets in the Store, then place them here. Removing a store planet from a system keeps it on this shelf.")
+            Text("Placing uses one of your planet spots (one per level — \(store.galaxyProgress().credits) free now). Removing a store planet from a system keeps it on this shelf.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
