@@ -21,6 +21,8 @@ struct WeekBonus: Identifiable {
 /// The balance is always worked out from your study history, minus what you spent.
 extension AppStore {
     static let rocketsPerHour = 10
+    /// Everyone starts with this many rockets
+    static let startingRockets = 200
 
     /// Bonus for a finished week's study hours
     static func weeklyBonus(hours: Double) -> Int {
@@ -58,7 +60,12 @@ extension AppStore {
     var rocketsFromStudy: Int { Int(sessions.reduce(0) { $0 + $1.duration } / 3600 * Double(Self.rocketsPerHour)) }
     var rocketsFromBonuses: Int { weekBonuses().reduce(0) { $0 + $1.rockets } }
     var rocketsSpent: Int { purchases.reduce(0) { $0 + $1.price } }
-    var rocketBalance: Int { rocketsFromStudy + rocketsFromBonuses - rocketsSpent }
+    var rocketBalance: Int { Self.startingRockets + rocketGrant + rocketsFromStudy + rocketsFromBonuses - rocketsSpent }
+
+    /// Developer tool: make the balance exactly `target` (stored as a one-off grant)
+    func setRocketBalance(_ target: Int) {
+        rocketGrant += target - rocketBalance
+    }
 
     func ownedCount(_ planetID: String) -> Int { purchases.filter { $0.planetID == planetID }.count }
     func placedCount(_ planetID: String) -> Int { galaxy.filter { $0.planetID == planetID }.count }

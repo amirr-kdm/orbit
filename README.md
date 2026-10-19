@@ -58,7 +58,8 @@ Windows 10 / 11 · 64-bit
 | ⏱ **Study timer** | Stopwatch or Pomodoro; every session is saved |
 | 📊 **Reports & calendar** | Weekly and monthly charts, a month calendar in Persian or Gregorian |
 | 🌌 **My Galaxy** | Level up by studying, collect 50 planets and build solar systems |
-| 👥 **Friends** | Leaderboard, who's studying now, subject breakdowns and visits to each other's galaxies |
+| 🛍 **Store** | Earn rockets by studying and buy 40+ special planets (Mac) |
+| 👥 **Friends & groups** | Leaderboard, who's studying now, study groups with join codes and friend requests |
 | 🔒 **Private** | Your schedule and tasks stay on your computer; only daily totals are shared |
 
 ---
@@ -154,7 +155,7 @@ Choose **Stopwatch** or **Pomodoro**, pick what you're studying, then **Start �
 </tr>
 </table>
 
-- **Levels:** everyone starts at level 1. At the end of each week (Sat → Fri), **10 h** of study = **+1 level** and **20 h** = **+2 levels**. Max level 50.
+- **Levels:** everyone starts at level 1 and gets **+1 level for every 3 hours** studied, straight away. Max level 50. *(The Windows app still uses the older weekly rule.)*
 - **Planets:** one new planet per level. 50 planets in 10 groups; a new group unlocks every 5 levels (1, 6, 11 … 46).
 - **Solar systems:** up to 8 planets each, with stars that unlock as you level up (Yellow Sun, Red Giant, Blue Star, White Dwarf, Twin Stars, Pulsar).
 - **Map:** drag to explore, zoom, and click a system to fly in. Any planet can be your **profile picture**.
@@ -165,6 +166,16 @@ Choose **Stopwatch** or **Pomodoro**, pick what you're studying, then **Start �
 <img src="docs/planets.png" alt="All 50 planets" width="100%">
 </details>
 
+### 🛍 Store (Mac)
+
+Studying earns **rockets** 🚀, the store currency:
+
+- Everyone starts with **200** rockets.
+- **10 rockets** for every hour you study.
+- A **weekly bonus** when Friday ends: 10h → 50, 15h → 70, 20h → 100, 25h → 120, 30h → 150, more than 30h → 200.
+
+Spend them on special planets (100–1000 rockets, by rarity: Common, Rare, Epic, Legendary). Each has its own little story — dinosaurs walking on Jurassic World, penguins on Penguin Pole, rockets, UFOs, stations and asteroid belts in orbit. Bought planets wait in **My Galaxy → Your Store Planets** until you place them. Everyone gets **3 refund tickets** to give a planet back for its full price.
+
 ### 👥 Friends
 
 <img src="docs/screenshots/friends.png" alt="Friends" width="100%">
@@ -173,6 +184,8 @@ Choose **Stopwatch** or **Pomodoro**, pick what you're studying, then **Start �
 2. Share your **6-character friend code**; add theirs under **Add a friend**.
 
 You'll see who's **studying right now**, a weekly **leaderboard** with levels and 🔥 streaks (click a row for a subject-by-subject breakdown and their **Galaxy**), and friend cards with 7-day charts.
+
+**Groups (Mac):** open the **Groups** tab, create a group and share its code, or join one with a code. Everyone in a group sees the group's weekly leaderboard and who's studying now. Members who aren't your friends yet have an **Add Friend** button; they get a request they can accept or decline.
 
 ### ⚙️ Settings
 

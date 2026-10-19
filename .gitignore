@@ -8,3 +8,6 @@ Resources/Supabase.plist
 # Original artwork dropped in the root (copied to Resources/icon-source.jpeg)
 /icon.jpeg
 .claude/
+
+# Store art for personal builds only (not redistributable)
+Resources/art-local/

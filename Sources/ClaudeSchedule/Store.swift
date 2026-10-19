@@ -57,6 +57,8 @@ final class AppStore {
     var purchases: [Purchase] = [] { didSet { save() } }
     /// Refund tickets used (everyone gets 3)
     var refundsUsed = 0 { didSet { save() } }
+    /// Extra rockets given outside of studying (e.g. a gift)
+    var rocketGrant = 0 { didSet { save() } }
 
     @ObservationIgnored let fileURL: URL
     @ObservationIgnored private var isLoading = false
@@ -72,6 +74,7 @@ final class AppStore {
         var scheduleSkipped: Set<String> = []
         var purchases: [Purchase] = []
         var refundsUsed = 0
+        var rocketGrant = 0
         var galaxy: [PlacedPlanet] = []
         var avatarPlanet: String?
         var solarSystems: [SolarSystem] = []
@@ -80,8 +83,9 @@ final class AppStore {
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
              galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner],
-             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int) {
+             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int) {
             self.refundsUsed = refundsUsed
+            self.rocketGrant = rocketGrant
             self.scheduleSkipped = scheduleSkipped
             self.purchases = purchases
             self.solarSystems = solarSystems
@@ -109,6 +113,7 @@ final class AppStore {
             scheduleSkipped = try c.decodeIfPresent(Set<String>.self, forKey: .scheduleSkipped) ?? []
             purchases = try c.decodeIfPresent([Purchase].self, forKey: .purchases) ?? []
             refundsUsed = try c.decodeIfPresent(Int.self, forKey: .refundsUsed) ?? 0
+            rocketGrant = try c.decodeIfPresent(Int.self, forKey: .rocketGrant) ?? 0
             galaxy = try c.decodeIfPresent([PlacedPlanet].self, forKey: .galaxy) ?? []
             avatarPlanet = try c.decodeIfPresent(String.self, forKey: .avatarPlanet)
             solarSystems = try c.decodeIfPresent([SolarSystem].self, forKey: .solarSystems) ?? []
@@ -135,6 +140,8 @@ final class AppStore {
         load()
         normalizeSchedule()
         if categories.isEmpty { seedCategories() }
+        // Developer tool: CS_SET_ROCKETS=1000 sets the rocket balance once
+        if let target = ProcessInfo.processInfo.environment["CS_SET_ROCKETS"].flatMap(Int.init) { setRocketBalance(target) }
         ensureHomeSystem()
     }
 
@@ -158,6 +165,7 @@ final class AppStore {
             scheduleSkipped = snap.scheduleSkipped
             purchases = snap.purchases
             refundsUsed = snap.refundsUsed
+            rocketGrant = snap.rocketGrant
             galaxy = snap.galaxy
             avatarPlanet = snap.avatarPlanet
             solarSystems = snap.solarSystems
@@ -180,7 +188,8 @@ final class AppStore {
                             schedule: schedule, scheduleDone: scheduleDone, scheduleMoved: scheduleMoved,
                             galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
                             planners: planners, scheduleSkipped: scheduleSkipped,
-                            purchases: purchases, refundsUsed: refundsUsed)
+                            purchases: purchases, refundsUsed: refundsUsed,
+                            rocketGrant: rocketGrant)
         do {
             try encoder.encode(snap).write(to: fileURL, options: .atomic)
         } catch {

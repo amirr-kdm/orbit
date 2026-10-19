@@ -44,6 +44,11 @@ extension PlanetDef {
 }
 
 extension PlanetCatalog {
+    /// Store items whose picture is in this build (personal-only art is missing from release builds)
+    static var storeAvailable: [PlanetDef] {
+        store.filter { p in p.image.map { PlanetPainter.bundleImage($0) != nil } ?? true }
+    }
+
     /// Store planets you buy with rockets. Kept apart from the 50 level planets.
     /// Each one is a little world with a story: who lives there and what flies around it.
     static let store: [PlanetDef] = [
@@ -168,6 +173,12 @@ extension PlanetCatalog {
                   colors: ["#F5D0FE", "#A855F7", "#3B0764"], pattern: .waves, accent: "#FDE047",
                   ring: .init(color: "#E9D5FF", tilt: -24, width: 0.14), moons: 2, features: [.crown], glow: true,
                   crafts: [.satellite, .stars], price: 970),
+        PlanetDef(id: "s3_meteor", name: "Meteor Strike", level: 1, blurb: "A blazing pixel meteor on a collision course.",
+                  colors: ["#FDE047", "#F97316", "#7C2D12"], accent: "#FB923C", glow: true, price: 720, image: "meteor"),
+        PlanetDef(id: "s3_satellite", name: "Deep Space Probe", level: 1, blurb: "An old pixel probe still sending postcards home.",
+                  colors: ["#99F6E4", "#14B8A6", "#134E4A"], accent: "#5EEAD4", glow: true, price: 540, image: "satellite"),
+        PlanetDef(id: "s3_impact", name: "Comet Impact", level: 1, blurb: "The moment a comet meets a blue world.",
+                  colors: ["#FDE68A", "#F59E0B", "#1E3A8A"], accent: "#FCD34D", glow: true, price: 960, image: "gaia"),
         PlanetDef(id: "s_aliens", name: "Alien Visitors", level: 1, blurb: "Two little green friends dropped by in their pixel saucer.",
                   colors: ["#BEF264", "#4ADE80", "#14532D"], accent: "#86EFAC", glow: true, price: 990, image: "ufo"),
         PlanetDef(id: "s2_hub", name: "Galactic Hub", level: 1, blurb: "The busiest port in space: ships come and go all day.",
@@ -413,7 +424,11 @@ extension PlanetPainter {
         let bob = sin(phase * .pi * 2) * r * 0.08
         let side = r * 3.3
         let rect = CGRect(x: c.x - side / 2, y: c.y - side / 2 + bob, width: side, height: side)
-        // Tractor beam
+        guard p.image == "ufo" else {
+            ctx.draw(Image(nsImage: img).interpolation(.none), in: rect)
+            return
+        }
+        // Tractor beam (UFO only)
         var beam = Path()
         beam.move(to: CGPoint(x: c.x - r * 0.35, y: c.y + r * 0.25 + bob))
         beam.addLine(to: CGPoint(x: c.x + r * 0.35, y: c.y + r * 0.25 + bob))

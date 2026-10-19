@@ -7,7 +7,7 @@ struct StoreView: View {
     @State private var opened: PlanetDef?
 
     private var items: [PlanetDef] {
-        PlanetCatalog.store.filter { rarity == nil || $0.rarity == rarity }.sorted { $0.price < $1.price }
+        PlanetCatalog.storeAvailable.filter { rarity == nil || $0.rarity == rarity }.sorted { $0.price < $1.price }
     }
 
     var body: some View {
