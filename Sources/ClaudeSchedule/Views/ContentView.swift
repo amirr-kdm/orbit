@@ -1,13 +1,14 @@
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case today, schedule, timer, tasks, calendar, reports, galaxy, friends, settings
+    case today, schedule, planner, timer, tasks, calendar, reports, galaxy, friends, settings
 
     var id: String { rawValue }
     var title: String {
         switch self {
         case .today: "Today"
         case .schedule: "Weekly Schedule"
+        case .planner: "Planner"
         case .timer: "Timer"
         case .tasks: "Tasks"
         case .calendar: "Calendar"
@@ -21,6 +22,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: "checklist"
         case .schedule: "tablecells"
+        case .planner: "square.and.pencil"
         case .timer: "timer"
         case .tasks: "tray.full"
         case .calendar: "calendar"
@@ -52,6 +54,7 @@ struct ContentView: View {
             switch router.selection ?? .today {
             case .today: TodayView()
             case .schedule: WeeklyScheduleView()
+            case .planner: PlannerView()
             case .timer: TimerView()
             case .tasks: TasksView()
             case .calendar: CalendarView()

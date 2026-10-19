@@ -52,7 +52,8 @@ Windows 10 / 11 · 64-bit
 
 | | |
 |---|---|
-| 📅 **Weekly schedule** | Even/odd weeks, colours, categories, repeat rules and a live "Now / Next" card |
+| 📅 **Weekly schedule** | Even/odd weeks, custom colours, categories, repeat rules and a live "Now / Next" card |
+| 📝 **Planner** | Draft weeks with brainstorm notes (rich text, checklists, tables), then add them to your schedule |
 | ✅ **Tasks** | Daily to-do list plus Day, Week and List views with drag and drop |
 | ⏱ **Study timer** | Stopwatch or Pomodoro; every session is saved |
 | 📊 **Reports & calendar** | Weekly and monthly charts, a month calendar in Persian or Gregorian |
@@ -90,12 +91,24 @@ Days run down the side (Saturday → Friday) and time slots across the top.
 |---|---|
 | Add / edit a cell | Click and type. **Enter** saves, **Shift+Enter** adds a line, **Esc** cancels. |
 | Clear a cell | Delete its text and press Enter, or right-click → **Clear Cell**. |
-| Colour | Pick a swatch in the bottom toolbar. |
+| Colour | Pick a swatch in the bottom toolbar. **+** creates your own colour; right-click a swatch to delete it. |
 | Type | **Fixed** = classes and appointments. **To-do** = something to study (also listed in Today and Tasks). |
 | Category | Toolbar or right-click. Saved with timer sessions and used by filters. |
 | Repeat | **Every week**, **Even weeks**, **Odd weeks** or **This week only**. |
 | Other weeks | ◀ ▶ next to the title. Right-click the **EVEN / ODD WEEK** badge to swap parity. |
 | Tick off / study | Click the circle in a To-do cell, or right-click → **Study This Now**. |
+
+### 📝 Planner (Mac)
+
+Create as many planners as you like (for example "Midterm week" or "Summer plan"). Each one has:
+
+- **A weekly plan** with the same days and time slots as your schedule. Class times from the weekly schedule are **locked**, so you can only plan around them. Use **This week / Next week** to choose which week's classes are locked.
+- **Notes & brainstorm**: any number of notes with titles, headings, bold / italic / underline, colours and highlights, bulleted, numbered and **checklists** (click a box to tick it), divider lines and **tables** (use *Table Options…* to add rows and columns or merge cells).
+
+Press **Add to Weekly Schedule…**, then choose the week and how it repeats. If some planned to-dos land on cells that already have a to-do, Orbit lists the clashes and asks what to do:
+- **Replace the old to-dos** with the planner's,
+- **Keep the old to-dos**, skipping only the clashing planner to-dos and adding the rest, or
+- **Cancel**.
 
 ### ☀️ Today & ✅ Tasks
 
@@ -112,6 +125,7 @@ Days run down the side (Saturday → Friday) and time slots across the top.
 - **Week**: a column per day. **Drag** cards between days; moving a schedule to-do moves only that day's session. Undated tasks wait in the **No date** tray.
 - **Day**: one day in detail.
 - **List**: filters (Today, Upcoming, No Date, All Open, Done) and search.
+- **Graph** (Mac): an Obsidian-style map where every category is a hub with its tasks and weekly to-dos around it. Drag nodes, pinch to zoom, hover to highlight connections, and click an item to tick it off or study it.
 
 ### ⏱ Timer
 
@@ -129,7 +143,7 @@ Choose **Stopwatch** or **Pomodoro**, pick what you're studying, then **Start �
 </table>
 
 **Calendar** shows each day's to-dos, classes and study time; click a day for details, double-click to plan it in Tasks.
-**Reports** shows totals, daily average, best day, a per-subject bar chart and a subject donut, weekly or monthly.
+**Reports** shows totals, daily average, best day, a per-subject bar chart, a subject donut and the to-dos **left undone** in the period, weekly or monthly.
 
 ### 🌌 My Galaxy
 
@@ -229,7 +243,8 @@ build.sh                  Builds and packages Orbit.app
 | Variable (Mac) | Effect |
 |---|---|
 | `CS_DATA_DIR=/path` | Use a separate data folder and Friends sign-in |
-| `CS_START_TAB=galaxy` | Open on a screen (`today`, `schedule`, `timer`, `tasks`, `calendar`, `reports`, `galaxy`, `friends`, `settings`) |
+| `CS_START_TAB=galaxy` | Open on a screen (`today`, `schedule`, `planner`, `timer`, `tasks`, `calendar`, `reports`, `galaxy`, `friends`, `settings`) |
+| `CS_TASKS_MODE=graph` | Open Tasks in a view (`day`, `week`, `list`, `graph`) |
 | `CS_RENDER_PLANETS=/path.png` | Render all 50 planets and quit |
 | `CS_RENDER_SYSTEM=/path.png` | Render a sample solar system and quit |
 

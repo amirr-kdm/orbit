@@ -172,6 +172,27 @@ struct ReportsView: View {
                     }
                 }
 
+                let undone = unfinished(days: days)
+                Card(title: "Left undone this \(period.name)", systemImage: "exclamationmark.circle") {
+                    if undone.isEmpty {
+                        Text(days.first.map { $0 > Date() } ?? false ? "This \(period.name) hasn't started yet."
+                             : "Everything planned so far was done 🎉")
+                            .foregroundStyle(.secondary).font(.callout)
+                    } else {
+                        Text("\(undone.count) to-do\(undone.count == 1 ? "" : "s") planned for days that have already started weren't ticked off.")
+                            .font(.callout).foregroundStyle(.secondary)
+                        ForEach(undone) { u in
+                            HStack {
+                                Image(systemName: "circle").foregroundStyle(u.color)
+                                Text(u.title).lineLimit(1)
+                                Text(u.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Spacer()
+                                Text(Fmt.date(u.day, "EEE, MMM d", kind)).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
                 if !completedTasks.isEmpty {
                     Card(title: "Tasks completed this \(period.name)", systemImage: "checkmark.circle") {
                         ForEach(completedTasks.sorted { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }) { t in
@@ -191,6 +212,26 @@ struct ReportsView: View {
             .padding(24)
         }
         .navigationTitle("Reports")
+    }
+
+    private struct Undone: Identifiable {
+        let id: String
+        let title: String
+        let detail: String
+        let color: Color
+        let day: Date
+    }
+
+    /// Schedule to-dos and dated tasks in the period, on days up to today, that were never ticked off
+    private func unfinished(days: [Date]) -> [Undone] {
+        var out: [Undone] = []
+        for day in days where day <= Date() {
+            for t in store.todos(on: day) where !t.isDone {
+                out.append(Undone(id: "\(t.id)|\(Cal.dayKey(day))", title: t.title, detail: t.detail,
+                                  color: t.color, day: day))
+            }
+        }
+        return out
     }
 
     /// How many schedule to-dos were ticked off in the period (only counting days up to today)

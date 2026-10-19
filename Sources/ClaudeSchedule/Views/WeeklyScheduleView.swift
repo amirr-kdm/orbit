@@ -31,9 +31,6 @@ struct WeeklyScheduleView: View {
         Cal.persian.date(byAdding: .day, value: 7 * weekOffset, to: Date()) ?? Date()
     }
 
-    static let palette: [String] = ["#FFFFFF", "#FF6B6B", "#FFA94D", "#FFD43B", "#69DB7C",
-                                    "#4DABF7", "#7C6CF2", "#F783AC", "#94A3B8"]
-
     private var template: ScheduleTemplate { store.settings.template }
     private var style: TemplateStyle { template.style }
     private var font: FontChoice { store.settings.font }
@@ -337,10 +334,8 @@ struct WeeklyScheduleView: View {
         @Bindable var store = store
         return HStack(spacing: 14) {
             HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    swatch(nil)
-                    ForEach(Self.palette, id: \.self) { swatch($0) }
-                }
+                CellPaletteBar(selection: editing != nil ? editColor : (selectedEntry?.colorHex ?? paletteColor),
+                               onPick: applyColor)
 
                 divider
 
@@ -454,34 +449,6 @@ struct WeeklyScheduleView: View {
         Rectangle().fill(Color.primary.opacity(0.12)).frame(width: 1, height: 20)
     }
 
-    private func swatch(_ hex: String?) -> some View {
-        let current = editing != nil ? editColor : (selectedEntry?.colorHex ?? paletteColor)
-        let isOn = current == hex
-        return Button {
-            applyColor(hex)
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(hex.map { AnyShapeStyle(Color(hex: $0).gradient) }
-                          ?? AnyShapeStyle(Color(hex: template.defaultCellColor).opacity(0.25)))
-                    .frame(width: 20, height: 20)
-                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.15)))
-                if hex == nil {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.secondary)
-                }
-                Circle()
-                    .strokeBorder(isOn ? style.accent : Color.clear, lineWidth: 2)
-                    .frame(width: 26, height: 26)
-            }
-            .scaleEffect(isOn ? 1.08 : 1)
-            .animation(.spring(duration: 0.25), value: isOn)
-        }
-        .buttonStyle(.plain)
-        .help(hex == nil ? "Template colour" : "Colour")
-    }
-
     // MARK: Context menu
 
     @ViewBuilder
@@ -509,7 +476,7 @@ struct WeeklyScheduleView: View {
             }
             Menu("Colour") {
                 Button("Template colour") { store.updateEntry(entry.id) { $0.colorHex = nil } }
-                ForEach(Self.palette, id: \.self) { hex in
+                ForEach(store.settings.cellPalette, id: \.self) { hex in
                     Button(hex) { store.updateEntry(entry.id) { $0.colorHex = hex } }
                 }
             }

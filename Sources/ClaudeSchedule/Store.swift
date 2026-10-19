@@ -47,6 +47,7 @@ final class AppStore {
     /// Planet used as my profile picture
     var avatarPlanet: String? { didSet { save() } }
     var solarSystems: [SolarSystem] = [] { didSet { save() } }
+    var planners: [Planner] = [] { didSet { save() } }
 
     @ObservationIgnored let fileURL: URL
     @ObservationIgnored private var isLoading = false
@@ -62,11 +63,13 @@ final class AppStore {
         var galaxy: [PlacedPlanet] = []
         var avatarPlanet: String?
         var solarSystems: [SolarSystem] = []
+        var planners: [Planner] = []
 
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
-             galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem]) {
+             galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner]) {
             self.solarSystems = solarSystems
+            self.planners = planners
             self.scheduleMoved = scheduleMoved
             self.galaxy = galaxy
             self.avatarPlanet = avatarPlanet
@@ -90,6 +93,7 @@ final class AppStore {
             galaxy = try c.decodeIfPresent([PlacedPlanet].self, forKey: .galaxy) ?? []
             avatarPlanet = try c.decodeIfPresent(String.self, forKey: .avatarPlanet)
             solarSystems = try c.decodeIfPresent([SolarSystem].self, forKey: .solarSystems) ?? []
+            planners = try c.decodeIfPresent([Planner].self, forKey: .planners) ?? []
         }
     }
 
@@ -134,6 +138,7 @@ final class AppStore {
             galaxy = snap.galaxy
             avatarPlanet = snap.avatarPlanet
             solarSystems = snap.solarSystems
+            planners = snap.planners
         } catch {
             // Never throw a broken file away – keep a copy next to it
             let backup = fileURL.deletingLastPathComponent()
@@ -150,7 +155,8 @@ final class AppStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let snap = Snapshot(tasks: tasks, categories: categories, sessions: sessions, settings: settings,
                             schedule: schedule, scheduleDone: scheduleDone, scheduleMoved: scheduleMoved,
-                            galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems)
+                            galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
+                            planners: planners)
         do {
             try encoder.encode(snap).write(to: fileURL, options: .atomic)
         } catch {

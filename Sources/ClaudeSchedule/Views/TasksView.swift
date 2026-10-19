@@ -16,13 +16,14 @@ enum TaskFilter: String, CaseIterable, Identifiable {
 }
 
 enum TasksMode: String, CaseIterable, Identifiable {
-    case day, week, list
+    case day, week, list, graph
     var id: String { rawValue }
     var title: String {
         switch self {
         case .day: "Day"
         case .week: "Week"
         case .list: "List"
+        case .graph: "Graph"
         }
     }
     var icon: String {
@@ -30,6 +31,7 @@ enum TasksMode: String, CaseIterable, Identifiable {
         case .day: "sun.max"
         case .week: "calendar.day.timeline.left"
         case .list: "list.bullet"
+        case .graph: "point.3.connected.trianglepath.dotted"
         }
     }
 }
@@ -37,7 +39,8 @@ enum TasksMode: String, CaseIterable, Identifiable {
 struct TasksView: View {
     @Environment(AppStore.self) private var store
     @Environment(Router.self) private var router
-    @State private var mode: TasksMode = .week
+    // CS_TASKS_MODE=graph opens a given view (handy for testing)
+    @State private var mode: TasksMode = ProcessInfo.processInfo.environment["CS_TASKS_MODE"].flatMap(TasksMode.init(rawValue:)) ?? .week
     @State private var anchor = Date()
     @State private var filter: TaskFilter = .all
     @State private var categoryFilter: UUID?
@@ -53,6 +56,7 @@ struct TasksView: View {
             case .day: dayView
             case .week: weekView
             case .list: listView
+            case .graph: CategoryGraphView(categoryFilter: categoryFilter, search: search)
             }
         }
         .padding(20)
@@ -89,9 +93,11 @@ struct TasksView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 230)
+            .frame(width: 300)
 
-            if mode != .list {
+            if mode == .graph {
+                Text("Tasks and to-dos grouped by category").font(.headline)
+            } else if mode != .list {
                 HStack(spacing: 2) {
                     Button { shift(-1) } label: { Image(systemName: "chevron.left").frame(width: 24, height: 20) }
                         .help(mode == .day ? "Previous day" : "Previous week")

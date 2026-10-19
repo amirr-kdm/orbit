@@ -159,12 +159,48 @@ struct AppSettings: Codable, Equatable {
     var template: ScheduleTemplate = .aurora
     /// Start of a week that counts as "even"; every other week from it is odd
     var evenWeekAnchor: Date = AppSettings.defaultEvenAnchor
+    /// Colours offered for schedule and planner cells (add your own, delete any)
+    var cellPalette: [String] = AppSettings.defaultPalette
+
+    static let defaultPalette: [String] = ["#FFFFFF", "#FF6B6B", "#FFA94D", "#FFD43B", "#69DB7C",
+                                           "#4DABF7", "#7C6CF2", "#F783AC", "#94A3B8"]
 
     /// The week of Mehr 25 – Aban 1, 1405 (Oct 17–23, 2026) is an even week
     static let defaultEvenAnchor: Date = {
         let d = Cal.gregorian.date(from: DateComponents(year: 2026, month: 10, day: 18)) ?? Date()
         return Cal.weekStart(d)
     }()
+}
+
+// MARK: - Planner
+
+/// A rich-text note inside a planner (stored as RTF so tables and formatting survive)
+struct PlannerNote: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var title = "Note"
+    var rtf = Data()
+    var updatedAt = Date()
+}
+
+/// A draft week you can plan freely, take notes in, and later copy into the weekly schedule
+struct Planner: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var name: String
+    var createdAt = Date()
+    /// To-do cells of the planned week (same weekday / time-slot layout as the weekly schedule)
+    var entries: [ScheduleEntry] = []
+    var notes: [PlannerNote] = [PlannerNote(title: "Brainstorm")]
+
+    init(name: String) { self.name = name }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Planner"
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        entries = try c.decodeIfPresent([ScheduleEntry].self, forKey: .entries) ?? []
+        notes = try c.decodeIfPresent([PlannerNote].self, forKey: .notes) ?? []
+    }
 }
 
 // MARK: - Decoding tolerant of missing keys
@@ -216,6 +252,7 @@ extension AppSettings {
         font = (try? c.decodeIfPresent(FontChoice.self, forKey: .font)) ?? d.font
         template = (try? c.decodeIfPresent(ScheduleTemplate.self, forKey: .template)) ?? d.template
         evenWeekAnchor = try c.decodeIfPresent(Date.self, forKey: .evenWeekAnchor) ?? d.evenWeekAnchor
+        cellPalette = try c.decodeIfPresent([String].self, forKey: .cellPalette) ?? d.cellPalette
     }
 }
 
