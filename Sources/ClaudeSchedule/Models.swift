@@ -122,6 +122,8 @@ struct ScheduleEntry: Identifiable, Codable, Hashable {
     var recurrence: Recurrence = .weekly
     /// Start of the week for `.once` entries
     var weekStart: Date?
+    /// Free notes about this item (shown and edited in the Tasks graph)
+    var notes = ""
 
     /// First line of the cell, used as the to-do title
     var title: String {
@@ -268,6 +270,7 @@ extension ScheduleEntry {
         categoryID = try c.decodeIfPresent(UUID.self, forKey: .categoryID)
         recurrence = (try? c.decodeIfPresent(Recurrence.self, forKey: .recurrence)) ?? .weekly
         weekStart = try c.decodeIfPresent(Date.self, forKey: .weekStart)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
     }
 }
 

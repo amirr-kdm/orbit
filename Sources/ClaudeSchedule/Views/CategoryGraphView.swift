@@ -40,7 +40,11 @@ struct CategoryGraphView: View {
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
 
             if let id = selected, let node = sim.nodes.first(where: { $0.id == id }) {
-                details(node).frame(width: 260)
+                GraphDetails(node: node,
+                             items: sim.links.filter { sim.nodes[$0.0].id == node.id }.map { sim.nodes[$0.1] },
+                             select: { selected = $0 },
+                             close: { selected = nil })
+                    .frame(width: 300)
             }
         }
         .onAppear {
@@ -300,49 +304,237 @@ struct CategoryGraphView: View {
         .padding(8)
         .background(Capsule().fill(.regularMaterial))
     }
+}
+
+/// Everything about the clicked item: dates in both calendars, time, repeat rule, study time, and notes
+private struct GraphDetails: View {
+    @Environment(AppStore.self) private var store
+    @Environment(TimerEngine.self) private var timer
+    @Environment(Router.self) private var router
+    let node: GraphSim.Node
+    /// Items of a category hub
+    let items: [GraphSim.Node]
+    let select: (String) -> Void
+    let close: () -> Void
+
+    private var kind: CalendarKind { store.settings.primaryCalendar }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label(node.isHub ? "Category" : (node.isSchedule ? "Weekly to-do" : "Task"),
+                          systemImage: node.isHub ? "tag" : (node.isSchedule ? "tablecells" : "checklist"))
+                        .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(action: close) { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                        .buttonStyle(.plain).help("Close")
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Circle().fill(Color(hex: node.color)).frame(width: 12, height: 12)
+                    Text(node.title).font(.title3.weight(.bold)).fixedSize(horizontal: false, vertical: true)
+                }
+
+                switch node.ref {
+                case .task(let id): if let t = store.task(id) { taskInfo(t) }
+                case .schedule(let id): if let e = store.entry(id) { entryInfo(e) }
+                case nil: hubInfo
+                }
+            }
+            .padding(16)
+        }
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
+    }
+
+    // MARK: Weekly to-do
 
     @ViewBuilder
-    private func details(_ n: GraphSim.Node) -> some View {
-        Card(title: n.isHub ? "Category" : (n.isSchedule ? "Weekly to-do" : "Task"),
-             systemImage: n.isHub ? "tag" : (n.isSchedule ? "tablecells" : "checklist")) {
-            HStack {
-                Circle().fill(Color(hex: n.color)).frame(width: 12, height: 12)
-                Text(n.title).font(.headline)
-            }
-            if n.isHub {
-                let items = sim.links.filter { sim.nodes[$0.0].id == n.id }.map { sim.nodes[$0.1] }
-                Text("\(items.count) item\(items.count == 1 ? "" : "s"), \(items.filter(\.isDone).count) done")
-                    .font(.callout).foregroundStyle(.secondary)
-                ForEach(items, id: \.id) { i in
-                    Button { selected = i.id } label: {
-                        HStack {
-                            Image(systemName: i.isDone ? "checkmark.circle.fill" : "circle").foregroundStyle(Color(hex: i.color))
-                            Text(i.title).lineLimit(1)
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else if let ref = n.ref {
-                Text(n.detail).font(.callout).foregroundStyle(.secondary)
-                HStack {
-                    Button(n.isDone ? "Mark not done" : "Mark done") {
-                        if case .schedule(let id) = ref, let e = store.entry(id) {
-                            store.toggleDone(ref, on: store.occurrence(of: e))
-                        } else {
-                            store.toggleDone(ref, on: Date())
-                        }
-                    }
-                    Button("Study") {
-                        timer.select(ref)
-                        router.selection = .timer
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(timer.isActive)
-                }
-            }
-            Button("Close") { selected = nil }.buttonStyle(.borderless).font(.caption)
+    private func entryInfo(_ e: ScheduleEntry) -> some View {
+        let (day, when) = nextOccurrence(e)
+        let done = store.isDone(.schedule(e.id), on: day)
+        let slot = store.slot(e.slotID)
+
+        status(done ? "Done this week" : (day < Cal.persian.startOfDay(for: Date()) ? "Not done (day has passed)" : "To do"),
+               done ? .green : (day < Cal.persian.startOfDay(for: Date()) ? .orange : .accentColor))
+
+        section("When") {
+            row("calendar", when, Fmt.date(day, "EEEE, MMMM d", kind))
+            row("calendar.badge.clock", kind.other == .persian ? "Persian" : "Gregorian", Fmt.date(day, "MMMM d, y", kind.other))
+            if let slot { row("clock", "Time", "\(slot.title) · \(slot.endMinute - slot.startMinute) min") }
+            row(e.recurrence.icon, "Repeats", e.recurrence == .once
+                ? "Only the week of \(e.weekStart.map { Fmt.date($0, "MMM d", kind) } ?? "")" : e.recurrence.title)
+            row("tag", "Category", store.category(e.categoryID)?.name ?? "None")
         }
+        studied(.schedule(e.id))
+        if e.text.contains("\n") {
+            section("In the cell") { Text(e.text).font(.callout).foregroundStyle(.secondary).textSelection(.enabled) }
+        }
+        notes(Binding(get: { store.entry(e.id)?.notes ?? "" },
+                      set: { v in store.updateEntry(e.id) { $0.notes = v } }))
+        actions(.schedule(e.id), done: done) {
+            Button("Open in Schedule") { router.selection = .schedule }
+            Button("Open Day") { router.tasksFocusDate = day }
+        }
+    }
+
+    /// The next week this entry actually appears in (odd / even / one-week entries may skip this week)
+    private func nextOccurrence(_ e: ScheduleEntry) -> (Date, String) {
+        let labels = ["This week", "Next week", "In 2 weeks"]
+        for k in 0..<3 {
+            let ref = Cal.persian.date(byAdding: .day, value: 7 * k, to: Date()) ?? Date()
+            if store.applies(e, toWeekOf: ref) { return (store.occurrence(of: e, inWeekOf: ref), labels[k]) }
+        }
+        let ws = e.weekStart ?? Date()
+        return (store.occurrence(of: e, inWeekOf: ws), "Week of")
+    }
+
+    // MARK: Task
+
+    @ViewBuilder
+    private func taskInfo(_ t: TaskItem) -> some View {
+        let overdue = !t.isDone && (t.dueDate.map { $0 < Cal.persian.startOfDay(for: Date()) } ?? false)
+        status(t.isDone ? "Done\(t.completedAt.map { " · " + Fmt.date($0, "MMM d", kind) } ?? "")" : (overdue ? "Overdue" : "To do"),
+               t.isDone ? .green : (overdue ? .orange : .accentColor))
+
+        section("When") {
+            if let d = t.dueDate {
+                row("calendar", "Date", Fmt.date(d, "EEEE, MMMM d", kind))
+                row("calendar.badge.clock", kind.other == .persian ? "Persian" : "Gregorian", Fmt.date(d, "MMMM d, y", kind.other))
+                if t.hasTime { row("clock", "Time", "\(Fmt.time(d)) · \(t.estimatedMinutes) min") }
+            } else {
+                row("tray", "Date", "No date")
+            }
+            row("tag", "Category", store.category(t.categoryID)?.name ?? "None")
+            row("flag", "Priority", t.priority.title)
+            if !t.hasTime { row("hourglass", "Estimate", "\(t.estimatedMinutes) min") }
+            row("plus.circle", "Created", Fmt.date(t.createdAt, "MMM d, y", kind))
+        }
+        studied(.task(t.id))
+        notes(Binding(get: { store.task(t.id)?.notes ?? "" },
+                      set: { v in if var x = store.task(t.id) { x.notes = v; store.upsertTask(x) } }))
+        actions(.task(t.id), done: t.isDone) {
+            if let d = t.dueDate { Button("Open Day") { router.tasksFocusDate = d } }
+        }
+    }
+
+    // MARK: Category
+
+    @ViewBuilder
+    private var hubInfo: some View {
+        let catID = UUID(uuidString: String(node.id.dropFirst(4)))
+        let sessions = store.sessions.filter { $0.categoryID == catID }
+        let week = Cal.persian.dateInterval(of: .weekOfYear, for: Date())
+        section("Overview") {
+            row("list.bullet", "Items", "\(items.count)")
+            row("checkmark.circle", "Done", "\(items.filter(\.isDone).count)")
+            row("clock", "Studied", sessions.isEmpty ? "—" : Fmt.duration(sessions.reduce(0) { $0 + $1.duration }))
+            if let week {
+                let w = sessions.filter { week.contains($0.start) }.reduce(0) { $0 + $1.duration }
+                row("calendar", "This week", w > 0 ? Fmt.duration(w) : "—")
+            }
+        }
+        section("Items") {
+            ForEach(items, id: \.id) { i in
+                Button { select(i.id) } label: {
+                    HStack {
+                        Image(systemName: i.isDone ? "checkmark.circle.fill" : (i.isSchedule ? "square" : "circle"))
+                            .foregroundStyle(Color(hex: i.color))
+                        Text(i.title).lineLimit(1)
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: Pieces
+
+    @ViewBuilder
+    private func studied(_ ref: TodoRef) -> some View {
+        let list = store.sessions.filter { s in
+            switch ref {
+            case .schedule(let id): s.scheduleEntryID == id
+            case .task(let id): s.taskID == id
+            }
+        }
+        let week = Cal.persian.dateInterval(of: .weekOfYear, for: Date())
+        section("Study time") {
+            row("clock", "Total", list.isEmpty ? "Not studied yet" : Fmt.duration(list.reduce(0) { $0 + $1.duration }))
+            if !list.isEmpty {
+                if let week {
+                    let w = list.filter { week.contains($0.start) }.reduce(0) { $0 + $1.duration }
+                    row("calendar", "This week", w > 0 ? Fmt.duration(w) : "—")
+                }
+                row("number", "Sessions", "\(list.count)")
+                if let last = list.map(\.start).max() { row("clock.arrow.circlepath", "Last studied", Fmt.date(last, "EEE, MMM d", kind)) }
+            }
+        }
+    }
+
+    private func notes(_ text: Binding<String>) -> some View {
+        section("Notes") {
+            TextEditor(text: text)
+                .font(.callout)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 90)
+                .padding(6)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
+                .overlay(alignment: .topLeading) {
+                    if text.wrappedValue.isEmpty {
+                        Text("Add a note…").font(.callout).foregroundStyle(.tertiary).padding(11).allowsHitTesting(false)
+                    }
+                }
+        }
+    }
+
+    private func actions<Extra: View>(_ ref: TodoRef, done: Bool, @ViewBuilder extra: () -> Extra) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button(done ? "Mark not done" : "Mark done") {
+                    if case .schedule(let id) = ref, let e = store.entry(id) {
+                        store.toggleDone(ref, on: store.occurrence(of: e))
+                    } else {
+                        store.toggleDone(ref, on: Date())
+                    }
+                }
+                Button("Study") {
+                    timer.select(ref)
+                    router.selection = .timer
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(timer.isActive)
+            }
+            HStack { extra() }.buttonStyle(.borderless).font(.caption)
+        }
+    }
+
+    private func status(_ text: String, _ color: Color) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(color.opacity(0.14)))
+    }
+
+    private func section<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased()).font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
+            content()
+        }
+    }
+
+    private func row(_ icon: String, _ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: icon).frame(width: 16).foregroundStyle(.secondary)
+            Text(label).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value).multilineTextAlignment(.trailing)
+        }
+        .font(.callout)
     }
 }
 
