@@ -61,6 +61,21 @@ export interface Settings {
   accent: string;
   /** ISO start of a week that counts as "even" */
   evenWeekAnchor: string;
+  /** Colours offered for schedule and planner cells (add your own, delete any) */
+  cellPalette: string[];
+}
+
+/** A rich-text note inside a planner (HTML) */
+export interface PlannerNote { id: string; title: string; html: string; updatedAt: string }
+
+/** A draft week with brainstorm notes that can be copied into the weekly schedule */
+export interface Planner {
+  id: string;
+  name: string;
+  createdAt: string;
+  /** To-do cells of the planned week (same weekday / slot layout as the schedule) */
+  entries: ScheduleEntry[];
+  notes: PlannerNote[];
 }
 
 export interface AppData {
@@ -74,6 +89,7 @@ export interface AppData {
   galaxy: PlacedPlanet[];
   avatarPlanet?: string;
   solarSystems: SolarSystem[];
+  planners: Planner[];
 }
 
 export const uid = () =>
@@ -107,12 +123,14 @@ export function defaultData(): AppData {
       appearance: "system",
       accent: "#5B7CFA",
       evenWeekAnchor: anchor,
+      cellPalette: [...PALETTE],
     },
     schedule: [],
     scheduleDone: [],
     scheduleMoved: [],
     galaxy: [],
     solarSystems: [{ id: uid(), name: SYSTEM_NAMES[0], sun: "yellow" }],
+    planners: [],
   };
 }
 

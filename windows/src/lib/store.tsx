@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AppData, Category, defaultData, defaultSlots, EntryKind, PlacedPlanet, Recurrence, recurrencePriority,
+  AppData, Category, defaultData, PALETTE, Planner, PlannerNote, defaultSlots, EntryKind, PlacedPlanet, Recurrence, recurrencePriority,
   ScheduleEntry, SolarSystem, StudySession, SunType, SYSTEM_NAMES, TaskItem, TimeSlot, uid,
 } from "./model";
 import { addDays, dayKey, minuteOfDay, sameDay, startOfDay, weekDays, weekStart, weekdayIndex, weeksBetween } from "./dates";
@@ -11,7 +11,11 @@ const KEY = "orbit-data-v1";
 function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...defaultData(), ...JSON.parse(raw) };
+    if (raw) {
+      const def = defaultData(), saved = JSON.parse(raw);
+      // Fields added in later versions get their defaults
+      return { ...def, ...saved, settings: { ...def.settings, ...saved.settings } };
+    }
   } catch { /* fall through */ }
   return defaultData();
 }
@@ -112,6 +116,47 @@ export function subjectOf(d: AppData, s: StudySession): { name: string; color: s
 export function currentSlot(d: AppData, at = new Date()): TimeSlot | undefined {
   const m = minuteOfDay(at);
   return d.settings.timeSlots.find((s) => m >= s.startMinute && m < s.endMinute);
+}
+
+// ---------- Planner ----------
+
+/** The class (fixed cell) occupying a slot in the given week; planner cells there are locked */
+export function fixedAt(d: AppData, weekday: number, slotID: string, date: Date): ScheduleEntry | undefined {
+  const e = entryAt(d, weekday, slotID, date);
+  return e?.kind === "fixed" ? e : undefined;
+}
+
+export interface PlannerConflict { new: ScheduleEntry; old: ScheduleEntry }
+export type ConflictChoice = "replaceOld" | "keepOld";
+export interface ApplyResult { added: number; replaced: number; keptOld: number; skippedFixed: number }
+
+/** Planner to-dos that would land on a cell already showing a schedule to-do that week */
+export function plannerConflicts(d: AppData, p: Planner, date: Date): PlannerConflict[] {
+  return p.entries.flatMap((n) => {
+    if (fixedAt(d, n.weekday, n.slotID, date)) return [];
+    const old = entryAt(d, n.weekday, n.slotID, date);
+    return old && old.kind === "todo" ? [{ new: n, old }] : [];
+  }).sort((a, b) => a.new.weekday - b.new.weekday || (slotOf(d, a.new.slotID)?.startMinute ?? 0) - (slotOf(d, b.new.slotID)?.startMinute ?? 0));
+}
+
+/** Same rules as the Mac app: class cells are always skipped; clashes follow `choice`.
+ *  A one-week plan overrides an old repeating to-do for that week instead of deleting it. */
+export function applyPlannerTo(d: AppData, p: Planner, date: Date, recurrence: Recurrence, choice: ConflictChoice): ApplyResult {
+  const r: ApplyResult = { added: 0, replaced: 0, keptOld: 0, skippedFixed: 0 };
+  const week = weekStart(date).toISOString();
+  for (const n of p.entries) {
+    if (!n.text || !slotOf(d, n.slotID)) continue;
+    const old = entryAt(d, n.weekday, n.slotID, date);
+    if (old) {
+      if (old.kind === "fixed") { r.skippedFixed++; continue; }
+      if (choice === "keepOld") { r.keptOld++; continue; }
+      if (recurrence !== "once" || old.recurrence === "once") d.schedule = d.schedule.filter((e) => e.id !== old.id);
+      r.replaced++;
+    } else r.added++;
+    d.schedule.push({ id: uid(), weekday: n.weekday, slotID: n.slotID, text: n.text, colorHex: n.colorHex, kind: "todo",
+      categoryID: n.categoryID, recurrence, weekStart: recurrence === "once" ? week : undefined });
+  }
+  return r;
 }
 
 // ---------- Galaxy progress (same rules as the Mac app) ----------
@@ -238,6 +283,47 @@ function makeActions(update: Store["update"]) {
     deleteSlot: (id: string) => update((d) => {
       d.settings.timeSlots = d.settings.timeSlots.filter((s) => s.id !== id);
       d.schedule = d.schedule.filter((e) => e.slotID !== id);
+    }),
+
+    // cell colours
+    addColor: (hex: string) => update((d) => { if (!d.settings.cellPalette.includes(hex)) d.settings.cellPalette.push(hex); }),
+    removeColor: (hex: string) => update((d) => { d.settings.cellPalette = d.settings.cellPalette.filter((c) => c !== hex); }),
+    resetColors: () => update((d) => { d.settings.cellPalette = [...PALETTE]; }),
+
+    // planners
+    addPlanner: (): string => {
+      const id = uid();
+      update((d) => { d.planners.push({ id, name: `Planner ${d.planners.length + 1}`, createdAt: new Date().toISOString(), entries: [],
+        notes: [{ id: uid(), title: "Brainstorm", html: "", updatedAt: new Date().toISOString() }] }); });
+      return id;
+    },
+    updatePlanner: (id: string, fn: (p: Planner) => void) => update((d) => { const p = d.planners.find((x) => x.id === id); if (p) fn(p); }),
+    deletePlanner: (id: string) => update((d) => { d.planners = d.planners.filter((p) => p.id !== id); }),
+    duplicatePlanner: (id: string): string => {
+      const nid = uid();
+      update((d) => {
+        const p = d.planners.find((x) => x.id === id);
+        if (!p) return;
+        d.planners.push({ ...structuredClone(p), id: nid, name: `${p.name} copy`, createdAt: new Date().toISOString(),
+          entries: p.entries.map((e) => ({ ...e, id: uid() })), notes: p.notes.map((n): PlannerNote => ({ ...n, id: uid() })) });
+      });
+      return nid;
+    },
+    setPlannerCell: (plannerID: string, weekday: number, slotID: string, text: string, colorHex?: string, categoryID?: string) => update((d) => {
+      const p = d.planners.find((x) => x.id === plannerID);
+      if (!p) return;
+      const trimmed = text.trim();
+      const e = p.entries.find((x) => x.weekday === weekday && x.slotID === slotID);
+      if (e) {
+        if (!trimmed) p.entries = p.entries.filter((x) => x !== e);
+        else { e.text = trimmed; e.colorHex = colorHex; }
+      } else if (trimmed) {
+        p.entries.push({ id: uid(), weekday, slotID, text: trimmed, colorHex, kind: "todo", categoryID, recurrence: "weekly" });
+      }
+    }),
+    applyPlanner: (plannerID: string, date: Date, recurrence: Recurrence, choice: ConflictChoice) => update((d) => {
+      const p = d.planners.find((x) => x.id === plannerID);
+      if (p) applyPlannerTo(d, p, date, recurrence, choice);
     }),
 
     // galaxy

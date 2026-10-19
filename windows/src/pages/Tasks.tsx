@@ -5,13 +5,14 @@ import { addDays, isToday, monthDay, startOfDay, WEEKDAYS, WEEKDAYS_SHORT, weekD
 import { RECURRENCE_BADGE, TaskItem } from "../lib/model";
 import { categoryOf, parity, scheduleRows, ScheduleRow, slotTitle, tasksOn, titleOf, useStore } from "../lib/store";
 import { useTimer } from "../lib/timer";
+import Graph from "./Graph";
 
-type Mode = "week" | "day" | "list";
+type Mode = "week" | "day" | "list" | "graph";
 
 export default function Tasks() {
   const { data, actions } = useStore();
   const nav = useNav();
-  const [mode, setMode] = useState<Mode>("week");
+  const [mode, setMode] = useState<Mode>((new URLSearchParams(location.search).get("mode") as Mode) || "week");
   const [anchor, setAnchor] = useState(new Date());
   const [catFilter, setCatFilter] = useState("");
   const [editing, setEditing] = useState<TaskItem | null>(null);
@@ -27,8 +28,9 @@ export default function Tasks() {
   return (
     <div className="page">
       <div className="row">
-        <div className="seg">{(["day", "week", "list"] as Mode[]).map((m) => <button key={m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{m[0].toUpperCase() + m.slice(1)}</button>)}</div>
-        {mode !== "list" && <>
+        <div className="seg">{(["day", "week", "list", "graph"] as Mode[]).map((m) => <button key={m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{m[0].toUpperCase() + m.slice(1)}</button>)}</div>
+        {mode === "graph" && <b>Tasks and to-dos grouped by category</b>}
+        {mode !== "list" && mode !== "graph" && <>
           <div className="seg"><button onClick={() => shift(-1)}>‹</button><button onClick={() => setAnchor(new Date())}>Today</button><button onClick={() => shift(1)}>›</button></div>
           <b>{mode === "day" ? `${WEEKDAYS[weekdayIndex(anchor)]}, ${monthDay(anchor, kind)}` : `${monthDay(weekStart(anchor), kind)} – ${monthDay(addDays(weekStart(anchor), 6), kind)}`}</b>
           <span className="badge" style={{ background: parity(data, anchor) === "even" ? "var(--accent)" : "#F97316" }}>{parity(data, anchor) === "even" ? "EVEN WEEK" : "ODD WEEK"}</span>
@@ -52,6 +54,8 @@ export default function Tasks() {
       </>}
 
       {mode === "day" && <DayView day={anchor} matchRow={matchRow} matchTask={matchTask} onEdit={setEditing} inbox={inbox} />}
+
+      {mode === "graph" && <Graph catFilter={catFilter} />}
 
       {mode === "list" && <ListView matchTask={matchTask} onEdit={setEditing} />}
 

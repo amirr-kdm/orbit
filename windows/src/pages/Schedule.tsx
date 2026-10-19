@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNav } from "../App";
-import { useContextMenu, MenuItem } from "../components";
+import { CellPalette, useContextMenu, MenuItem } from "../components";
 import { addDays, dualDate, minuteOfDay, monthDay, WEEKDAYS, weekdayIndex, weekStart } from "../lib/dates";
-import { EntryKind, isLight, PALETTE, Recurrence, RECURRENCE_BADGE, RECURRENCE_TITLE, ScheduleEntry } from "../lib/model";
+import { EntryKind, isLight, Recurrence, RECURRENCE_BADGE, RECURRENCE_TITLE, ScheduleEntry } from "../lib/model";
 import { categoryOf, currentSlot, entryAt, isDone, parity, slotTitle, titleOf, useStore } from "../lib/store";
 import { useTimer } from "../lib/timer";
 
@@ -157,10 +157,7 @@ export default function Schedule() {
       </div>
 
       <div className="toolbar" onClick={(e) => e.stopPropagation()}>
-        <div className="row" style={{ gap: 6 }}>
-          <button className={`swatch ${curColor === undefined ? "on" : ""}`} title="Default colour" style={{ background: "transparent" }} onClick={() => applyColor(undefined)}>✨</button>
-          {PALETTE.map((p) => <button key={p} className={`swatch ${curColor === p ? "on" : ""}`} style={{ background: p }} onClick={() => applyColor(p)} />)}
-        </div>
+        <CellPalette selection={curColor} onPick={applyColor} />
         <div className="seg">
           {(["fixed", "todo"] as EntryKind[]).map((k) => <button key={k} className={kind === k ? "on" : ""} onClick={() => { setNewKind(k); if (selectedEntry) actions.updateEntry(selectedEntry.id, (x) => { x.kind = k; }); }}>{k === "fixed" ? "📌 Fixed" : "☑ To-do"}</button>)}
         </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { PlanetDef, paintPlanet, planetByID, paintSun, SUNS } from "./lib/planets";
 import { GalaxyData } from "./lib/friends";
+import { useStore } from "./lib/store";
 
 /** Draws a planet; set `animate` to spin its rings and moons */
 export function PlanetCanvas({ planet, size = 64, animate = false, locked = false }: { planet: PlanetDef; size?: number; animate?: boolean; locked?: boolean }) {
@@ -220,6 +221,37 @@ export function GalaxyMap({ data, height = 560, onSelect }: { data: GalaxyData; 
         <span className="small">🔍</span>
         <input type="range" min={0.35} max={1.3} step={0.01} value={zoom} onChange={(e) => setZoom(+e.target.value)} style={{ width: 120, padding: 0 }} />
       </div>
+    </div>
+  );
+}
+
+/** Cell colour swatches. "+" creates a custom colour; right-click a swatch to delete it. */
+export function CellPalette({ selection, onPick }: { selection?: string; onPick: (hex?: string) => void }) {
+  const { data, actions } = useStore();
+  const menu = useContextMenu();
+  const [adding, setAdding] = useState(false);
+  const [color, setColor] = useState("#22C55E");
+  return (
+    <div className="row" style={{ gap: 6, position: "relative" }} onClick={(e) => e.stopPropagation()}>
+      <button className={`swatch ${selection === undefined ? "on" : ""}`} title="Default colour" style={{ background: "transparent" }} onClick={() => onPick(undefined)}>✨</button>
+      {data.settings.cellPalette.map((p) => (
+        <button key={p} className={`swatch ${selection === p ? "on" : ""}`} style={{ background: p }} title={`${p} · right-click to delete`}
+          onClick={() => onPick(p)}
+          onContextMenu={(e) => menu.open(e, [{ label: "Use this colour", onClick: () => onPick(p) }, { separator: true }, { label: "Delete colour", onClick: () => actions.removeColor(p) }])} />
+      ))}
+      <button className="swatch add" title="Create a colour" onClick={() => setAdding((a) => !a)}>＋</button>
+      {adding && (
+        <div className="popover" style={{ top: 34, left: 0 }}>
+          <b>New colour</b>
+          <div className="row"><input type="color" value={color} onChange={(e) => setColor(e.target.value.toUpperCase())} style={{ width: 54, height: 34, padding: 2 }} />
+            <code className="small muted">{color.toUpperCase()}</code><span className="spacer" />
+            <button className="btn primary" onClick={() => { const hex = color.toUpperCase(); actions.addColor(hex); onPick(hex); setAdding(false); }}>Add</button></div>
+          <div className="row"><button className="btn small" onClick={actions.resetColors}>Restore default colours</button><span className="spacer" />
+            <button className="btn small" onClick={() => setAdding(false)}>Close</button></div>
+          <div className="small muted">Right-click any swatch to delete it. Cells keep their colour.</div>
+        </div>
+      )}
+      {menu.node}
     </div>
   );
 }

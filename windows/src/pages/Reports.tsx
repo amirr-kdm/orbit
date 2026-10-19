@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Stat } from "../components";
 import { addDays, dayNum, duration, monthDay, monthDays, monthName, shiftMonth, shortDuration, startOfDay, WEEKDAYS_SHORT, weekdayIndex, weekStart, yearNum } from "../lib/dates";
-import { scheduleRows, sessionsIn, subjectOf, useStore } from "../lib/store";
+import { scheduleRows, sessionsIn, subjectOf, todosOn, useStore } from "../lib/store";
 
 export default function Reports() {
   const { data } = useStore();
@@ -31,6 +31,8 @@ export default function Reports() {
   const completed = data.tasks.filter((t) => t.completedAt && new Date(t.completedAt) >= from && new Date(t.completedAt) < to);
   let sDone = 0, sTotal = 0;
   days.filter((d) => d <= new Date()).forEach((d) => { const r = scheduleRows(data, d, ["todo"]); sTotal += r.length; sDone += r.filter((x) => x.isDone).length; });
+  // To-dos on days that have already started which were never ticked off
+  const undone = days.filter((d) => d <= new Date()).flatMap((d) => todosOn(data, d).filter((t) => !t.isDone).map((t) => ({ ...t, day: d })));
   const pct = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   // donut
@@ -81,6 +83,13 @@ export default function Reports() {
               <div style={{ flex: 1 }}>{subjList.map(([n, v]) => <div key={n} className="row small" style={{ padding: "3px 0" }}><span className="dot" style={{ background: v.color }} />{n}<span className="spacer" /><b>{shortDuration(v.secs)}</b><span className="muted">({Math.round((v.secs / total) * 100)}%)</span></div>)}</div>
             </div>
           )}
+        </div>
+        <div className="card"><h3>⚠️ Left undone this {period}</h3>
+          {!undone.length ? <div className="muted">{days[0] > new Date() ? `This ${period} hasn't started yet.` : "Everything planned so far was done 🎉"}</div> : <>
+            <div className="small muted" style={{ marginBottom: 4 }}>{undone.length} to-do{undone.length === 1 ? "" : "s"} planned for days that have already started weren't ticked off.</div>
+            {undone.map((u) => <div key={`${u.ref.kind}:${u.ref.id}|${u.day.toDateString()}`} className="list-row"><span className="dot" style={{ background: u.color }} />
+              <div style={{ flex: 1 }}>{u.title} <span className="small muted">{u.detail}</span></div><span className="small muted">{monthDay(u.day, kind, true)}</span></div>)}
+          </>}
         </div>
         <div className="card"><h3>✅ Tasks completed</h3>
           {!completed.length && <div className="muted">No one-off tasks completed in this period.</div>}

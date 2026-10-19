@@ -98,7 +98,7 @@ Days run down the side (Saturday → Friday) and time slots across the top.
 | Other weeks | ◀ ▶ next to the title. Right-click the **EVEN / ODD WEEK** badge to swap parity. |
 | Tick off / study | Click the circle in a To-do cell, or right-click → **Study This Now**. |
 
-### 📝 Planner (Mac)
+### 📝 Planner
 
 Create as many planners as you like (for example "Midterm week" or "Summer plan"). Each one has:
 
@@ -125,7 +125,7 @@ Press **Add to Weekly Schedule…**, then choose the week and how it repeats. If
 - **Week**: a column per day. **Drag** cards between days; moving a schedule to-do moves only that day's session. Undated tasks wait in the **No date** tray.
 - **Day**: one day in detail.
 - **List**: filters (Today, Upcoming, No Date, All Open, Done) and search.
-- **Graph** (Mac): an Obsidian-style map where every category is a hub with its tasks and weekly to-dos around it. Drag nodes, pinch to zoom, hover to highlight connections, and click an item to tick it off or study it.
+- **Graph**: an Obsidian-style map where every category is a hub with its tasks and weekly to-dos around it. Drag nodes, pinch to zoom, hover to highlight connections, and click an item to tick it off or study it.
 
 ### ⏱ Timer
 
