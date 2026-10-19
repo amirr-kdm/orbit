@@ -593,24 +593,8 @@ private struct NotesPanel: View {
                 textTool("RTL", "Right to left (Persian / فارسی)") { controller.setDirection(rightToLeft: true) }
             }
             group {
-                Menu {
-                    Button("Default") { controller.setColor(nil) }
-                    ForEach(store.settings.cellPalette.filter { $0 != "#FFFFFF" }, id: \.self) { hex in
-                        Button { controller.setColor(NSColor(Color(hex: hex))) } label: {
-                            Label(hex, systemImage: "circle.fill").foregroundStyle(Color(hex: hex))
-                        }
-                    }
-                } label: { Image(systemName: "paintbrush.pointed") }
-                .menuStyle(.borderlessButton).fixedSize().help("Text colour")
-                Menu {
-                    Button("None") { controller.setColor(nil, background: true) }
-                    ForEach(store.settings.cellPalette.filter { $0 != "#FFFFFF" }, id: \.self) { hex in
-                        Button { controller.setColor(NSColor(Color(hex: hex)).withAlphaComponent(0.35), background: true) } label: {
-                            Label(hex, systemImage: "circle.fill").foregroundStyle(Color(hex: hex))
-                        }
-                    }
-                } label: { Image(systemName: "highlighter") }
-                .menuStyle(.borderlessButton).fixedSize().help("Highlight")
+                NoteColorButton(highlight: false, current: controller.textColor) { controller.setColor($0) }
+                NoteColorButton(highlight: true, current: controller.highlight) { controller.setColor($0, background: true) }
             }
             group {
                 Menu {
@@ -650,5 +634,98 @@ private struct NotesPanel: View {
         let n = PlannerNote(title: "Note \(notes.count + 1)")
         store.updatePlanner(plannerID) { $0.notes.append(n) }
         noteID = n.id
+    }
+}
+
+/// Text colour / highlight picker for notes: real swatches, the current colour, and custom colours
+private struct NoteColorButton: View {
+    @Environment(AppStore.self) private var store
+    let highlight: Bool
+    /// Colour at the cursor (nil = default text colour / no highlight)
+    let current: NSColor?
+    let apply: (NSColor?) -> Void
+
+    @State private var open = false
+    @State private var custom = Color(hex: "#22C55E")
+
+    /// Highlights are drawn see-through so the text stays readable
+    private func color(_ hex: String) -> NSColor {
+        let c = NSColor(Color(hex: hex))
+        return highlight ? c.withAlphaComponent(0.35) : c
+    }
+    private var currentHex: String? { current.map { Color(nsColor: $0.withAlphaComponent(1)).hexString } }
+
+    var body: some View {
+        Button { open.toggle() } label: {
+            VStack(spacing: 2) {
+                Image(systemName: highlight ? "highlighter" : "paintbrush.pointed")
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(current.map { Color(nsColor: $0.withAlphaComponent(1)) } ?? (highlight ? Color.clear : Color.primary))
+                    .overlay(RoundedRectangle(cornerRadius: 1.5).strokeBorder(Color.primary.opacity(current == nil && highlight ? 0.4 : 0), lineWidth: 0.5))
+                    .frame(width: 16, height: 3.5)
+            }
+            .frame(width: 30, height: 24)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help(highlight ? "Highlight" : "Text colour")
+        .popover(isPresented: $open, arrowEdge: .bottom) { picker }
+    }
+
+    private var picker: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(highlight ? "Highlight" : "Text colour").font(.headline)
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(28), spacing: 8), count: 6), spacing: 8) {
+                swatch(nil)
+                ForEach(store.settings.cellPalette.filter { highlight || $0 != "#FFFFFF" }, id: \.self) { swatch($0) }
+            }
+            Divider()
+            HStack {
+                ColorPicker("Custom colour", selection: $custom, supportsOpacity: false)
+                Spacer()
+                Button("Use") {
+                    let hex = custom.hexString
+                    if !store.settings.cellPalette.contains(hex) { store.settings.cellPalette.append(hex) }
+                    apply(color(hex))
+                    open = false
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            Text("Custom colours are saved with your other colours.")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .frame(width: 250)
+    }
+
+    private func swatch(_ hex: String?) -> some View {
+        let isOn = currentHex == hex
+        return Button {
+            apply(hex.map(color))
+            open = false
+        } label: {
+            ZStack {
+                if let hex {
+                    Circle().fill(Color(hex: hex).gradient)
+                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.15)))
+                } else {
+                    // Default text colour / no highlight
+                    Circle().strokeBorder(Color.primary.opacity(0.35), lineWidth: 1)
+                    Image(systemName: highlight ? "nosign" : "textformat")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                if isOn {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(hex.map { Color.isLight(hex: $0) ? Color.black : Color.white } ?? Color.accentColor)
+                }
+            }
+            .frame(width: 24, height: 24)
+            .padding(2)
+            .overlay(Circle().strokeBorder(isOn ? Color.accentColor : Color.clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+        .help(hex ?? (highlight ? "No highlight" : "Default colour"))
     }
 }

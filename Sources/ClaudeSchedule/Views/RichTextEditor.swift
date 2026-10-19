@@ -2,9 +2,25 @@ import AppKit
 import SwiftUI
 
 /// Sends formatting commands from the SwiftUI toolbar to the text view
-@MainActor
+@MainActor @Observable
 final class RichTextController {
-    weak var textView: NoteTextView?
+    @ObservationIgnored weak var textView: NoteTextView?
+    /// Colours at the cursor / selection (nil = default text, no highlight), shown on the toolbar
+    var textColor: NSColor?
+    var highlight: NSColor?
+
+    /// Reads the colours at the selection so the toolbar can show them
+    func refreshState() {
+        guard let tv = textView, let storage = tv.textStorage else { return }
+        let r = tv.selectedRange()
+        let attrs: [NSAttributedString.Key: Any] = r.length > 0 && r.location < storage.length
+            ? storage.attributes(at: r.location, effectiveRange: nil) : tv.typingAttributes
+        let fg = attrs[.foregroundColor] as? NSColor
+        let newText = (fg == nil || fg == NSColor.labelColor) ? nil : fg
+        let newHighlight = attrs[.backgroundColor] as? NSColor
+        if newText != textColor { textColor = newText }
+        if newHighlight != highlight { highlight = newHighlight }
+    }
 
     static let bodyFont = NSFont.systemFont(ofSize: 14)
     static var baseAttributes: [NSAttributedString.Key: Any] {
@@ -55,11 +71,14 @@ final class RichTextController {
         let range = tv.selectedRange()
         if range.length == 0 {
             tv.typingAttributes[key] = value
+            refreshState()
+            tv.window?.makeFirstResponder(tv)
             return
         }
         edit(range) { s in
             if let value { s.addAttribute(key, value: value, range: range) } else { s.removeAttribute(key, range: range) }
         }
+        refreshState()
     }
 
     /// Heading level 1 / 2, or 0 for body text, applied to the selected paragraphs
@@ -281,7 +300,7 @@ struct RichTextEditor: NSViewRepresentable {
     let controller: RichTextController
     let onSave: (UUID, Data) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onSave: onSave) }
+    func makeCoordinator() -> Coordinator { Coordinator(onSave: onSave, controller: controller) }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
@@ -332,7 +351,16 @@ struct RichTextEditor: NSViewRepresentable {
         private var pending: DispatchWorkItem?
         private var dirty = false
 
-        init(onSave: @escaping (UUID, Data) -> Void) { self.onSave = onSave }
+        let controller: RichTextController
+
+        init(onSave: @escaping (UUID, Data) -> Void, controller: RichTextController) {
+            self.onSave = onSave
+            self.controller = controller
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            controller.refreshState()
+        }
 
         func load(noteID: UUID, rtf: Data, into tv: NSTextView) {
             self.noteID = noteID
