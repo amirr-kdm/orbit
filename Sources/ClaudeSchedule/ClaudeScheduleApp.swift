@@ -5,6 +5,7 @@ struct ClaudeScheduleApp: App {
     @State private var store: AppStore
     @State private var timer: TimerEngine
     @State private var friends: FriendsService
+    @State private var account: AccountService
     @State private var router = Router()
 
     init() {
@@ -28,13 +29,16 @@ struct ClaudeScheduleApp: App {
         let store = AppStore()
         _store = State(initialValue: store)
         _timer = State(initialValue: TimerEngine(store: store))
-        _friends = State(initialValue: FriendsService(store: store))
+        let friends = FriendsService(store: store)
+        _friends = State(initialValue: friends)
+        _account = State(initialValue: AccountService(store: store, friends: friends))
     }
 
     var body: some Scene {
         WindowGroup("Orbit", id: "main") {
-            ContentView()
+            RootView()
                 .frame(minWidth: 1080, minHeight: 660)
+                .environment(account)
                 .environment(store)
                 .environment(timer)
                 .environment(router)

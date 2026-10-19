@@ -154,6 +154,19 @@ final class AppStore {
 
     private func load() {
         guard let data = try? Data(contentsOf: fileURL) else { return }
+        do {
+            try apply(data)
+        } catch {
+            // Never throw a broken file away – keep a copy next to it
+            let backup = fileURL.deletingLastPathComponent()
+                .appendingPathComponent("data-broken-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.copyItem(at: fileURL, to: backup)
+            NSLog("ClaudeSchedule: failed to load data: \(error)")
+        }
+    }
+
+    /// Replace everything in memory with a data file's contents
+    private func apply(_ data: Data) throws {
         isLoading = true
         defer { isLoading = false }
         do {
@@ -176,17 +189,34 @@ final class AppStore {
             avatarPlanet = snap.avatarPlanet
             solarSystems = snap.solarSystems
             planners = snap.planners
-        } catch {
-            // Never throw a broken file away – keep a copy next to it
-            let backup = fileURL.deletingLastPathComponent()
-                .appendingPathComponent("data-broken-\(Int(Date().timeIntervalSince1970)).json")
-            try? FileManager.default.copyItem(at: fileURL, to: backup)
-            NSLog("ClaudeSchedule: failed to load data: \(error)")
         }
     }
 
-    private func save() {
-        guard !isLoading else { return }
+    // MARK: Cloud backup hooks
+
+    /// Called after every successful save (the cloud backup listens to this)
+    @ObservationIgnored var onSaved: (() -> Void)?
+
+    /// The folder holding data.json
+    var dataFolder: URL { fileURL.deletingLastPathComponent() }
+
+    /// The whole data file, as saved on disk
+    func exportData() -> Data? { encodeSnapshot() }
+
+    /// Replace all data with a downloaded copy (the current file is kept next to it first)
+    @discardableResult
+    func restore(from data: Data, keepingBackupNamed backupName: String? = nil) -> Bool {
+        if let backupName, FileManager.default.fileExists(atPath: fileURL.path) {
+            try? FileManager.default.copyItem(at: fileURL, to: dataFolder.appendingPathComponent(backupName))
+        }
+        guard (try? apply(data)) != nil else { return false }
+        if categories.isEmpty { seedCategories() }
+        ensureHomeSystem()
+        save()
+        return true
+    }
+
+    private func encodeSnapshot() -> Data? {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -196,8 +226,15 @@ final class AppStore {
                             planners: planners, scheduleSkipped: scheduleSkipped,
                             purchases: purchases, refundsUsed: refundsUsed,
                             rocketGrant: rocketGrant, groupWins: groupWins)
+        return try? encoder.encode(snap)
+    }
+
+    private func save() {
+        guard !isLoading else { return }
+        guard let data = encodeSnapshot() else { return }
         do {
-            try encoder.encode(snap).write(to: fileURL, options: .atomic)
+            try data.write(to: fileURL, options: .atomic)
+            onSaved?()
         } catch {
             NSLog("ClaudeSchedule: failed to save data: \(error)")
         }

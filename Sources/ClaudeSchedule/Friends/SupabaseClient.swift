@@ -4,11 +4,17 @@ import Security
 /// Minimal Supabase client (Auth + PostgREST) over URLSession — no SDK needed.
 /// The signed-in session is kept in the Keychain.
 actor SupabaseClient {
+    /// One client for the whole app (accounts, friends and cloud backup share the sign-in)
+    static let shared = SupabaseClient()
+
     struct Session: Codable {
         var accessToken: String
         var refreshToken: String
         var expiresAt: Date
         var userID: UUID
+        /// nil for the old anonymous profiles (no email / password yet)
+        var email: String?
+        var isAnonymous: Bool { email == nil }
     }
 
     struct APIError: LocalizedError {
@@ -26,6 +32,7 @@ actor SupabaseClient {
     }
 
     var userID: UUID? { session?.userID }
+    var currentSession: Session? { session }
 
     // MARK: Auth
 
@@ -33,6 +40,37 @@ actor SupabaseClient {
     func signInAnonymously() async throws {
         let data = try await send("POST", "/auth/v1/signup", body: [String: String](), auth: false)
         try storeSession(from: data)
+    }
+
+    /// Create an account with email + password ("Confirm email" must be off on the server)
+    func signUp(email: String, password: String) async throws {
+        let data = try await send("POST", "/auth/v1/signup", body: ["email": email, "password": password], auth: false)
+        guard (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["access_token"] != nil else {
+            throw APIError(status: 400, message: "The server asks new accounts to confirm their email. Turn off “Confirm email” in Supabase → Authentication → Email.")
+        }
+        try storeSession(from: data)
+    }
+
+    func signIn(email: String, password: String) async throws {
+        let data = try await send("POST", "/auth/v1/token?grant_type=password",
+                                  body: ["email": email, "password": password], auth: false)
+        try storeSession(from: data)
+    }
+
+    /// Change the signed-in user's email and/or password. For an old anonymous profile this turns it into a
+    /// real account and keeps the same id, so friends, groups and stats stay.
+    func updateUser(email: String? = nil, password: String? = nil) async throws {
+        try await refreshIfNeeded()
+        var body: [String: String] = [:]
+        if let email { body["email"] = email }
+        if let password { body["password"] = password }
+        _ = try await send("PUT", "/auth/v1/user", body: body)
+        // Fetch a fresh token so the session carries the new email
+        guard let s = session else { return }
+        let data = try await send("POST", "/auth/v1/token?grant_type=refresh_token",
+                                  body: ["refresh_token": s.refreshToken], auth: false)
+        try storeSession(from: data)
+        if let email, session?.email == nil { session?.email = email; if let s = session { Keychain.save(s) } }
     }
 
     func signOut() {
@@ -50,7 +88,7 @@ actor SupabaseClient {
 
     private func storeSession(from data: Data) throws {
         struct AuthResponse: Decodable {
-            struct User: Decodable { let id: UUID }
+            struct User: Decodable { let id: UUID; let email: String? }
             let access_token: String
             let refresh_token: String
             let expires_in: Double
@@ -58,7 +96,8 @@ actor SupabaseClient {
         }
         let r = try JSONDecoder().decode(AuthResponse.self, from: data)
         let s = Session(accessToken: r.access_token, refreshToken: r.refresh_token,
-                        expiresAt: Date().addingTimeInterval(r.expires_in), userID: r.user.id)
+                        expiresAt: Date().addingTimeInterval(r.expires_in), userID: r.user.id,
+                        email: (r.user.email?.isEmpty ?? true) ? nil : r.user.email)
         session = s
         Keychain.save(s)
     }
@@ -93,6 +132,18 @@ actor SupabaseClient {
         _ = try await send("DELETE", "/rest/v1/\(path)", body: Optional<String>.none, prefer: "return=minimal")
     }
 
+    /// Raw request with a prebuilt JSON body (used for the cloud backup, which embeds the data file as-is)
+    func raw(_ method: String, _ path: String, json: Data?, prefer: String? = nil) async throws -> Data {
+        try await refreshIfNeeded()
+        return try await send(method, "/rest/v1/\(path)", body: Optional<String>.none, prefer: prefer, rawBody: json)
+    }
+
+    /// An RPC that works signed out too (e.g. checking if a username is free)
+    func rpcAnon<B: Encodable>(_ name: String, _ body: B) async throws -> Data {
+        if session != nil { try? await refreshIfNeeded() }
+        return try await send("POST", "/rest/v1/rpc/\(name)", body: body, auth: session != nil)
+    }
+
     func rpc<B: Encodable>(_ name: String, _ body: B) async throws -> Data {
         try await refreshIfNeeded()
         return try await send("POST", "/rest/v1/rpc/\(name)", body: body)
@@ -101,7 +152,7 @@ actor SupabaseClient {
     // MARK: HTTP
 
     private func send<B: Encodable>(_ method: String, _ path: String, body: B?, auth: Bool = true,
-                                    prefer: String? = nil) async throws -> Data {
+                                    prefer: String? = nil, rawBody: Data? = nil) async throws -> Data {
         guard let url = URL(string: base.absoluteString + path) else { throw APIError(status: 0, message: "Bad URL") }
         var req = URLRequest(url: url, timeoutInterval: 20)
         req.httpMethod = method
@@ -112,6 +163,7 @@ actor SupabaseClient {
         }
         if let prefer { req.setValue(prefer, forHTTPHeaderField: "Prefer") }
         if let body { req.httpBody = try Self.encoder.encode(body) }
+        if let rawBody { req.httpBody = rawBody }
 
         let (data, response) = try await URLSession.shared.data(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0

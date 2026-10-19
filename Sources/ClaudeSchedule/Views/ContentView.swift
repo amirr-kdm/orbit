@@ -41,6 +41,8 @@ struct ContentView: View {
     @Environment(TimerEngine.self) private var timer
     @Environment(AppStore.self) private var store
     @Environment(FriendsService.self) private var friends
+    @Environment(AccountService.self) private var account
+    @State private var showAdmin = false
 
     var body: some View {
         @Bindable var router = router
@@ -50,7 +52,10 @@ struct ContentView: View {
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 210)
             .safeAreaInset(edge: .bottom) {
-                if timer.isActive { miniTimer }
+                VStack(spacing: 0) {
+                    if timer.isActive { miniTimer }
+                    AccountChip()
+                }
             }
         } detail: {
             switch router.selection ?? .today {
@@ -65,6 +70,26 @@ struct ContentView: View {
             case .store: StoreView()
             case .friends: FriendsView()
             case .settings: SettingsView()
+            }
+        }
+        // The owner's admin panel (right side) — only for the admin account
+        .inspector(isPresented: Binding(get: { showAdmin && account.isAdmin }, set: { showAdmin = $0 })) {
+            AdminPanel().inspectorColumnWidth(min: 280, ideal: 320, max: 420)
+        }
+        .toolbar {
+            if account.isAdmin {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showAdmin.toggle() } label: {
+                        Label("Admin", systemImage: "crown")
+                            .overlay(alignment: .topTrailing) {
+                                if account.pendingCount > 0 {
+                                    Text("\(account.pendingCount)").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+                                        .padding(3).background(Circle().fill(.red)).offset(x: 8, y: -6)
+                                }
+                            }
+                    }
+                    .help("Admin: sign-ups and members (only you see this)")
+                }
             }
         }
         // App-wide look: template accent, font design, light/dark mode

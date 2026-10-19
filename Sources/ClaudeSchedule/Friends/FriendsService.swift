@@ -107,7 +107,7 @@ final class FriendsService {
     private(set) var lastSync: Date?
     var error: String?
 
-    @ObservationIgnored private let client = SupabaseClient()
+    @ObservationIgnored private let client = SupabaseClient.shared
     @ObservationIgnored private let store: AppStore
     @ObservationIgnored private var lastLiveSent: String??
     @ObservationIgnored private var lastStatsSent: [DailyStat] = []
@@ -127,6 +127,15 @@ final class FriendsService {
     }
 
     var isSetUp: Bool { me != nil }
+
+    /// Reload after signing in to an account
+    func reload() async {
+        hasSession = await client.userID != nil
+        lastExtrasSent = nil
+        lastStatsSent = []
+        if hasSession { await refresh() }
+        await syncNow()
+    }
 
     private func bootstrap() async {
         guard SupabaseConfig.isConfigured else { return }
