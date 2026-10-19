@@ -10,11 +10,12 @@ import Tasks from "./pages/Tasks";
 import Calendar from "./pages/Calendar";
 import Reports from "./pages/Reports";
 import Galaxy from "./pages/Galaxy";
+import StorePage from "./pages/Store";
 import Friends from "./pages/Friends";
 import Settings from "./pages/Settings";
 import iconUrl from "./icon.png";
 
-export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "friends" | "settings";
+export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "settings";
 const TABS: { id: Tab; title: string; icon: string }[] = [
   { id: "today", title: "Today", icon: "☀️" },
   { id: "schedule", title: "Weekly Schedule", icon: "🗓️" },
@@ -24,6 +25,7 @@ const TABS: { id: Tab; title: string; icon: string }[] = [
   { id: "calendar", title: "Calendar", icon: "📆" },
   { id: "reports", title: "Reports", icon: "📊" },
   { id: "galaxy", title: "My Galaxy", icon: "✨" },
+  { id: "store", title: "Store", icon: "🛍️" },
   { id: "friends", title: "Friends", icon: "👥" },
   { id: "settings", title: "Settings", icon: "⚙️" },
 ];
@@ -53,7 +55,7 @@ export default function App() {
   useEffect(() => { document.title = timer.active ? `⏱ ${clock(timer.display)} · Orbit` : "Orbit"; }, [timer.active, timer.display]);
 
   const nav: Nav = { tab, go: (t, d) => { setTab(t); setFocusDay(d); }, focusDay, clearFocus: () => setFocusDay(undefined) };
-  const Page = { today: Today, schedule: Schedule, planner: PlannerPage, timer: TimerPage, tasks: Tasks, calendar: Calendar, reports: Reports, galaxy: Galaxy, friends: Friends, settings: Settings }[tab];
+  const Page = { today: Today, schedule: Schedule, planner: PlannerPage, timer: TimerPage, tasks: Tasks, calendar: Calendar, reports: Reports, galaxy: Galaxy, store: StorePage, friends: Friends, settings: Settings }[tab];
 
   return (
     <NavCtx.Provider value={nav}>

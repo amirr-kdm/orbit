@@ -18,6 +18,8 @@ export interface TaskItem {
   hasTime: boolean;
   estimatedMinutes: number;
   isDone: boolean;
+  /** Given up: won't be done */
+  isSkipped?: boolean;
   createdAt: string;
   completedAt?: string;
 }
@@ -34,7 +36,12 @@ export interface ScheduleEntry {
   categoryID?: string;
   recurrence: Recurrence;
   weekStart?: string; // ISO, for "once"
+  /** Free notes (edited in the Tasks graph) */
+  notes?: string;
 }
+
+/** A store planet bought with rockets */
+export interface Purchase { id: string; planetID: string; price: number; date: string }
 
 export interface StudySession {
   id: string;
@@ -90,6 +97,14 @@ export interface AppData {
   avatarPlanet?: string;
   solarSystems: SolarSystem[];
   planners: Planner[];
+  /** Schedule to-dos given up on a day, keyed "entryID|yyyy-MM-dd" */
+  scheduleSkipped: string[];
+  purchases: Purchase[];
+  refundsUsed: number;
+  /** Extra rockets given outside of studying */
+  rocketGrant: number;
+  /** Weeks you studied the most in a group, keyed "groupID|yyyy-MM-dd" */
+  groupWins: string[];
 }
 
 export const uid = () =>
@@ -131,6 +146,11 @@ export function defaultData(): AppData {
     galaxy: [],
     solarSystems: [{ id: uid(), name: SYSTEM_NAMES[0], sun: "yellow" }],
     planners: [],
+    scheduleSkipped: [],
+    purchases: [],
+    refundsUsed: 0,
+    rocketGrant: 0,
+    groupWins: [],
   };
 }
 

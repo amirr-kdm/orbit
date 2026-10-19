@@ -112,11 +112,12 @@ function OccCard({ r }: { r: ScheduleRow }) {
     <div className="bcard" draggable style={{ ["--c" as string]: r.entry.colorHex ?? c?.colorHex ?? "var(--accent)" }}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", `occ:${r.entry.id}|${r.date.getTime()}`)} title="Drag to another day to move just this session"
       onContextMenu={(e) => menu.open(e, [{ label: r.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone(ref, r.date) },
+        { label: r.isSkipped ? "Bring back to to-do" : "Skip (won't do)", onClick: () => actions.setSkipped(ref, r.date, !r.isSkipped) },
         { label: "▶ Study now", disabled: timer.active, onClick: () => { timer.setTarget(ref); nav.go("timer"); } }, { separator: true },
         ...moveMenu(r.date, (d) => actions.moveOccurrence(r.entry.id, r.date, d))])}>
-      <button className={`check ${r.isDone ? "done" : ""}`} onClick={() => actions.toggleDone(ref, r.date)}>{r.isDone ? "✓" : ""}</button>
+      <button className={`check ${r.isDone ? "done" : ""}`} style={r.isSkipped ? { background: "#F97316", borderColor: "#F97316" } : undefined} onClick={() => actions.tapStatus(ref, r.date)}>{r.isSkipped ? "✕" : r.isDone ? "✓" : ""}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className={r.isDone ? "strike" : ""} style={{ fontWeight: 500 }}>{titleOf(r.entry)}</div>
+        <div className={r.isDone || r.isSkipped ? "strike" : ""} style={{ fontWeight: 500 }}>{titleOf(r.entry)}</div>
         <div className="small muted">{slotTitle(r.slot)} {RECURRENCE_BADGE[r.entry.recurrence] ? <b>{RECURRENCE_BADGE[r.entry.recurrence]}</b> : c?.name}</div>
       </div>
       {menu.node}
@@ -133,11 +134,12 @@ function TaskCard({ t, onEdit }: { t: TaskItem; onEdit: (t: TaskItem) => void })
     <div className="bcard" draggable style={{ ["--c" as string]: c?.colorHex ?? "#8E8E93" }} onDragStart={(e) => e.dataTransfer.setData("text/plain", `task:${t.id}`)}
       onDoubleClick={() => onEdit(t)}
       onContextMenu={(e) => menu.open(e, [{ label: "Edit", onClick: () => onEdit(t) }, { label: t.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone({ kind: "task", id: t.id }, from) },
+        { label: t.isSkipped ? "Bring back to to-do" : "Skip (won't do)", onClick: () => actions.setSkipped({ kind: "task", id: t.id }, from, !t.isSkipped) },
         { label: "▶ Study now", disabled: timer.active, onClick: () => { timer.setTarget({ kind: "task", id: t.id }); nav.go("timer"); } }, { separator: true },
         ...moveMenu(from, (d) => actions.moveTask(t.id, d)), { separator: true }, { label: "Delete", onClick: () => actions.deleteTask(t.id) }])}>
-      <button className={`check ${t.isDone ? "done" : ""}`} onClick={() => actions.toggleDone({ kind: "task", id: t.id }, from)}>{t.isDone ? "✓" : ""}</button>
+      <button className={`check ${t.isDone ? "done" : ""}`} style={t.isSkipped ? { background: "#F97316", borderColor: "#F97316" } : undefined} onClick={() => actions.tapStatus({ kind: "task", id: t.id }, from)}>{t.isSkipped ? "✕" : t.isDone ? "✓" : ""}</button>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className={t.isDone ? "strike" : ""} style={{ fontWeight: 500 }}>{t.title}</div>
+        <div className={t.isDone || t.isSkipped ? "strike" : ""} style={{ fontWeight: 500 }}>{t.title}</div>
         <div className="small muted">{t.hasTime && t.dueDate ? new Date(t.dueDate).toTimeString().slice(0, 5) + " " : ""}{c?.name}{t.priority === 2 ? " 🚩" : ""}</div>
       </div>
       {menu.node}

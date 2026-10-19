@@ -3,6 +3,8 @@ import { Avatar, GalaxyMap, LevelBadge, Modal, SystemCanvas } from "../component
 import { dayKey, duration, isToday, shortDuration, WEEKDAYS_SHORT, weekDays, weekdayIndex } from "../lib/dates";
 import { FriendCard, minutesOn, streak, studyingNow, supabaseConfigured, useFriends, weekMinutes, weekSubjects } from "../lib/friends";
 import { SUNS } from "../lib/planets";
+import { GROUP_WIN_ROCKETS } from "../lib/store";
+import { RocketIcon } from "./Store";
 import { useStore } from "../lib/store";
 
 export default function Friends() {
@@ -14,6 +16,8 @@ export default function Friends() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [galaxy, setGalaxy] = useState<FriendCard | null>(null);
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<number>(() => Number(localStorage.getItem("friends-tab") ?? 0));
+  useEffect(() => { localStorage.setItem("friends-tab", String(tab)); }, [tab]);
 
   useEffect(() => { const t = setInterval(f.refresh, 45_000); return () => clearInterval(t); }, [f.refresh]);
 
@@ -66,6 +70,22 @@ export default function Friends() {
 
       {f.error && <div style={{ color: "#ef4444" }}>⚠️ {f.error}</div>}
 
+      {f.incoming.length > 0 && (
+        <div className="card"><h3>🙋 Friend requests</h3>
+          {f.incoming.map((id) => { const c = f.people[id]; const g = f.groups.find((x) => x.members.includes(id)); return (
+            <div key={id} className="list-row"><Avatar name={c?.profile.name ?? "?"} planet={c?.profile.avatar} size={30} color="#F97316" />
+              <div style={{ flex: 1 }}><b>{c?.profile.name ?? "Someone"}</b>{g && <div className="small muted">From your group {g.name}</div>}</div>
+              <button className="btn primary small" onClick={() => f.respond(id, true)}>Accept</button>
+              <button className="btn small" onClick={() => f.respond(id, false)}>Decline</button></div>); })}
+        </div>
+      )}
+
+      <div className="seg" style={{ alignSelf: "flex-start" }}>
+        <button className={tab === 0 ? "on" : ""} onClick={() => setTab(0)}>Friends ({f.friends.length})</button>
+        <button className={tab === 1 ? "on" : ""} onClick={() => setTab(1)}>Groups ({f.groups.length})</button>
+      </div>
+
+      {tab === 1 ? <Groups mine={mine} onGalaxy={setGalaxy} /> : <>
       {live.length > 0 && (
         <div className="card"><h3>📡 Studying right now</h3>
           {live.map((x) => <div key={x.profile.id} className="row" style={{ padding: "4px 0" }}><Avatar name={x.profile.name} planet={x.profile.avatar} size={28} color="#22C55E" />
@@ -87,7 +107,8 @@ export default function Friends() {
                 <Avatar name={x.profile.name} planet={x.profile.avatar} size={34} color={x.isMe ? "var(--accent)" : undefined} />
                 <div style={{ flex: 1 }}>
                   <div className="row"><b>{x.profile.name}{x.isMe ? " (you)" : ""}</b><LevelBadge level={x.profile.level ?? 1} />{studyingNow(x) && <span className="dot" style={{ background: "#22C55E" }} />}
-                    <span className="spacer" />{streak(x) > 0 && <span>🔥 {streak(x)}</span>}<b style={{ width: 80, textAlign: "right" }}>{duration(weekMinutes(x) * 60)}</b></div>
+                    <span className="spacer" />{streak(x) > 0 && <span>🔥 {streak(x)}</span>}
+                    {x.profile.rockets !== undefined && <span title="Rockets"><RocketIcon size={15} /> {x.profile.rockets}</span>}<b style={{ width: 80, textAlign: "right" }}>{duration(weekMinutes(x) * 60)}</b></div>
                   <div className="progress" style={{ marginTop: 5 }}><div style={{ width: `${(weekMinutes(x) / top) * 100}%`, background: x.isMe ? undefined : "#94A3B8" }} /></div>
                 </div>
               </div>
@@ -96,6 +117,8 @@ export default function Friends() {
           );
         })}
       </div>
+
+      </>}
 
       <div className="row small muted"><span>🔒 Only daily totals are shared. Your schedule, tasks and notes stay on this computer.</span><span className="spacer" />
         {f.lastSync && <span>Synced {f.lastSync.toTimeString().slice(0, 5)}</span>}
@@ -160,5 +183,75 @@ function FriendGalaxy({ card, onClose }: { card: FriendCard; onClose: () => void
         : count === 0 ? <div className="space" style={{ height: 520, display: "grid", placeItems: "center" }}>No planets yet ✨</div>
         : <GalaxyMap data={data} height={520} onSelect={setFocus} />}
     </Modal>
+  );
+}
+
+/** Study groups: create one, share its code, see everyone's progress, send friend requests */
+function Groups({ mine, onGalaxy }: { mine: FriendCard | null; onGalaxy: (c: FriendCard) => void }) {
+  const f = useFriends();
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(localStorage.getItem("selected-group"));
+  const g = f.groups.find((x) => x.id === sel) ?? f.groups[0];
+  const myID = f.me?.id;
+  const cards = g ? g.members.map((id) => (id === myID ? mine : f.people[id])).filter((c): c is FriendCard => !!c).sort((a, b) => weekMinutes(b) - weekMinutes(a)) : [];
+  const top = Math.max(1, ...cards.map(weekMinutes));
+  const pick = (id: string) => { setSel(id); localStorage.setItem("selected-group", id); };
+
+  const friendButton = (id: string) => {
+    if (f.isFriend(id)) return <span className="small" style={{ color: "#22C55E" }}>✓ Friend</span>;
+    if (f.incoming.includes(id)) return <><button className="btn primary small" onClick={() => f.respond(id, true)}>Accept</button><button className="btn small" onClick={() => f.respond(id, false)}>Decline</button></>;
+    if (f.outgoing.includes(id)) return <button className="btn small" title="Cancel the request" onClick={() => f.cancelRequest(id)}>Requested ✕</button>;
+    return <button className="btn small" onClick={() => f.sendRequest(id)}>＋ Add friend</button>;
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {f.groupPrize && <div className="card row" style={{ background: "rgba(250,204,21,.18)" }}><b>{f.groupPrize}</b><span className="spacer" /><button className="btn small" onClick={f.clearPrize}>Nice!</button></div>}
+      <div className="small muted">🏆 Each week, whoever studies the most in a group wins {GROUP_WIN_ROCKETS} rockets (paid after Friday).</div>
+      <div className="grid2">
+        <div className="card"><h3>👥 New group</h3>
+          <div className="row"><input style={{ flex: 1 }} placeholder="Group name, e.g. IELTS crew" value={name} onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { f.createGroup(name); setName(""); } }} />
+            <button className="btn primary" disabled={!name.trim()} onClick={() => { f.createGroup(name); setName(""); }}>Create</button></div>
+          <div className="small muted" style={{ marginTop: 6 }}>You'll get a code to share. Everyone who joins sees each other's study time.</div>
+        </div>
+        <div className="card"><h3>🔑 Join a group</h3>
+          <div className="row"><input style={{ flex: 1, fontFamily: "monospace" }} placeholder="Group code" value={code} onChange={(e) => setCode(e.target.value)} />
+            <button className="btn primary" disabled={code.trim().length < 4} onClick={async () => { const n = await f.joinGroup(code); if (n) { setCode(""); setNote(`You joined ${n} 🎉`); } }}>Join</button></div>
+          <div className="small" style={{ marginTop: 6, color: note ? "var(--accent)" : "var(--muted)" }}>{note ?? "Ask a friend for their group's code."}</div>
+        </div>
+      </div>
+      {!f.groups.length ? <div className="card muted" style={{ textAlign: "center", padding: 30 }}>No groups yet. Create one for your class or study buddies, or join one with a code.</div> : <>
+        <div className="row" style={{ flexWrap: "wrap" }}>
+          {f.groups.map((x) => <button key={x.id} className={`btn ${x.id === g?.id ? "primary" : ""}`} style={{ borderRadius: 99 }} onClick={() => pick(x.id)}>👥 {x.name} · {x.members.length}</button>)}
+        </div>
+        {g && <div className="card">
+          <div className="row" style={{ marginBottom: 10 }}>
+            <div><h2 style={{ margin: 0 }}>{g.name}</h2><div className="small muted">{g.members.length} member{g.members.length === 1 ? "" : "s"}{g.owner === myID ? " · you created it" : ""}</div></div>
+            <span className="spacer" />
+            <span style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 800, letterSpacing: 3 }}>{g.code}</span>
+            <button className="btn small" onClick={() => navigator.clipboard.writeText(g.code)}>Copy code</button>
+            <button className="btn small danger" onClick={() => confirm(`Leave ${g.name}? You can join again with the code.`) && f.leaveGroup(g.id)}>Leave</button>
+          </div>
+          <h3>🏆 This week in {g.name}</h3>
+          {cards.map((x, i) => (
+            <div key={x.profile.id} className="list-row">
+              <span style={{ width: 28, textAlign: "center", fontSize: i < 3 ? 20 : 14 }}>{i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>
+              <Avatar name={x.profile.name} planet={x.profile.avatar} size={32} color={x.isMe ? "var(--accent)" : undefined} />
+              <div style={{ flex: 1 }}>
+                <div className="row"><b>{x.profile.name}{x.isMe ? " (you)" : ""}</b><LevelBadge level={x.profile.level ?? 1} />{studyingNow(x) && <span className="small" style={{ color: "#22C55E" }}>● {studyingNow(x)}</span>}
+                  <span className="spacer" />{streak(x) > 0 && <span>🔥 {streak(x)}</span>}{x.profile.rockets !== undefined && <span><RocketIcon size={14} /> {x.profile.rockets}</span>}
+                  <b style={{ width: 70, textAlign: "right" }}>{duration(weekMinutes(x) * 60)}</b></div>
+                <div className="progress" style={{ marginTop: 4 }}><div style={{ width: `${(weekMinutes(x) / top) * 100}%` }} /></div>
+              </div>
+              <button className="btn small" onClick={() => onGalaxy(x)}>✨</button>
+              {!x.isMe && friendButton(x.profile.id)}
+            </div>
+          ))}
+        </div>}
+      </>}
+    </div>
   );
 }

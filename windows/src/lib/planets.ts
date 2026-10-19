@@ -1,3 +1,4 @@
+import { STORE, type Craft } from "./storePlanets";
 // The 50 planets — same catalogue and look as the Mac app, drawn on an HTML canvas.
 
 type Shape = "circle" | "heart" | "star" | "cube" | "donut" | "diamond" | "hexagon" | "egg" | "cloud" | "flower"
@@ -12,6 +13,8 @@ export interface PlanetDef {
   id: string; name: string; group: number; blurb: string;
   shape?: Shape; colors: [string, string, string]; pattern?: Pattern; accent?: string;
   ring?: Ring; moons?: number; emoji?: string; features?: Feature[]; glow?: boolean;
+  /** Store planets: price in rockets, spacecraft in orbit, creatures walking on top, things standing on it, or a picture */
+  price?: number; crafts?: Craft[]; walkers?: string[]; landmarks?: string[]; image?: string;
 }
 
 /** Group 1 → level 1, group 2 → level 6, … group 10 → level 46 */
@@ -84,7 +87,8 @@ export const PLANETS: PlanetDef[] = [
   P("claude", "Claude's Cosmos", 10, "The final reward. ✨", { shape: "burst", colors: ["#FED7AA", "#D97757", "#7C2D12"], pattern: "swirl", accent: "#FFEDD5", ring: { color: "#FED7AA", tilt: -20, width: 0.12, double: true }, moons: 3, features: ["face"], glow: true }),
 ];
 
-export const planetByID = (id?: string) => PLANETS.find((p) => p.id === id);
+export const planetByID = (id?: string | null) => PLANETS.find((p) => p.id === id) ?? STORE.find((p) => p.id === id);
+export const isStorePlanet = (id?: string | null) => STORE.some((p) => p.id === id);
 
 // ---------- Painter ----------
 
@@ -394,6 +398,7 @@ function front(ctx: Ctx, f: Feature, c: number, r: number, accent: string, shape
 /** Paint a planet into a square of `size` px starting at (0,0). `phase` animates moons and rings. */
 export function paintPlanet(ctx: Ctx, p: PlanetDef, size: number, phase = 0) {
   const c = size / 2, r = size * 0.3;
+  if (p.image) { paintPicture(ctx, p, c, r, phase); return; }
   const rnd = rng(p.id);
   const [c0, c1, c2] = p.colors;
   const accent = p.accent ?? "#FFFFFF";
@@ -432,13 +437,183 @@ export function paintPlanet(ctx: Ctx, p: PlanetDef, size: number, phase = 0) {
     ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = r * 0.1; ctx.fillText(p.emoji, c, c + r * 0.08); ctx.restore();
   }
   for (const f of p.features ?? []) front(ctx, f, c, r, accent, shape);
+  if (p.landmarks?.length || p.walkers?.length) paintSurface(ctx, p, c, r, phase);
   if (p.ring) drawRing(ctx, p.ring, c, r, true, phase);
+  if (p.crafts?.length) paintCrafts(ctx, p.crafts, c, r, phase);
 
   for (let i = 0; i < (p.moons ?? 0); i++) {
     const a = (i / Math.max(1, p.moons!) + phase) * TAU + 0.6;
     const mx = c + Math.cos(a) * r * 1.45, my = c + Math.sin(a) * r * 0.55 - r * 0.2, mr = r * (0.16 + 0.04 * (i % 2));
     const g = ctx.createRadialGradient(mx - mr * 0.4, my - mr * 0.4, 0, mx - mr * 0.4, my - mr * 0.4, mr * 1.6);
     g.addColorStop(0, "#F1F5F9"); g.addColorStop(1, "#64748B"); ctx.fillStyle = g; ellipse(ctx, mx, my, mr, mr); ctx.fill();
+  }
+}
+
+// ---------- Store planets: surface, spacecraft, pictures ----------
+
+const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+
+/** Landmarks stand on the upper rim; walkers stroll back and forth across the top */
+function paintSurface(ctx: Ctx, p: PlanetDef, c: number, r: number, phase: number) {
+  const size = r * 0.6;
+  const standing = (e: string, angle: number, scale = 1, flip = false, lift = 0) => {
+    const edge = r + size * scale * 0.38 + lift;
+    ctx.save();
+    ctx.translate(c + Math.cos(angle) * edge, c + Math.sin(angle) * edge);
+    ctx.rotate(angle + Math.PI / 2);
+    if (flip) ctx.scale(-1, 1);
+    ctx.font = `${size * scale}px ${EMOJI_FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(e, 0, 0);
+    ctx.restore();
+  };
+  const n = p.landmarks?.length ?? 0;
+  (p.landmarks ?? []).forEach((e, i) => { const t = n === 1 ? 0.5 : i / (n - 1); standing(e, -Math.PI / 2 + (t - 0.5) * 2.1, 1.05); });
+  (p.walkers ?? []).forEach((e, i) => {
+    const off = i * 2.1, wave = Math.sin(phase * TAU + off);
+    const right = Math.cos(phase * TAU + off) > 0;
+    const bounce = Math.abs(Math.sin(phase * TAU * 12 + off)) * size * 0.08;
+    standing(e, -Math.PI / 2 + wave * 0.75, 0.85, right, bounce);
+  });
+}
+
+function paintCrafts(ctx: Ctx, all: Craft[], c: number, r: number, phase: number) {
+  if (all.includes("stars")) twinkles(ctx, c, r, phase);
+  if (all.includes("asteroids")) asteroidBelt(ctx, c, r, phase);
+  const crafts = all.filter((x) => x !== "stars" && x !== "asteroids");
+  crafts.forEach((craft, i) => {
+    const a = (i / Math.max(1, crafts.length) + phase * (craft === "comet" ? 0.6 : 1)) * TAU + 2.2;
+    const ox = r * (craft === "comet" ? 1.55 : 1.42), oy = r * 0.62;
+    const x = c + Math.cos(a) * ox, y = c + Math.sin(a) * oy - r * 0.1;
+    const heading = Math.atan2(Math.cos(a) * oy, -Math.sin(a) * ox);
+    const u = r * (craft === "comet" ? 0.26 : 0.33);
+    ctx.save(); ctx.translate(x, y);
+    if (!["ufo", "station", "satellite"].includes(craft)) ctx.rotate(heading);
+    if (craft === "rocket") rocket(ctx, u);
+    else if (craft === "ufo") ufo(ctx, u);
+    else if (craft === "station") station(ctx, u, phase);
+    else if (craft === "satellite") satellite(ctx, u * 0.85);
+    else if (craft === "shuttle") shuttle(ctx, u);
+    else if (craft === "comet") comet(ctx, u);
+    else if (craft === "astronaut") { ctx.rotate(-heading); ctx.font = `${u * 2}px ${EMOJI_FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🧑‍🚀", 0, 0); }
+    ctx.restore();
+  });
+}
+
+function asteroidBelt(ctx: Ctx, c: number, r: number, phase: number) {
+  const rnd = rng("belt");
+  for (let k = 0; k < 14; k++) {
+    const a = (k / 14 + phase * 0.35) * TAU + rnd() * 0.3;
+    const rx = r * (1.5 + rnd() * 0.18), ry = r * (0.5 + rnd() * 0.1);
+    const x = c + Math.cos(a) * rx, y = c + Math.sin(a) * ry, s = r * (0.06 + rnd() * 0.07);
+    const spin = phase * TAU * 2 + k;
+    ctx.beginPath();
+    for (let v = 0; v < 6; v++) {
+      const va = (v / 6) * TAU + spin, vr = s * (0.75 + rnd() * 0.45);
+      const px = x + Math.cos(va) * vr, py = y + Math.sin(va) * vr;
+      if (v === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const g = ctx.createLinearGradient(x - s, y - s, x + s, y + s); g.addColorStop(0, "#D6D3D1"); g.addColorStop(1, "#57534E");
+    ctx.fillStyle = g; ctx.fill();
+  }
+}
+
+function twinkles(ctx: Ctx, c: number, r: number, phase: number) {
+  const rnd = rng("stars");
+  for (let k = 0; k < 7; k++) {
+    const a = rnd() * TAU, d = r * (1.35 + rnd() * 0.35);
+    const x = c + Math.cos(a) * d, y = c + Math.sin(a) * d * 0.85;
+    const tw = 0.5 + 0.5 * Math.sin(phase * TAU * 3 + k * 1.7), s = r * (0.05 + 0.07 * tw);
+    ctx.beginPath();
+    ctx.moveTo(x, y - s * 2); ctx.quadraticCurveTo(x, y, x + s * 2, y); ctx.quadraticCurveTo(x, y, x, y + s * 2);
+    ctx.quadraticCurveTo(x, y, x - s * 2, y); ctx.quadraticCurveTo(x, y, x, y - s * 2);
+    ctx.fillStyle = rgba("#FEF9C3", 0.55 + 0.45 * tw); ctx.fill();
+  }
+}
+
+function rocket(ctx: Ctx, u: number) {
+  let g = ctx.createLinearGradient(-u, 0, -u * 2.1, 0); g.addColorStop(0, "#FDE047"); g.addColorStop(0.5, "#22D3EE"); g.addColorStop(1, "rgba(37,99,235,0)");
+  ctx.beginPath(); ctx.moveTo(-u, -u * 0.28); ctx.quadraticCurveTo(-u * 2.1, 0, -u, u * 0.28); ctx.fillStyle = g; ctx.fill();
+  ctx.fillStyle = "#F05252";
+  ctx.beginPath(); ctx.moveTo(-u * 0.5, -u * 0.3); ctx.lineTo(-u * 1.05, -u * 0.75); ctx.lineTo(-u * 0.95, -u * 0.2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-u * 0.5, u * 0.3); ctx.lineTo(-u * 1.05, u * 0.75); ctx.lineTo(-u * 0.95, u * 0.2); ctx.fill();
+  g = ctx.createLinearGradient(0, -u * 0.4, 0, u * 0.4); g.addColorStop(0, "#F8FAFC"); g.addColorStop(1, "#CBD5E1");
+  ctx.beginPath(); ctx.moveTo(u * 1.1, 0); ctx.quadraticCurveTo(u * 0.5, -u * 0.55, -u, -u * 0.36); ctx.lineTo(-u, u * 0.36);
+  ctx.quadraticCurveTo(u * 0.5, u * 0.55, u * 1.1, 0); ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(u * 1.1, 0); ctx.quadraticCurveTo(u * 0.9, -u * 0.25, u * 0.55, -u * 0.33); ctx.lineTo(u * 0.55, u * 0.33);
+  ctx.quadraticCurveTo(u * 0.9, u * 0.25, u * 1.1, 0); ctx.fillStyle = "#F05252"; ctx.fill();
+  ellipse(ctx, u * 0.22, 0, u * 0.22, u * 0.22); ctx.fillStyle = "#475569"; ctx.fill();
+  ellipse(ctx, u * 0.22, 0, u * 0.17, u * 0.17); ctx.fillStyle = "#38BDF8"; ctx.fill();
+}
+
+function ufo(ctx: Ctx, u: number) {
+  const beam = ctx.createLinearGradient(0, u * 0.2, 0, u * 1.3); beam.addColorStop(0, "rgba(190,242,100,0.45)"); beam.addColorStop(1, "rgba(190,242,100,0)");
+  ellipse(ctx, 0, u * 0.7, u * 0.55, u * 0.55); ctx.fillStyle = beam; ctx.fill();
+  ellipse(ctx, 0, -u * 0.25, u * 0.6, u * 0.5); ctx.fillStyle = "rgba(30,41,59,0.9)"; ctx.fill();
+  for (const dx of [-0.25, 0.25]) {
+    ellipse(ctx, u * dx, -u * 0.4, u * 0.13, u * 0.15); ctx.fillStyle = "#4ADE80"; ctx.fill();
+    ctx.fillStyle = "#000"; ellipse(ctx, u * (dx - 0.05), -u * 0.41, u * 0.035, u * 0.04); ctx.fill(); ellipse(ctx, u * (dx + 0.05), -u * 0.41, u * 0.035, u * 0.04); ctx.fill();
+  }
+  const g = ctx.createLinearGradient(0, -u * 0.3, 0, u * 0.3); g.addColorStop(0, "#E5E7EB"); g.addColorStop(1, "#9CA3AF");
+  ellipse(ctx, 0, 0, u * 1.15, u * 0.27); ctx.fillStyle = g; ctx.fill();
+  ellipse(ctx, 0, u * 0.22, u * 0.75, u * 0.17); ctx.fillStyle = "#A78BFA"; ctx.fill();
+  ctx.fillStyle = "#FBCFE8"; for (let k = -2; k <= 2; k++) { ellipse(ctx, k * u * 0.28, u * 0.22, u * 0.05, u * 0.05); ctx.fill(); }
+}
+
+function station(ctx: Ctx, u: number, spin: number) {
+  ctx.rotate(spin * Math.PI);
+  for (const side of [-1, 1]) {
+    const x = side < 0 ? -u * 1.35 : u * 0.45;
+    const g = ctx.createLinearGradient(x, -u * 0.28, x + u * 0.9, u * 0.28); g.addColorStop(0, "#60A5FA"); g.addColorStop(1, "#1D4ED8");
+    ctx.fillStyle = g; ctx.fillRect(x, -u * 0.28, u * 0.9, u * 0.56);
+  }
+  ctx.fillStyle = "#CBD5E1"; ctx.fillRect(-u * 0.5, -u * 0.05, u, u * 0.1);
+  ctx.lineWidth = Math.max(0.8, u * 0.12); ctx.strokeStyle = "#E2E8F0"; ellipse(ctx, 0, 0, u * 0.45, u * 0.45); ctx.stroke();
+  ellipse(ctx, 0, 0, u * 0.22, u * 0.22); ctx.fillStyle = "#F8FAFC"; ctx.fill();
+  ellipse(ctx, 0, 0, u * 0.08, u * 0.08); ctx.fillStyle = "#F43F5E"; ctx.fill();
+}
+
+function satellite(ctx: Ctx, u: number) {
+  ctx.rotate(-0.44);
+  ctx.fillStyle = "#3B82F6"; ctx.fillRect(-u * 1.2, -u * 0.22, u * 0.8, u * 0.44); ctx.fillRect(u * 0.4, -u * 0.22, u * 0.8, u * 0.44);
+  ctx.fillStyle = "#FBBF24"; ctx.beginPath(); ctx.roundRect(-u * 0.35, -u * 0.3, u * 0.7, u * 0.6, u * 0.1); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -u * 0.55, u * 0.3, Math.PI * 1.1, Math.PI * 1.9); ctx.strokeStyle = "#E5E7EB"; ctx.lineWidth = Math.max(0.8, u * 0.1); ctx.stroke();
+}
+
+function shuttle(ctx: Ctx, u: number) {
+  ctx.beginPath(); ctx.moveTo(u * 0.2, 0); ctx.lineTo(-u * 0.8, -u * 0.8); ctx.lineTo(-u * 0.9, u * 0.8); ctx.closePath(); ctx.fillStyle = "#CBD5E1"; ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-u, -u * 0.24, u * 2, u * 0.48, u * 0.24); ctx.fillStyle = "#F8FAFC"; ctx.fill();
+  ctx.beginPath(); ctx.roundRect(u * 0.55, -u * 0.24, u * 0.45, u * 0.48, u * 0.24); ctx.fillStyle = "#1F2937"; ctx.fill();
+  ellipse(ctx, -u * 1.15, 0, u * 0.2, u * 0.15); ctx.fillStyle = "#FB923C"; ctx.fill();
+}
+
+function comet(ctx: Ctx, u: number) {
+  const g = ctx.createLinearGradient(0, 0, -u * 3.2, 0); g.addColorStop(0, "rgba(165,243,252,0.85)"); g.addColorStop(1, "rgba(165,243,252,0)");
+  ctx.beginPath(); ctx.moveTo(0, -u * 0.35); ctx.quadraticCurveTo(-u * 1.4, -u * 0.4, -u * 3.2, 0); ctx.quadraticCurveTo(-u * 1.4, u * 0.4, 0, u * 0.35); ctx.fillStyle = g; ctx.fill();
+  const h = ctx.createRadialGradient(0, 0, 0, 0, 0, u * 0.6); h.addColorStop(0, "rgba(255,255,255,0.9)"); h.addColorStop(1, "rgba(103,232,249,0)");
+  ellipse(ctx, 0, 0, u * 0.6, u * 0.6); ctx.fillStyle = h; ctx.fill();
+  ellipse(ctx, 0, 0, u * 0.26, u * 0.26); ctx.fillStyle = "#FFFFFF"; ctx.fill();
+}
+
+/** Pixel-art pictures, loaded once */
+const PICTURES: Record<string, HTMLImageElement> = {};
+export function registerPicture(name: string, url: string) {
+  const img = new Image(); img.src = url; PICTURES[name] = img;
+}
+
+function paintPicture(ctx: Ctx, p: PlanetDef, c: number, r: number, phase: number) {
+  const accent = p.accent ?? "#FFFFFF";
+  const g = ctx.createRadialGradient(c, c, r * 0.3, c, c, r * 1.6); g.addColorStop(0, rgba(accent, 0.45)); g.addColorStop(1, rgba(accent, 0));
+  ctx.fillStyle = g; ellipse(ctx, c, c, r * 1.6, r * 1.6); ctx.fill();
+  const bob = Math.sin(phase * TAU) * r * 0.08, side = r * 3.3;
+  if (p.image === "ufo") {
+    const b = ctx.createLinearGradient(c, c + r * 0.25, c, c + r * 1.3); b.addColorStop(0, rgba(accent, 0.5)); b.addColorStop(1, rgba(accent, 0));
+    ctx.beginPath(); ctx.moveTo(c - r * 0.35, c + r * 0.25 + bob); ctx.lineTo(c + r * 0.35, c + r * 0.25 + bob); ctx.lineTo(c + r * 0.7, c + r * 1.3); ctx.lineTo(c - r * 0.7, c + r * 1.3); ctx.closePath();
+    ctx.fillStyle = b; ctx.fill();
+  }
+  const img = PICTURES[p.image!];
+  if (img?.complete && img.naturalWidth) {
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, c - side / 2, c - side / 2 + bob, side, side); ctx.restore();
   }
 }
 

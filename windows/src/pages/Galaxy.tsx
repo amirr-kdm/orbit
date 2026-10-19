@@ -3,7 +3,8 @@ import { GalaxyMap, LevelBadge, PlanetCanvas, SystemCanvas } from "../components
 import { galaxyData, useFriends } from "../lib/friends";
 import { SunType, SYSTEM_NAMES } from "../lib/model";
 import { GROUP_TITLES, PLANETS, planetByID, SUNS, unlockLevel } from "../lib/planets";
-import { MAX_LEVEL, progress, useStore } from "../lib/store";
+import { HOURS_PER_LEVEL, MAX_LEVEL, progress, useStore } from "../lib/store";
+import { StoreShelf } from "./Store";
 
 export default function Galaxy() {
   const { data, actions, update } = useStore();
@@ -28,8 +29,8 @@ export default function Galaxy() {
         <div style={{ flex: 1 }}>
           <div className="row"><h2 style={{ margin: 0 }}>{friends.me?.name ?? "You"}</h2><LevelBadge level={p.level} /></div>
           {p.level >= MAX_LEVEL ? <div className="muted">Max level reached — every planet is yours 🏆</div> : <>
-            <div className="small muted" style={{ margin: "4px 0" }}>This week: {p.weekHours.toFixed(1)}h of 10h — reach it before Friday ends to level up (20h = +2 levels)</div>
-            <div className="progress" style={{ maxWidth: 420 }}><div style={{ width: `${Math.min(100, (p.weekHours / 10) * 100)}%` }} /></div></>}
+            <div className="small muted" style={{ margin: "4px 0" }}>{Math.max(0, p.level * HOURS_PER_LEVEL - p.totalHours).toFixed(1)}h of study to level {p.level + 1} · every {HOURS_PER_LEVEL}h studied = +1 level</div>
+            <div className="progress" style={{ maxWidth: 420 }}><div style={{ width: `${((p.totalHours - (p.level - 1) * HOURS_PER_LEVEL) / HOURS_PER_LEVEL) * 100}%` }} /></div></>}
           <div className="row small muted" style={{ marginTop: 6, gap: 16 }}>
             <span>🕐 {p.totalHours.toFixed(1)}h studied</span><span>🔓 {unlockedCount} of {PLANETS.length} planets unlocked</span>
             <span>☀️ {data.solarSystems.length} solar systems</span>
@@ -71,6 +72,8 @@ export default function Galaxy() {
         {toast && <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,.6)", color: "white", padding: "8px 16px", borderRadius: 99, fontWeight: 600 }}>{toast}</div>}
       </div>
 
+      <StoreShelf onToast={show} />
+
       <div className="row"><h2 style={{ margin: 0 }}>Planet Collection</h2><span className="muted">{unlockedCount}/{PLANETS.length}</span></div>
 
       {selected && (() => {
@@ -95,7 +98,7 @@ export default function Galaxy() {
                   <button className="btn" disabled={data.avatarPlanet === pl.id} onClick={() => update((d) => { d.avatarPlanet = pl.id; })}>{data.avatarPlanet === pl.id ? "✓ Your profile picture" : "Use as profile picture"}</button>
                   {last && <button className="btn danger" onClick={() => actions.removePlanet(last.id)}>Remove one</button>}
                 </div>
-              </> : <div className="muted">🔒 Reach level {unlockLevel(pl.group)} to unlock — study 10h in a week to level up</div>}
+              </> : <div className="muted">🔒 Reach level {unlockLevel(pl.group)} to unlock — every {HOURS_PER_LEVEL}h of study is +1 level</div>}
             </div>
             <button className="icon-btn" onClick={() => setSelected(null)}>✕</button>
           </div>

@@ -5,6 +5,7 @@ import {
 } from "./model";
 import { addDays, dayKey, minuteOfDay, sameDay, startOfDay, weekDays, weekStart, weekdayIndex, weeksBetween } from "./dates";
 import { PLANETS, unlockLevel } from "./planets";
+import { STORE } from "./storePlanets";
 
 const KEY = "orbit-data-v1";
 
@@ -14,7 +15,9 @@ function load(): AppData {
     if (raw) {
       const def = defaultData(), saved = JSON.parse(raw);
       // Fields added in later versions get their defaults
-      return { ...def, ...saved, settings: { ...def.settings, ...saved.settings } };
+      const merged: AppData = { ...def, ...saved, settings: { ...def.settings, ...saved.settings } };
+      merged.schedule = normalized(merged.schedule);
+      return merged;
     }
   } catch { /* fall through */ }
   return defaultData();
@@ -25,8 +28,8 @@ function load(): AppData {
 export type TodoRef = { kind: "schedule" | "task"; id: string };
 export const refKey = (r: TodoRef) => `${r.kind}:${r.id}`;
 
-export interface TodoItem { ref: TodoRef; title: string; detail: string; color: string; isDone: boolean; sortMinute: number }
-export interface ScheduleRow { entry: ScheduleEntry; slot: TimeSlot; date: Date; isDone: boolean }
+export interface TodoItem { ref: TodoRef; title: string; detail: string; color: string; isDone: boolean; sortMinute: number; isSkipped?: boolean }
+export interface ScheduleRow { entry: ScheduleEntry; slot: TimeSlot; date: Date; isDone: boolean; isSkipped?: boolean }
 
 const doneKey = (id: string, day: Date) => `${id}|${dayKey(day)}`;
 
@@ -58,6 +61,27 @@ export const slotTitle = (s: TimeSlot) => {
   return `${f(s.startMinute)}-${f(s.endMinute)}`;
 };
 
+export function isSkipped(d: AppData, ref: TodoRef, day: Date): boolean {
+  if (ref.kind === "schedule") return d.scheduleSkipped.includes(doneKey(ref.id, day));
+  return d.tasks.find((t) => t.id === ref.id)?.isSkipped ?? false;
+}
+
+/** An "every week" cell sharing its slot with an even-only (odd-only) cell can only show in the other weeks,
+ *  so it becomes odd-only (even-only). Nothing visible changes, but it no longer silently disappears. */
+export function normalized(schedule: ScheduleEntry[]): ScheduleEntry[] {
+  const groups = new Map<string, ScheduleEntry[]>();
+  for (const e of schedule) { const k = `${e.weekday}|${e.slotID}`; groups.set(k, [...(groups.get(k) ?? []), e]); }
+  const fix = new Map<string, Recurrence>();
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const parities = new Set(list.map((e) => e.recurrence).filter((r) => r === "even" || r === "odd"));
+    if (parities.size !== 1) continue;
+    const taken = [...parities][0];
+    for (const e of list) if (e.recurrence === "weekly") fix.set(e.id, taken === "even" ? "odd" : "even");
+  }
+  return fix.size ? schedule.map((e) => (fix.has(e.id) ? { ...e, recurrence: fix.get(e.id)! } : e)) : schedule;
+}
+
 export function isDone(d: AppData, ref: TodoRef, day: Date): boolean {
   if (ref.kind === "schedule") return d.scheduleDone.includes(doneKey(ref.id, day));
   return d.tasks.find((t) => t.id === ref.id)?.isDone ?? false;
@@ -70,7 +94,8 @@ export function scheduleRows(d: AppData, day: Date, kinds: EntryKind[] = ["fixed
     .filter((e) => e.weekday === wd && kinds.includes(e.kind) && isShown(d, e, day) && !d.scheduleMoved.includes(doneKey(e.id, day)))
     .flatMap((e) => {
       const slot = slotOf(d, e.slotID);
-      return slot ? [{ entry: e, slot, date: start, isDone: isDone(d, { kind: "schedule", id: e.id }, start) }] : [];
+      return slot ? [{ entry: e, slot, date: start, isDone: isDone(d, { kind: "schedule", id: e.id }, start),
+        isSkipped: isSkipped(d, { kind: "schedule", id: e.id }, start) }] : [];
     })
     .sort((a, b) => a.slot.startMinute - b.slot.startMinute);
 }
@@ -87,14 +112,14 @@ export function todosOn(d: AppData, day: Date): TodoItem[] {
     return {
       ref: { kind: "schedule" as const, id: r.entry.id }, title: titleOf(r.entry),
       detail: slotTitle(r.slot) + (cat ? ` · ${cat.name}` : ""), color: r.entry.colorHex ?? cat?.colorHex ?? "#5B7CFA",
-      isDone: r.isDone, sortMinute: r.slot.startMinute,
+      isDone: r.isDone, sortMinute: r.slot.startMinute, isSkipped: r.isSkipped,
     };
   });
   const tasks = tasksOn(d, day).map((t) => {
     const cat = categoryOf(d, t.categoryID);
     return {
       ref: { kind: "task" as const, id: t.id }, title: t.title, detail: cat?.name ?? "Task",
-      color: cat?.colorHex ?? "#8E8E93", isDone: t.isDone,
+      color: cat?.colorHex ?? "#8E8E93", isDone: t.isDone, isSkipped: t.isSkipped,
       sortMinute: t.hasTime && t.dueDate ? minuteOfDay(new Date(t.dueDate)) : 9999,
     };
   });
@@ -162,26 +187,52 @@ export function applyPlannerTo(d: AppData, p: Planner, date: Date, recurrence: R
 // ---------- Galaxy progress (same rules as the Mac app) ----------
 
 export const MAX_LEVEL = 50;
+export const HOURS_PER_LEVEL = 3;
 export interface Progress { level: number; totalHours: number; weekHours: number; credits: number }
 
 export function progress(d: AppData, now = new Date()): Progress {
   const total = d.sessions.reduce((a, s) => a + s.duration, 0) / 3600;
   const cw = weekStart(now);
   const weekHours = studyTime(d, cw, new Date(now.getTime() + 1000)) / 3600;
-  let level = 1;
-  const first = d.sessions.map((s) => new Date(s.start).getTime()).sort((a, b) => a - b)[0];
-  if (first !== undefined) {
-    let w = weekStart(new Date(first));
-    while (w < cw && level < MAX_LEVEL) {
-      const next = addDays(w, 7);
-      const h = studyTime(d, w, next) / 3600;
-      if (h >= 20) level += 2; else if (h >= 10) level += 1;
-      w = next;
-    }
-  }
-  level = Math.min(level, MAX_LEVEL);
+  // One level for every 3 hours studied in total, straight away
+  const level = Math.min(MAX_LEVEL, 1 + Math.floor(total / HOURS_PER_LEVEL));
   return { level, totalHours: total, weekHours, credits: Math.max(0, level - d.galaxy.length) };
 }
+
+// ---------- Rockets (store currency) ----------
+
+export const STARTING_ROCKETS = 200, ROCKETS_PER_HOUR = 10, GROUP_WIN_ROCKETS = 100, REFUND_TICKETS = 3;
+export const BONUS_TIERS: [string, number][] = [["10h", 50], ["15h", 70], ["20h", 100], ["25h", 120], ["30h", 150], ["30h+", 200]];
+export const weeklyBonus = (h: number) => (h > 30 ? 200 : h >= 30 ? 150 : h >= 25 ? 120 : h >= 20 ? 100 : h >= 15 ? 70 : h >= 10 ? 50 : 0);
+
+/** Finished weeks (Sat → Fri) since you started, with their bonus */
+export function weekBonuses(d: AppData, now = new Date()): { start: Date; hours: number; rockets: number }[] {
+  const first = d.sessions.map((s) => new Date(s.start).getTime()).sort((a, b) => a - b)[0];
+  if (first === undefined) return [];
+  const cur = weekStart(now), out = [];
+  for (let w = weekStart(new Date(first)); w < cur; w = addDays(w, 7)) {
+    const hours = studyTime(d, w, addDays(w, 7)) / 3600;
+    out.push({ start: w, hours, rockets: weeklyBonus(hours) });
+  }
+  return out;
+}
+
+export interface Wallet { study: number; bonuses: number; groups: number; spent: number; balance: number }
+export function wallet(d: AppData): Wallet {
+  const study = Math.floor(d.sessions.reduce((a, s) => a + s.duration, 0) / 3600 * ROCKETS_PER_HOUR);
+  const bonuses = weekBonuses(d).reduce((a, b) => a + b.rockets, 0);
+  const groups = d.groupWins.length * GROUP_WIN_ROCKETS;
+  const spent = d.purchases.reduce((a, p) => a + p.price, 0);
+  return { study, bonuses, groups, spent, balance: STARTING_ROCKETS + d.rocketGrant + study + bonuses + groups - spent };
+}
+export const ownedCount = (d: AppData, id: string) => d.purchases.filter((p) => p.planetID === id).length;
+export const placedCount = (d: AppData, id: string) => d.galaxy.filter((g) => g.planetID === id).length;
+export const unplacedCount = (d: AppData, id: string) => Math.max(0, ownedCount(d, id) - placedCount(d, id));
+const roomIn = (d: AppData, sid?: string) => {
+  const count = (id: string) => d.galaxy.filter((g) => g.systemID === id).length;
+  const t = d.solarSystems.find((s) => s.id === sid) ?? (sid ? undefined : d.solarSystems.find((s) => count(s.id) < 8));
+  return t && count(t.id) < 8 ? t : undefined;
+};
 
 // ---------- React store ----------
 
@@ -213,7 +264,34 @@ function makeActions(update: Store["update"]) {
       if (t.hasTime && t.dueDate) { const old = new Date(t.dueDate); base.setHours(old.getHours(), old.getMinutes()); }
       t.dueDate = base.toISOString();
     }),
+    setSkipped: (ref: TodoRef, day: Date, skipped: boolean) => update((d) => {
+      if (ref.kind === "schedule") {
+        const k = doneKey(ref.id, day);
+        d.scheduleSkipped = d.scheduleSkipped.filter((x) => x !== k);
+        if (skipped) { d.scheduleSkipped.push(k); d.scheduleDone = d.scheduleDone.filter((x) => x !== k); }
+      } else {
+        const t = d.tasks.find((x) => x.id === ref.id);
+        if (t) { t.isSkipped = skipped; if (skipped) { t.isDone = false; t.completedAt = undefined; } }
+      }
+    }),
+    /** The round status button: a skipped item goes back to "to do", otherwise done is toggled */
+    tapStatus: (ref: TodoRef, day: Date) => update((d) => {
+      if (isSkipped(d, ref, day)) {
+        if (ref.kind === "schedule") d.scheduleSkipped = d.scheduleSkipped.filter((x) => x !== doneKey(ref.id, day));
+        else { const t = d.tasks.find((x) => x.id === ref.id); if (t) t.isSkipped = false; }
+        return;
+      }
+      if (ref.kind === "schedule") {
+        const k = doneKey(ref.id, day);
+        d.scheduleDone = d.scheduleDone.includes(k) ? d.scheduleDone.filter((x) => x !== k) : [...d.scheduleDone, k];
+      } else {
+        const t = d.tasks.find((x) => x.id === ref.id);
+        if (t) { t.isDone = !t.isDone; t.completedAt = t.isDone ? new Date().toISOString() : undefined; }
+      }
+    }),
     toggleDone: (ref: TodoRef, day: Date) => update((d) => {
+      if (ref.kind === "schedule") d.scheduleSkipped = d.scheduleSkipped.filter((x) => x !== doneKey(ref.id, day));
+      else { const t = d.tasks.find((x) => x.id === ref.id); if (t) t.isSkipped = false; }
       if (ref.kind === "schedule") {
         const k = doneKey(ref.id, day);
         d.scheduleDone = d.scheduleDone.includes(k) ? d.scheduleDone.filter((x) => x !== k) : [...d.scheduleDone, k];
@@ -249,6 +327,7 @@ function makeActions(update: Store["update"]) {
       } else if (trimmed) {
         d.schedule.push({ id: uid(), weekday, slotID, text: trimmed, colorHex, kind, categoryID, recurrence,
           weekStart: recurrence === "once" ? weekStart(weekOf).toISOString() : undefined });
+        d.schedule = normalized(d.schedule);
       }
     }),
     updateEntry: (id: string, fn: (e: ScheduleEntry) => void) => update((d) => { const e = d.schedule.find((x) => x.id === id); if (e) fn(e); }),
@@ -256,6 +335,7 @@ function makeActions(update: Store["update"]) {
     setRecurrence: (id: string, r: Recurrence, weekOf: Date) => update((d) => {
       const e = d.schedule.find((x) => x.id === id);
       if (e) { e.recurrence = r; e.weekStart = r === "once" ? weekStart(weekOf).toISOString() : undefined; }
+      d.schedule = normalized(d.schedule);
     }),
     swapParity: () => update((d) => { d.settings.evenWeekAnchor = addDays(new Date(d.settings.evenWeekAnchor), 7).toISOString(); }),
 
@@ -324,7 +404,32 @@ function makeActions(update: Store["update"]) {
     applyPlanner: (plannerID: string, date: Date, recurrence: Recurrence, choice: ConflictChoice) => update((d) => {
       const p = d.planners.find((x) => x.id === plannerID);
       if (p) applyPlannerTo(d, p, date, recurrence, choice);
+      d.schedule = normalized(d.schedule);
     }),
+
+    // store
+    buyPlanet: (id: string) => update((d) => {
+      const p = STORE.find((x) => x.id === id);
+      if (p?.price && wallet(d).balance >= p.price) d.purchases.push({ id: uid(), planetID: id, price: p.price, date: new Date().toISOString() });
+    }),
+    refund: (id: string) => update((d) => {
+      if (d.refundsUsed >= REFUND_TICKETS) return;
+      const i = d.purchases.map((p) => p.planetID).lastIndexOf(id);
+      if (i < 0) return;
+      d.purchases.splice(i, 1); d.refundsUsed += 1;
+      if (placedCount(d, id) > ownedCount(d, id)) { const j = d.galaxy.map((g) => g.planetID).lastIndexOf(id); if (j >= 0) d.galaxy.splice(j, 1); }
+      if (d.avatarPlanet === id && ownedCount(d, id) === 0) d.avatarPlanet = undefined;
+    }),
+    placeOwned: (id: string, systemID?: string) => update((d) => {
+      const t = roomIn(d, systemID);
+      if (unplacedCount(d, id) > 0 && progress(d).credits > 0 && t) d.galaxy.push({ id: uid(), planetID: id, addedAt: new Date().toISOString(), systemID: t.id });
+    }),
+    movePlaced: (placedID: string, systemID: string) => update((d) => {
+      const g = d.galaxy.find((x) => x.id === placedID);
+      if (g && roomIn(d, systemID)) g.systemID = systemID;
+    }),
+    recordGroupWins: (keys: string[]) => update((d) => { for (const k of keys) if (!d.groupWins.includes(k)) d.groupWins.push(k); }),
+    setAvatar: (id: string) => update((d) => { d.avatarPlanet = id; }),
 
     // galaxy
     addPlanet: (planetID: string, systemID?: string) => update((d) => {

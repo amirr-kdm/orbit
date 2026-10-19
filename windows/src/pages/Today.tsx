@@ -11,13 +11,15 @@ export function TodoRow({ item, day }: { item: TodoItem; day: Date }) {
   const current = timer.target && refKey(timer.target) === refKey(item.ref);
   return (
     <div className="list-row">
-      <button className={`check ${item.isDone ? "done" : ""}`} onClick={() => actions.toggleDone(item.ref, day)}>{item.isDone ? "✓" : ""}</button>
+      <button className={`check ${item.isDone ? "done" : ""}`} style={item.isSkipped ? { background: "#F97316", borderColor: "#F97316" } : undefined}
+        title={item.isSkipped ? "Skipped, click to bring it back" : undefined} onClick={() => actions.tapStatus(item.ref, day)}
+        onContextMenu={(e) => { e.preventDefault(); actions.setSkipped(item.ref, day, !item.isSkipped); }}>{item.isSkipped ? "✕" : item.isDone ? "✓" : ""}</button>
       <div className="bar" style={{ background: item.color }} />
       <div style={{ flex: 1 }}>
-        <div className={item.isDone ? "strike" : ""}>{item.title}</div>
+        <div className={item.isDone || item.isSkipped ? "strike" : ""}>{item.title}{item.isSkipped && <span className="small" style={{ color: "#F97316" }}> · Skipped</span>}</div>
         <div className="small muted">{item.ref.kind === "schedule" ? "🕘" : "🏷"} {item.detail}</div>
       </div>
-      {!item.isDone && (
+      {!item.isDone && !item.isSkipped && (
         <button className={`btn small ${current && timer.active ? "" : "primary"}`} disabled={timer.active && !current}
           onClick={() => { timer.setTarget(item.ref); nav.go("timer"); }}>
           {current && timer.active ? "⏱ In progress" : "▶ Study"}

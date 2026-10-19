@@ -2,7 +2,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppData } from "./model";
 import { addDays, dayKey, startOfDay, weekDays } from "./dates";
-import { progress, sessionsIn, subjectOf, todosOn, useStore } from "./store";
+import { GROUP_WIN_ROCKETS, progress, sessionsIn, subjectOf, todosOn, useStore, wallet } from "./store";
+import { weekStart } from "./dates";
 
 const URL_ = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "";
 const KEY_ = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) ?? "";
@@ -15,7 +16,9 @@ export interface SubjectStat { name: string; minutes: number; color: string }
 export interface DailyStat { user_id: string; day: string; minutes: number; todos_done: number; todos_total: number; subjects: SubjectStat[] }
 export interface LiveStatus { user_id: string; studying?: string | null; started_at?: string | null; updated_at?: string | null }
 export interface GalaxyData { systems: { id: string; name: string; sun: string; planets: string[] }[] }
-export interface Profile { id: string; name: string; friend_code: string; level?: number; avatar?: string | null; galaxy?: GalaxyData | null }
+export interface Profile { id: string; name: string; friend_code: string; level?: number; avatar?: string | null; galaxy?: GalaxyData | null; rockets?: number }
+/** A study group: everyone in it sees each other's progress */
+export interface StudyGroup { id: string; name: string; code: string; owner: string; members: string[] }
 
 export interface FriendCard { profile: Profile; stats: Record<string, DailyStat>; live?: LiveStatus; isMe: boolean }
 
@@ -109,6 +112,15 @@ export function galaxyData(d: AppData): GalaxyData {
 
 interface Friends {
   me: Profile | null; friends: FriendCard[]; loading: boolean; error: string | null; lastSync: Date | null;
+  groups: StudyGroup[]; people: Record<string, FriendCard>; incoming: string[]; outgoing: string[];
+  groupPrize: string | null; clearPrize: () => void;
+  isFriend: (id: string) => boolean;
+  createGroup: (name: string) => Promise<void>;
+  joinGroup: (code: string) => Promise<string | null>;
+  leaveGroup: (id: string) => Promise<void>;
+  sendRequest: (id: string) => Promise<void>;
+  respond: (id: string, accept: boolean) => Promise<void>;
+  cancelRequest: (id: string) => Promise<void>;
   createProfile: (name: string) => Promise<void>;
   addFriend: (code: string) => Promise<string | null>;
   removeFriend: (id: string) => Promise<void>;
@@ -121,8 +133,13 @@ interface Friends {
 const Ctx = createContext<Friends | null>(null);
 
 export function FriendsProvider({ children }: { children: React.ReactNode }) {
-  const { data } = useStore();
+  const { data, actions } = useStore();
   const client = useRef(new Client()).current;
+  const [groups, setGroups] = useState<StudyGroup[]>([]);
+  const [people, setPeople] = useState<Record<string, FriendCard>>({});
+  const [incoming, setIncoming] = useState<string[]>([]);
+  const [outgoing, setOutgoing] = useState<string[]>([]);
+  const [groupPrize, setGroupPrize] = useState<string | null>(null);
   const [me, setMe] = useState<Profile | null>(null);
   const [friends, setFriends] = useState<FriendCard[]>([]);
   const [loading, setLoading] = useState(false);
@@ -144,28 +161,59 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
       const uid = client.session!.userID.toLowerCase();
       const mine: Profile[] = await client.get(`profiles?id=eq.${uid}`);
       setMe(mine[0] ?? null);
-      const links: { friend_id: string }[] = await client.get(`friendships?select=friend_id&user_id=eq.${uid}`);
-      if (!links.length) { setFriends([]); setLastSync(new Date()); return; }
-      const list = `(${links.map((l) => l.friend_id).join(",")})`;
+      const [links, gs, ms, rs]: [{ friend_id: string }[], { id: string; name: string; code: string; owner: string }[], { group_id: string; user_id: string }[], { from_user: string; to_user: string }[]] = await Promise.all([
+        client.get(`friendships?select=friend_id&user_id=eq.${uid}`),
+        client.get("groups?select=id,name,code,owner&order=created_at"),
+        client.get("group_members?select=group_id,user_id&order=joined_at"),
+        client.get("friend_requests?select=from_user,to_user"),
+      ]);
+      const friendIDs = links.map((l) => l.friend_id);
+      const groupList = gs.map((g) => ({ ...g, members: ms.filter((m) => m.group_id === g.id).map((m) => m.user_id) }));
+      setGroups(groupList);
+      const inc = rs.filter((r) => r.to_user === uid).map((r) => r.from_user), out = rs.filter((r) => r.from_user === uid).map((r) => r.to_user);
+      setIncoming(inc); setOutgoing(out);
+      const ids = [...new Set([...friendIDs, ...ms.map((m) => m.user_id), ...inc, ...out])].filter((id) => id !== uid);
+      if (!ids.length) { setFriends([]); setPeople({}); setLastSync(new Date()); return; }
+      const list = `(${ids.join(",")})`;
       const since = dayKey(addDays(new Date(), -35));
       const [ps, ss, ls]: [Profile[], DailyStat[], LiveStatus[]] = await Promise.all([
         client.get(`profiles?id=in.${list}`), client.get(`daily_stats?user_id=in.${list}&day=gte.${since}`), client.get(`live_status?user_id=in.${list}`),
       ]);
-      setFriends(ps.map((p) => ({
+      const cards: FriendCard[] = ps.map((p) => ({
         profile: p, isMe: false, live: ls.find((l) => l.user_id === p.id),
         stats: Object.fromEntries(ss.filter((s) => s.user_id === p.id).map((s) => [s.day, s])),
-      })).sort((a, b) => weekMinutes(b) - weekMinutes(a)));
+      }));
+      setPeople(Object.fromEntries(cards.map((c) => [c.profile.id, c])));
+      setFriends(cards.filter((c) => friendIDs.includes(c.profile.id)).sort((a, b) => weekMinutes(b) - weekMinutes(a)));
+
+      // Last week's group prize: whoever studied the most (ties included) wins 100 rockets, once per group per week
+      const last = addDays(weekStart(new Date()), -7);
+      const days = Array.from({ length: 7 }, (_, i) => addDays(last, i));
+      const myLastWeek = Math.floor(sessionsIn(dataRef.current, last, addDays(last, 7)).reduce((a, s) => a + s.duration, 0) / 60);
+      if (myLastWeek > 0) {
+        const keys: string[] = [], won: string[] = [];
+        for (const g of groupList) {
+          if (g.members.length < 2) continue;
+          const best = Math.max(0, ...g.members.filter((m) => m !== uid).map((m) => {
+            const c = cards.find((x) => x.profile.id === m);
+            return c ? days.reduce((a, d) => a + minutesOn(c, d), 0) : 0;
+          }));
+          const key = `${g.id}|${dayKey(last)}`;
+          if (myLastWeek >= best && !dataRef.current.groupWins.includes(key)) { keys.push(key); won.push(g.name); }
+        }
+        if (keys.length) { actions.recordGroupWins(keys); setGroupPrize(`🏆 You studied the most last week in ${won.join(", ")}: +${GROUP_WIN_ROCKETS * keys.length} rockets!`); }
+      }
       setLastSync(new Date());
     });
     setLoading(false);
-  }, [client, run]);
+  }, [client, run, actions]);
 
   const sync = useCallback(async () => {
     if (!supabaseConfigured || !client.session || !me) return;
     const d = dataRef.current;
     const uid = client.session.userID;
     const rows = Array.from({ length: 7 }, (_, i) => localStat(d, addDays(new Date(), -i), uid));
-    const extras = { level: progress(d).level, avatar: d.avatarPlanet ?? null, galaxy: galaxyData(d) };
+    const extras = { level: progress(d).level, avatar: d.avatarPlanet ?? null, galaxy: galaxyData(d), rockets: wallet(d).balance };
     const sig = JSON.stringify([rows, extras]);
     if (sig === lastSent.current) return;
     await run(async () => {
@@ -197,6 +245,19 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
 
   const value: Friends = {
     me, friends, loading, error, lastSync, refresh,
+    groups, people, incoming, outgoing, groupPrize, clearPrize: () => setGroupPrize(null),
+    isFriend: (id) => friends.some((f) => f.profile.id === id),
+    createGroup: async (name) => { if (!name.trim()) return; await run(() => client.rpc("create_group", { group_name: name.trim() })); await refresh(); },
+    joinGroup: async (code) => {
+      let name: string | null = null;
+      await run(async () => { name = await client.rpc("join_group", { group_code: code }); });
+      if (name) await refresh();
+      return name;
+    },
+    leaveGroup: async (id) => { await run(() => client.rpc("leave_group", { g: id })); await refresh(); },
+    sendRequest: async (id) => { await run(() => client.rpc("send_friend_request", { other: id })); await refresh(); },
+    respond: async (id, accept) => { await run(() => client.rpc("respond_friend_request", { other: id, accept })); await refresh(); },
+    cancelRequest: async (id) => { await run(() => client.rpc("cancel_friend_request", { other: id })); await refresh(); },
     createProfile: async (name) => {
       await run(async () => {
         if (!client.session) await client.signIn();
@@ -222,7 +283,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
       const stats = Object.fromEntries(Array.from({ length: 35 }, (_, i) => { const s = localStat(d, addDays(new Date(), -i), client.session!.userID); return [s.day, s]; }));
       return {
         isMe: true, stats,
-        profile: { ...me, level: progress(d).level, avatar: d.avatarPlanet, galaxy: galaxyData(d) },
+        profile: { ...me, level: progress(d).level, avatar: d.avatarPlanet, galaxy: galaxyData(d), rockets: wallet(d).balance },
         live: { user_id: me.id, studying: live.current.title, started_at: live.current.startedAt?.toISOString(), updated_at: new Date().toISOString() },
       };
     },
