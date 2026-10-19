@@ -135,6 +135,16 @@ extension AppStore {
         return true
     }
 
+    /// Move a placed planet to another solar system (if it has room)
+    @discardableResult
+    func movePlaced(_ id: UUID, to systemID: UUID) -> Bool {
+        guard let i = galaxy.firstIndex(where: { $0.id == id }),
+              let target = solarSystems.first(where: { $0.id == systemID }),
+              planets(in: target).count < SolarSystem.capacity else { return false }
+        galaxy[i].systemID = systemID
+        return true
+    }
+
     func hasRoom(in systemID: UUID?) -> Bool { systemWithRoomNoFix(systemID) }
 
     private func systemWithRoomNoFix(_ systemID: UUID?) -> Bool {

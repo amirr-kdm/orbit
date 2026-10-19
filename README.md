@@ -13,7 +13,14 @@ Weekly timetable · to-do lists · study timer · reports · Persian & Gregorian
 [![Release](https://img.shields.io/github/v/release/amirr-kdm/orbit)](https://github.com/amirr-kdm/orbit/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+<br>
+
+<img src="docs/screenshots/schedule.png" alt="Weekly schedule" width="32%"> <img src="docs/screenshots/store.png" alt="Planet store" width="32%"> <img src="docs/screenshots/galaxy.png" alt="My Galaxy" width="32%">
+
 </div>
+
+> ### 🆕 What's new in 1.2
+> 🛍 **Planet Store** with 40+ hand-made planets · 🚀 **rockets** earned by studying · 👥 **study groups** with join codes, friend requests and a weekly 100-rocket prize · 📝 **Planner** · 🕸 **Tasks graph** · ⏭ **Skipped** to-dos · 🎨 custom colours · ⚡ +1 level every 3 hours
 
 ---
 
@@ -50,8 +57,20 @@ Windows 10 / 11 · 64-bit
 
 ## ✨ Features
 
-| | |
-|---|---|
+<table>
+<tr><th></th><th align="left">What it does</th><th>Mac</th><th>Windows</th></tr>
+<tr><td>📅 <b>Weekly schedule</b></td><td>Even/odd weeks, custom colours, categories, repeat rules, a live “Now / Next” card</td><td>✅</td><td>✅</td></tr>
+<tr><td>📝 <b>Planner</b></td><td>Draft weeks with brainstorm notes, then add them to your schedule</td><td>✅</td><td>✅</td></tr>
+<tr><td>✅ <b>Tasks</b></td><td>Today list, Day / Week / List views with drag and drop, an Obsidian-style graph</td><td>✅</td><td>✅</td></tr>
+<tr><td>⏱ <b>Study timer</b></td><td>Stopwatch or Pomodoro; every session is saved</td><td>✅</td><td>✅</td></tr>
+<tr><td>📊 <b>Reports & calendar</b></td><td>Weekly / monthly charts, what was left undone, Persian & Gregorian calendars</td><td>✅</td><td>✅</td></tr>
+<tr><td>🌌 <b>My Galaxy</b></td><td>Level up by studying, collect 50 planets, build solar systems</td><td>✅</td><td>✅</td></tr>
+<tr><td>🛍 <b>Store</b></td><td>Earn rockets 🚀 and buy 40+ special planets</td><td>✅</td><td>soon</td></tr>
+<tr><td>👥 <b>Friends & groups</b></td><td>Leaderboard, who's studying now, groups with join codes, friend requests</td><td>✅</td><td>friends only</td></tr>
+<tr><td>🔒 <b>Private</b></td><td>Your schedule and tasks stay on your computer; only daily totals are shared</td><td>✅</td><td>✅</td></tr>
+</table>
+
+---|---|
 | 📅 **Weekly schedule** | Even/odd weeks, custom colours, categories, repeat rules and a live "Now / Next" card |
 | 📝 **Planner** | Draft weeks with brainstorm notes (rich text, checklists, tables), then add them to your schedule |
 | ✅ **Tasks** | Daily to-do list plus Day, Week and List views with drag and drop |
@@ -75,7 +94,7 @@ Windows 10 / 11 · 64-bit
 1. **Set up your week.** Open **Weekly Schedule**, click a cell and type a class or study block. **Enter** saves.
 2. **Mark what to study.** Set the cell's type to **To-do**. To-do cells appear in **Today** and **Tasks**.
 3. **Study.** In **Today**, press **Study** next to a to-do, then **Start**. Press **Finish & Save** when done.
-4. **Track progress** in **Reports**. Every week of study helps you level up in **My Galaxy**.
+4. **Track progress** in **Reports**. Every 3 hours of study is a new level in **My Galaxy**, and every hour earns 🚀 for the **Store**.
 5. **Study together.** Open **Friends**, create a profile and share your code.
 
 ---
@@ -100,6 +119,8 @@ Days run down the side (Saturday → Friday) and time slots across the top.
 | Tick off / study | Click the circle in a To-do cell, or right-click → **Study This Now**. |
 
 ### 📝 Planner
+
+<img src="docs/screenshots/planner.png" alt="Planner" width="100%">
 
 Create as many planners as you like (for example "Midterm week" or "Summer plan"). Each one has:
 
@@ -126,7 +147,11 @@ Press **Add to Weekly Schedule…**, then choose the week and how it repeats. If
 - **Week**: a column per day. **Drag** cards between days; moving a schedule to-do moves only that day's session. Undated tasks wait in the **No date** tray.
 - **Day**: one day in detail.
 - **List**: filters (Today, Upcoming, No Date, All Open, Done) and search.
-- **Graph**: an Obsidian-style map where every category is a hub with its tasks and weekly to-dos around it. Drag nodes, pinch to zoom, hover to highlight connections, and click an item to tick it off or study it.
+- **Graph** (below): an Obsidian-style map where every category is a hub with its tasks and weekly to-dos around it. Drag nodes, pinch to zoom, hover to highlight connections, and click an item to tick it off or study it.
+
+<img src="docs/screenshots/graph.png" alt="Tasks graph" width="100%">
+
+The graph has **All / Day / Week / Month** filters, a details panel with dates in both calendars, study time and your own notes, and sliders for node size and link length. Drag a category anywhere — it stays there and never overlaps another cluster.
 
 ### ⏱ Timer
 
@@ -159,6 +184,7 @@ Choose **Stopwatch** or **Pomodoro**, pick what you're studying, then **Start �
 - **Planets:** one new planet per level. 50 planets in 10 groups; a new group unlocks every 5 levels (1, 6, 11 … 46).
 - **Solar systems:** up to 8 planets each, with stars that unlock as you level up (Yellow Sun, Red Giant, Blue Star, White Dwarf, Twin Stars, Pulsar).
 - **Map:** drag to explore, zoom, and click a system to fly in. Any planet can be your **profile picture**.
+- **Store planets** you buy appear on the **Your Store Planets** shelf: click one to place it, move it to another system, remove it, or make it your profile picture.
 
 <details>
 <summary><b>See all 50 planets</b></summary>
@@ -167,6 +193,8 @@ Choose **Stopwatch** or **Pomodoro**, pick what you're studying, then **Start �
 </details>
 
 ### 🛍 Store (Mac)
+
+<img src="docs/screenshots/store.png" alt="Planet Store" width="100%">
 
 Studying earns **rockets** 🚀, the store currency:
 
@@ -177,6 +205,12 @@ Studying earns **rockets** 🚀, the store currency:
 
 Spend them on special planets (100–1000 rockets, by rarity: Common, Rare, Epic, Legendary). Each has its own little story — dinosaurs walking on Jurassic World, penguins on Penguin Pole, rockets, UFOs, stations and asteroid belts in orbit. Bought planets wait in **My Galaxy → Your Store Planets** until you place them; like collection planets, each placed planet uses one of your planet spots (one per level). Any planet you own can be your profile picture. Everyone gets **3 refund tickets** to give a planet back for its full price.
 
+<details>
+<summary><b>See every store planet</b></summary>
+<br>
+<img src="docs/store-planets.png" alt="All store planets" width="100%">
+</details>
+
 ### 👥 Friends
 
 <img src="docs/screenshots/friends.png" alt="Friends" width="100%">
@@ -184,7 +218,7 @@ Spend them on special planets (100–1000 rockets, by rarity: Common, Rare, Epic
 1. Type your name and press **Create My Profile**. No email or password needed.
 2. Share your **6-character friend code**; add theirs under **Add a friend**.
 
-You'll see who's **studying right now**, a weekly **leaderboard** with levels and 🔥 streaks (click a row for a subject-by-subject breakdown and their **Galaxy**), and friend cards with 7-day charts.
+You'll see who's **studying right now**, a weekly **leaderboard** with levels, 🔥 streaks and 🚀 rockets (click a row for a subject-by-subject breakdown and their **Galaxy**), and friend cards with 7-day charts.
 
 **Groups (Mac):** open the **Groups** tab, create a group and share its code, or join one with a code. Everyone in a group sees the group's weekly leaderboard and who's studying now. Members who aren't your friends yet have an **Add Friend** button; they get a request they can accept or decline.
 
@@ -201,7 +235,7 @@ Appearance (Light / Dark / System), design templates and fonts (Mac), primary ca
 - Everything you create is stored **locally**:
   - **Mac:** `~/Library/Application Support/Orbit/data.json`
   - **Windows:** inside the app's local storage. Use **Settings → Export backup** to save a copy.
-- With Friends, only **daily summaries** are uploaded: minutes studied, subjects and their time, to-dos done, what you're studying now, level, profile planet and galaxy layout. Schedules, tasks and notes are **never** uploaded.
+- With Friends, only **daily summaries** are uploaded: minutes studied, subjects and their time, to-dos done, what you're studying now, level, rocket balance, profile planet and galaxy layout. Schedules, tasks and notes are **never** uploaded.
 - **Delete My Profile** removes everything you shared from the server.
 
 ---
@@ -261,6 +295,8 @@ build.sh                  Builds and packages Orbit.app
 | `CS_TASKS_MODE=graph` | Open Tasks in a view (`day`, `week`, `list`, `graph`) |
 | `CS_RENDER_PLANETS=/path.png` | Render all 50 planets and quit |
 | `CS_RENDER_SYSTEM=/path.png` | Render a sample solar system and quit |
+| `CS_RENDER_STORE=1` | With `CS_RENDER_PLANETS`, render the store planets instead |
+| `CS_SET_ROCKETS=1000` | Set the rocket balance (stored as a one-off grant) |
 
 </details>
 

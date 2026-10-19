@@ -24,6 +24,8 @@ struct GalaxyPage: View {
     @Environment(AppStore.self) private var store
     @Environment(FriendsService.self) private var friends
     @State private var selectedPlanet: String?
+    /// A bought planet opened on the Your Store Planets shelf
+    @State private var selectedStore: String?
     @State private var focusedSystem: UUID?
     @State private var targetSystem: UUID?
     @State private var toast: String?
@@ -252,36 +254,119 @@ struct GalaxyPage: View {
                             Text(p.name).font(.callout.weight(.semibold)).lineLimit(1)
                             Text(waiting > 0 ? "\(waiting) waiting · \(placed) placed" : "All \(placed) placed")
                                 .font(.caption2).foregroundStyle(.secondary)
-                            Button(waiting > 0 ? "Place" : "Placed ✓") {
-                                if store.galaxyProgress().credits == 0 {
-                                    showToast("No free planet spot. Reach level \(store.galaxyProgress().level + 1) for one more.")
-                                } else if store.placeOwned(p.id, into: targetSystem) {
-                                    showToast("\(p.name) joined your galaxy ✨")
-                                } else {
-                                    showToast("That solar system is full. Pick another or create one.")
-                                }
+                            if store.avatarPlanet == p.id {
+                                Text("Profile").font(.caption2.weight(.semibold)).foregroundStyle(accent)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .disabled(waiting == 0)
-                            Button(store.avatarPlanet == p.id ? "Profile ✓" : "Use as Profile") {
-                                store.avatarPlanet = p.id
-                                showToast("\(p.name) is your profile picture")
-                            }
-                            .controlSize(.small)
-                            .disabled(store.avatarPlanet == p.id)
                         }
                         .frame(width: 130)
                         .padding(10)
                         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: "#0B1020")))
-                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(p.rarity.color.opacity(0.5)))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(selectedStore == p.id ? accent : p.rarity.color.opacity(0.5), lineWidth: selectedStore == p.id ? 2.5 : 1))
                         .foregroundStyle(.white)
+                        .contentShape(Rectangle())
+                        .onTapGesture { withAnimation { selectedStore = selectedStore == p.id ? nil : p.id } }
                     }
                 }
             }
-            Text("Placing uses one of your planet spots (one per level — \(store.galaxyProgress().credits) free now). Removing a store planet from a system keeps it on this shelf.")
+            if let id = selectedStore, let p = PlanetCatalog.planet(id), store.ownedCount(id) > 0 { storePanel(p) }
+            Text("Click a planet to place, move or remove it. Placing uses one of your planet spots (one per level — \(store.galaxyProgress().credits) free now). Removing a store planet from a system keeps it on this shelf.")
                 .font(.caption).foregroundStyle(.secondary)
         }
+    }
+
+    /// Place, move, remove or use as profile — for a bought planet
+    private func storePanel(_ planet: PlanetDef) -> some View {
+        let progress = store.galaxyProgress()
+        let systems = store.solarSystems
+        let target = targetSystem.flatMap { id in systems.first { $0.id == id } }
+            ?? systems.first { store.planets(in: $0).count < SolarSystem.capacity }
+        let targetFull = target.map { store.planets(in: $0).count >= SolarSystem.capacity } ?? true
+        let placed = store.galaxy.filter { $0.planetID == planet.id }
+        let waiting = store.unplacedCount(planet.id)
+
+        return HStack(alignment: .top, spacing: 18) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.88))
+                TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+                    PlanetView(planet: planet, size: 130, phase: t.date.timeIntervalSinceReferenceDate / 8)
+                }
+            }
+            .frame(width: 150, height: 150)
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(planet.name).font(.title2.weight(.bold))
+                    Text(planet.rarity.title.uppercased()).font(.caption2.weight(.heavy)).tracking(1)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Capsule().fill(planet.rarity.color.opacity(0.25))).foregroundStyle(planet.rarity.color)
+                }
+                Text(planet.blurb).foregroundStyle(.secondary)
+
+                if waiting > 0 {
+                    HStack {
+                        Picker("Add to", selection: Binding(get: { target?.id }, set: { targetSystem = $0 })) {
+                            ForEach(systems) { s in
+                                Text("\(s.name) (\(store.planets(in: s).count)/\(SolarSystem.capacity))").tag(Optional(s.id))
+                            }
+                        }
+                        .frame(width: 230)
+                        Button {
+                            if store.placeOwned(planet.id, into: target?.id) {
+                                showToast("🎉 \(planet.name) joined \(target?.name ?? "your galaxy")!")
+                            }
+                        } label: {
+                            Label(progress.credits == 0 ? "Reach level \(progress.level + 1) for a free spot"
+                                  : (targetFull ? "System is full" : "Place (\(waiting) waiting)"),
+                                  systemImage: "plus.circle.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(progress.credits == 0 || targetFull)
+                    }
+                }
+
+                ForEach(placed) { copy in
+                    let here = systems.first { $0.id == copy.systemID }
+                    HStack(spacing: 10) {
+                        Image(systemName: "sun.max.fill").foregroundStyle(.orange)
+                        Text("In \(here?.name ?? "your galaxy")")
+                        Menu("Move to") {
+                            ForEach(systems.filter { $0.id != copy.systemID }) { s in
+                                let full = store.planets(in: s).count >= SolarSystem.capacity
+                                Button("\(s.name) (\(store.planets(in: s).count)/\(SolarSystem.capacity))") {
+                                    if store.movePlaced(copy.id, to: s.id) { showToast("\(planet.name) moved to \(s.name)") }
+                                }
+                                .disabled(full)
+                            }
+                        }
+                        .fixedSize()
+                        .disabled(systems.count < 2)
+                        Button(role: .destructive) {
+                            store.removePlanet(copy.id)
+                            showToast("\(planet.name) is back on your shelf")
+                        } label: {
+                            Label("Remove", systemImage: "minus.circle")
+                        }
+                        .help("Take it out of the galaxy. You still own it and get the spot back.")
+                    }
+                    .font(.callout)
+                }
+
+                Button {
+                    store.avatarPlanet = planet.id
+                } label: {
+                    Label(store.avatarPlanet == planet.id ? "Your Profile Picture" : "Use as Profile Picture",
+                          systemImage: store.avatarPlanet == planet.id ? "checkmark.circle.fill" : "person.crop.circle")
+                }
+                .disabled(store.avatarPlanet == planet.id)
+            }
+            Spacer()
+            Button { withAnimation { selectedStore = nil } } label: { Image(systemName: "xmark.circle.fill") }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 18).fill(accent.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(accent.opacity(0.3)))
     }
 
     private func collection(_ progress: GalaxyProgress) -> some View {

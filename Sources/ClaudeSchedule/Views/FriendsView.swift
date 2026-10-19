@@ -366,6 +366,13 @@ struct LeaderboardRow: View {
                     }
                     Spacer()
                     if card.streak > 0 { Text("🔥 \(card.streak)").font(.callout).help("Day streak") }
+                    if let rockets = card.profile.rockets {
+                        HStack(spacing: 3) {
+                            RocketIcon(size: 15)
+                            Text(rockets.formatted()).font(.callout.monospacedDigit())
+                        }
+                        .help("Rockets")
+                    }
                     Text(Fmt.duration(TimeInterval(card.weekMinutes * 60)))
                         .font(.callout.weight(.semibold).monospacedDigit())
                         .frame(width: 80, alignment: .trailing)
@@ -430,6 +437,7 @@ struct FriendDetailCard: View {
                 stat(Fmt.duration(TimeInterval(card.todayMinutes * 60)), "Today")
                 stat(Fmt.duration(TimeInterval(card.weekMinutes * 60)), "This week")
                 stat(card.today.map { "\($0.todos_done)/\($0.todos_total)" } ?? "—", "To-dos today")
+                stat(card.profile.rockets.map { "🚀 \($0.formatted())" } ?? "—", "Rockets")
             }
 
             Chart(bars) { b in

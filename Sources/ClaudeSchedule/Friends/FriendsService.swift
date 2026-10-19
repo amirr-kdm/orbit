@@ -9,6 +9,8 @@ struct FriendProfile: Codable, Identifiable, Hashable {
     var level: Int?
     var avatar: String?
     var galaxy: GalaxyData?
+    /// Rocket balance (store currency)
+    var rockets: Int?
 }
 
 struct SubjectStat: Codable, Hashable {
@@ -116,6 +118,7 @@ final class FriendsService {
         let level: Int
         let avatar: String?
         let galaxy: GalaxyData
+        let rockets: Int
     }
 
     init(store: AppStore) {
@@ -336,6 +339,7 @@ final class FriendsService {
         me.level = store.galaxyProgress().level
         me.avatar = store.avatarPlanet
         me.galaxy = store.galaxyData
+        me.rockets = store.rocketBalance
         let days = (0..<35).compactMap { Cal.persian.date(byAdding: .day, value: -$0, to: Date()) }
         let stats = Dictionary(days.map { (Cal.dayKey($0), localStat(for: $0, userID: me.id)) }, uniquingKeysWith: { a, _ in a })
         let live = LiveStatus(user_id: me.id, studying: liveTitle(timer), started_at: timer.sessionStart, updated_at: Date())
@@ -347,7 +351,8 @@ final class FriendsService {
         guard let me else { return }
         let rows = (0..<7).compactMap { Cal.persian.date(byAdding: .day, value: -$0, to: Date()) }
             .map { localStat(for: $0, userID: me.id) }
-        let extras = ProfileExtras(level: store.galaxyProgress().level, avatar: store.avatarPlanet, galaxy: store.galaxyData)
+        let extras = ProfileExtras(level: store.galaxyProgress().level, avatar: store.avatarPlanet, galaxy: store.galaxyData,
+                                   rockets: store.rocketBalance)
         if extras != lastExtrasSent {
             await run {
                 try await self.client.update("profiles?id=eq.\(me.id.uuidString)", extras)

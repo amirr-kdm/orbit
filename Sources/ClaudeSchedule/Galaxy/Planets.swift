@@ -815,7 +815,7 @@ enum PlanetSheet {
             ForEach(1...(store ? 4 : 10), id: \.self) { level in
                 HStack(spacing: 6) {
                     Text(store ? Rarity.allCases[level - 1].title.prefix(1) + "" : "L\(level)").font(.headline).foregroundStyle(.white).frame(width: 34)
-                    ForEach(store ? PlanetCatalog.store.filter { $0.rarity == Rarity.allCases[level - 1] }
+                    ForEach(store ? PlanetCatalog.storeAvailable.filter { $0.rarity == Rarity.allCases[level - 1] }
                                   : PlanetCatalog.all.filter { $0.level == level }) { p in
                         VStack(spacing: 2) {
                             PlanetView(planet: p, size: 130, phase: 0.1)

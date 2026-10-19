@@ -124,3 +124,6 @@ alter table public.profiles add column if not exists galaxy jsonb not null defau
 -- Levels now go up to 50
 alter table public.profiles drop constraint if exists profiles_level_check;
 alter table public.profiles add constraint profiles_level_check check (level between 1 and 50);
+
+-- Store: everyone's rocket balance, shown to friends and group members
+alter table public.profiles add column if not exists rockets int not null default 0;

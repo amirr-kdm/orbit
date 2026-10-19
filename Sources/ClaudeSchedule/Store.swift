@@ -134,8 +134,8 @@ final class AppStore {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("data.json")
 
-        // One-time migration from the app's previous names (newest first)
-        for old in ["Claude Schedule", "Nazm"] {
+        // One-time migration from the app's previous names (newest first); not for test folders
+        for old in ProcessInfo.processInfo.environment["CS_DATA_DIR"] == nil ? ["Claude Schedule", "Nazm"] : [] {
             let legacy = support.appendingPathComponent("\(old)/data.json")
             if !FileManager.default.fileExists(atPath: fileURL.path), FileManager.default.fileExists(atPath: legacy.path) {
                 try? FileManager.default.copyItem(at: legacy, to: fileURL)
