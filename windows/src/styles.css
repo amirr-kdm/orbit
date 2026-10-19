@@ -187,3 +187,34 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .store-card { position: relative; border: 1px solid; border-radius: 16px; padding: 14px; color: white; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: transform .15s; }
 .store-card:hover { transform: scale(1.02); }
 .store-card .count { position: absolute; top: 8px; right: 8px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+
+/* Login */
+.space-login { position: fixed; inset: 0; display: flex; overflow: hidden; color: white;
+  background: radial-gradient(circle at 18% 25%, rgba(124,58,237,.35), transparent 45%), radial-gradient(circle at 85% 85%, rgba(34,211,238,.18), transparent 45%), linear-gradient(135deg, #0B0820, #120B2E 55%, #05040F); }
+.login-row { position: relative; margin: auto; display: flex; align-items: center; gap: 56px; padding: 24px; }
+.login-hero { display: flex; flex-direction: column; align-items: center; gap: 10px; animation: float 3.2s ease-in-out infinite; }
+.login-frame { position: relative; width: 330px; border-radius: 26px; overflow: hidden; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 10px 30px rgba(34,211,238,.35); }
+.login-frame img { display: block; width: 100%; image-rendering: pixelated; }
+.beam-glow { position: absolute; inset: 0; background: radial-gradient(circle at 50% 55%, rgba(254,243,199,.28), transparent 55%); animation: pulse 2.6s ease-in-out infinite; }
+.login-tag { font-family: ui-monospace, Consolas, monospace; font-weight: 700; opacity: .85; margin-top: 6px; }
+.login-card { width: 400px; display: flex; flex-direction: column; gap: 14px; padding: 28px; border-radius: 28px; background: rgba(255,255,255,.07);
+  backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.login-title { font-family: ui-monospace, Consolas, monospace; font-weight: 900; font-size: 30px; letter-spacing: 6px; }
+.login-tabs { display: flex; padding: 3px; border-radius: 99px; background: rgba(255,255,255,.08); }
+.login-tabs button { flex: 1; border: none; background: none; color: white; padding: 7px; border-radius: 99px; font-weight: 600; }
+.login-tabs button.on { background: rgba(255,255,255,.18); }
+.login-field { background: rgba(255,255,255,.07) !important; border: 1px solid rgba(255,255,255,.1) !important; color: white !important; padding: 11px 14px !important; border-radius: 12px !important; }
+.login-button { border: none; border-radius: 99px; padding: 12px; color: white; font-weight: 700; font-size: 15px; background: linear-gradient(90deg, #8B5CF6, #22D3EE); box-shadow: 0 4px 14px rgba(139,92,246,.5); }
+.login-button:disabled { opacity: .6; }
+.login-satellite { position: absolute; top: 6%; left: 5%; width: 230px; height: 230px; border-radius: 50%; object-fit: cover; image-rendering: pixelated;
+  box-shadow: 0 0 40px rgba(167,139,250,.6); border: 1px solid rgba(255,255,255,.12); animation: spin 60s linear infinite; opacity: .9; }
+.login-cat { position: absolute; top: 6%; right: 7%; width: 150px; image-rendering: pixelated; animation: drift 6s ease-in-out infinite; }
+.float-cat { image-rendering: pixelated; animation: drift 6s ease-in-out infinite; }
+@keyframes float { 50% { transform: translateY(-6px); } }
+@keyframes pulse { 50% { opacity: .55; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes drift { 0%, 100% { transform: translate(0, 0) rotate(-8deg); } 50% { transform: translate(-18px, 14px) rotate(8deg); } }
+
+/* Admin panel */
+.admin-panel { width: 330px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--sidebar); padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.account-chip { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, transparent); border: none; color: var(--text); text-align: left; }

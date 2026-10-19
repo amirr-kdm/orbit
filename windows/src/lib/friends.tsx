@@ -9,7 +9,7 @@ const URL_ = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "";
 const KEY_ = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) ?? "";
 export const supabaseConfigured = !!URL_ && !!KEY_ && !URL_.includes("YOUR-PROJECT");
 
-interface Session { accessToken: string; refreshToken: string; expiresAt: number; userID: string }
+export interface Session { accessToken: string; refreshToken: string; expiresAt: number; userID: string; /** null for old anonymous profiles */ email?: string | null }
 const SESSION_KEY = "orbit-session-v1";
 
 export interface SubjectStat { name: string; minutes: number; color: string }
@@ -45,7 +45,7 @@ export function weekSubjects(f: FriendCard): SubjectStat[] {
 
 // ---------- tiny REST client ----------
 
-class Client {
+export class Client {
   session: Session | null = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null");
 
   private save(s: Session | null) {
@@ -60,12 +60,46 @@ class Client {
     const res = await fetch(URL_ + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     const text = await res.text();
     const json = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new Error(json?.message ?? json?.msg ?? json?.error_description ?? `Server error (${res.status})`);
+    if (!res.ok) throw new Error(json?.message ?? json?.msg ?? json?.error_description ?? json?.error ?? `Server error (${res.status})`);
     return json;
   }
 
   private store(r: any) {
-    this.save({ accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: Date.now() + r.expires_in * 1000, userID: r.user.id.toUpperCase() });
+    this.save({ accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: Date.now() + r.expires_in * 1000,
+      userID: r.user.id.toUpperCase(), email: r.user.email || null });
+  }
+
+  /** Create an account with email + password ("Confirm email" is off on the server) */
+  async signUp(email: string, password: string) {
+    const r = await this.send("POST", "/auth/v1/signup", { email, password }, false);
+    if (!r?.access_token) throw new Error("The server asks new accounts to confirm their email. Turn off “Confirm email” in Supabase.");
+    this.store(r);
+  }
+  async signInPassword(email: string, password: string) {
+    this.store(await this.send("POST", "/auth/v1/token?grant_type=password", { email, password }, false));
+  }
+  /** Change email and/or password. For an old anonymous profile this turns it into a real account (same id). */
+  async updateUser(body: { email?: string; password?: string }) {
+    await this.fresh();
+    await this.send("PUT", "/auth/v1/user", body);
+    this.store(await this.send("POST", "/auth/v1/token?grant_type=refresh_token", { refresh_token: this.session!.refreshToken }, false));
+    if (body.email && this.session && !this.session.email) this.save({ ...this.session, email: body.email });
+  }
+  /** An RPC that also works signed out */
+  async rpcAnon(name: string, body: unknown) {
+    if (this.session) { try { await this.fresh(); } catch { /* use the anon key */ } }
+    return this.send("POST", "/rest/v1/rpc/" + name, body, !!this.session);
+  }
+  /** Raw JSON body (the cloud backup embeds the data file as-is) */
+  async raw(method: string, path: string, body: string | undefined, prefer?: string): Promise<any> {
+    await this.fresh();
+    const headers: Record<string, string> = { apikey: KEY_, "Content-Type": "application/json", Authorization: `Bearer ${this.session!.accessToken}` };
+    if (prefer) headers.Prefer = prefer;
+    const res = await fetch(URL_ + "/rest/v1/" + path, { method, headers, body });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error(json?.message ?? `Server error (${res.status})`);
+    return json;
   }
 
   async signIn() { this.store(await this.send("POST", "/auth/v1/signup", {}, false)); }
@@ -83,6 +117,9 @@ class Client {
   async del(path: string) { await this.fresh(); return this.send("DELETE", "/rest/v1/" + path, undefined, true, "return=minimal"); }
   async rpc(name: string, body: unknown) { await this.fresh(); return this.send("POST", "/rest/v1/rpc/" + name, body); }
 }
+
+/** One client for the whole app (accounts, friends and cloud backup share the sign-in) */
+export const sharedClient = new Client();
 
 // ---------- local summaries ----------
 
@@ -122,6 +159,9 @@ interface Friends {
   respond: (id: string, accept: boolean) => Promise<void>;
   cancelRequest: (id: string) => Promise<void>;
   createProfile: (name: string) => Promise<void>;
+  /** Reload after signing in / clear after signing out */
+  reload: () => Promise<void>;
+  clearLocal: () => void;
   addFriend: (code: string) => Promise<string | null>;
   removeFriend: (id: string) => Promise<void>;
   rename: (name: string) => Promise<void>;
@@ -134,7 +174,7 @@ const Ctx = createContext<Friends | null>(null);
 
 export function FriendsProvider({ children }: { children: React.ReactNode }) {
   const { data, actions } = useStore();
-  const client = useRef(new Client()).current;
+  const client = sharedClient;
   const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [people, setPeople] = useState<Record<string, FriendCard>>({});
   const [incoming, setIncoming] = useState<string[]>([]);
@@ -245,6 +285,8 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
 
   const value: Friends = {
     me, friends, loading, error, lastSync, refresh,
+    reload: async () => { lastSent.current = ""; await refresh(); },
+    clearLocal: () => { setMe(null); setFriends([]); setGroups([]); setPeople({}); setIncoming([]); setOutgoing([]); },
     groups, people, incoming, outgoing, groupPrize, clearPrize: () => setGroupPrize(null),
     isFriend: (id) => friends.some((f) => f.profile.id === id),
     createGroup: async (name) => { if (!name.trim()) return; await run(() => client.rpc("create_group", { group_name: name.trim() })); await refresh(); },

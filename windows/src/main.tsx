@@ -5,6 +5,7 @@ import App from "./App";
 import { StoreProvider } from "./lib/store";
 import { FriendsProvider } from "./lib/friends";
 import { TimerProvider } from "./lib/timer";
+import { AccountProvider } from "./lib/account";
 import { registerPicture } from "./lib/planets";
 import ufo from "./assets/ufo.png";
 import satellite from "./assets/satellite.png";
@@ -18,9 +19,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <StoreProvider>
       <FriendsProvider>
-        <TimerProvider>
-          <App />
-        </TimerProvider>
+        <AccountProvider>
+          <TimerProvider>
+            <App />
+          </TimerProvider>
+        </AccountProvider>
       </FriendsProvider>
     </StoreProvider>
   </React.StrictMode>,

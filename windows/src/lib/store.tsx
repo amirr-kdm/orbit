@@ -238,6 +238,8 @@ const roomIn = (d: AppData, sid?: string) => {
 
 interface Store {
   data: AppData;
+  /** Replace everything (restoring a cloud backup) */
+  replaceAll: (d: AppData) => void;
   update: (fn: (d: AppData) => void) => void;
   actions: ReturnType<typeof makeActions>;
 }
@@ -469,7 +471,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [data]);
 
   const actions = useMemo(() => makeActions(update), [update]);
-  const value = useMemo(() => ({ data, update, actions }), [data, update, actions]);
+  const replaceAll = useCallback((d: AppData) => {
+    const def = defaultData();
+    setData({ ...def, ...d, settings: { ...def.settings, ...d.settings }, schedule: normalized(d.schedule ?? []) });
+  }, []);
+  const value = useMemo(() => ({ data, update, actions, replaceAll }), [data, update, actions, replaceAll]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

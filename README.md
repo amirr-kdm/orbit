@@ -19,8 +19,10 @@ Weekly timetable · to-do lists · study timer · reports · Persian & Gregorian
 
 </div>
 
-> ### 🆕 What's new in 1.2
-> 🛍 **Planet Store** with 40+ hand-made planets · 🚀 **rockets** earned by studying · 👥 **study groups** with join codes, friend requests and a weekly 100-rocket prize · 📝 **Planner** · 🕸 **Tasks graph** · ⏭ **Skipped** to-dos · 🎨 custom colours · ⚡ +1 level every 3 hours
+> ### 🆕 What's new in 1.3
+> 🔐 **Accounts** — sign up with email, username and password, then log in on any computer · ☁️ **cloud backup** of all your data (still works offline) · ✅ new accounts are **approved by the owner** · 👤 profile page to change username, email and password
+>
+> **1.2:** 🛍 **Planet Store** with 40+ hand-made planets · 🚀 **rockets** earned by studying · 👥 **study groups** with join codes, friend requests and a weekly 100-rocket prize · 📝 **Planner** · 🕸 **Tasks graph** · ⏭ **Skipped** to-dos · 🎨 custom colours · ⚡ +1 level every 3 hours
 
 ---
 
@@ -91,6 +93,7 @@ Windows 10 / 11 · 64-bit
 
 ## 🚀 Quick start
 
+0. **Create your account.** Open Orbit, choose **Sign up** and pick an email, a username and a password. The owner approves new accounts; the app opens by itself once you're in. Already used Orbit before? You'll see **Create my account** instead — it keeps your friends, groups and data.
 1. **Set up your week.** Open **Weekly Schedule**, click a cell and type a class or study block. **Enter** saves.
 2. **Mark what to study.** Set the cell's type to **To-do**. To-do cells appear in **Today** and **Tasks**.
 3. **Study.** In **Today**, press **Study** next to a to-do, then **Start**. Press **Finish & Save** when done.
@@ -232,11 +235,13 @@ Appearance (Light / Dark / System), design templates and fonts (Mac), primary ca
 
 ## 🔒 Your data & privacy
 
-- Everything you create is stored **locally**:
+- Everything you create is stored **on your computer**, so Orbit works fully offline:
   - **Mac:** `~/Library/Application Support/Orbit/data.json`
-  - **Windows:** inside the app's local storage. Use **Settings → Export backup** to save a copy.
-- With Friends, only **daily summaries** are uploaded: minutes studied, subjects and their time, to-dos done, what you're studying now, level, rocket balance, profile planet and galaxy layout. Schedules, tasks and notes are **never** uploaded.
-- **Delete My Profile** removes everything you shared from the server.
+  - **Windows:** inside the app's local storage (**Settings → Export backup** saves a copy).
+- With an account, that data (schedule, tasks, notes, sessions, galaxy) is also **backed up to your account** on the Orbit server, so logging in on a new computer brings it back. Only you can read your backup.
+- Your friends and groups only see **daily summaries**: minutes studied, subjects and their time, to-dos done, what you're studying now, level, rocket balance, profile planet and galaxy layout — never your schedule, tasks or notes.
+- Passwords are stored hashed by Supabase Auth; nobody (including the owner) can read them. If you forget yours, the owner can set a temporary one for you.
+- **Delete My Profile** / removing an account deletes your profile, shared stats and backup from the server.
 
 ---
 
@@ -310,7 +315,8 @@ The downloads already use the shared Orbit server. You only need this if you bui
 <summary><b>Setup steps</b></summary>
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql) and press **Run**. Then do the same with [`supabase/groups.sql`](supabase/groups.sql) (groups and friend requests).
+2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql) and press **Run**. Then do the same with [`supabase/groups.sql`](supabase/groups.sql) (groups and friend requests) and [`supabase/accounts.sql`](supabase/accounts.sql) (accounts, approval, cloud backup, admin — change the admin name in it to yours).
+   In **Authentication → Sign In / Providers**, turn **off** "Confirm email" so sign-up needs no code.
 3. **Authentication → Sign In / Providers**: turn on **Allow anonymous sign-ins**.
 4. **Project Settings → API Keys**: copy the **Project URL** and **Publishable key** (`sb_publishable_…`).
 5. Mac: `cp Resources/Supabase.example.plist Resources/Supabase.plist`, fill in `URL` and `PublishableKey`, then `./build.sh install`.

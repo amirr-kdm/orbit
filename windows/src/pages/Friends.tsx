@@ -28,16 +28,11 @@ export default function Friends() {
   );
 
   if (!f.me) return (
-    <div className="page" style={{ alignItems: "center", textAlign: "center", paddingTop: 80 }}>
-      <div style={{ width: 96, height: 96, borderRadius: "50%", background: "var(--accent)", display: "grid", placeItems: "center", fontSize: 44 }}>👥</div>
-      <h1 className="page-title">Study together</h1>
-      <div className="muted" style={{ maxWidth: 440, fontSize: 16 }}>See how much your friends study, their streaks, and who's studying right now.</div>
-      <div className="row">
-        <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name.trim() && f.createProfile(name)} style={{ width: 240 }} />
-        <button className="btn primary" disabled={!name.trim() || f.loading} onClick={() => f.createProfile(name)}>Create my profile</button>
-      </div>
+    <div className="page" style={{ alignItems: "center", textAlign: "center", paddingTop: 80, gap: 14 }}>
+      <div style={{ fontSize: 44 }}>👥</div>
+      <h2 style={{ margin: 0 }}>Connecting to your account…</h2>
       {f.error && <div style={{ color: "#ef4444" }}>⚠️ {f.error}</div>}
-      <div className="small muted" style={{ maxWidth: 460 }}>🔒 Only daily totals are shared: minutes studied, to-dos done, top subjects and what you're studying right now. Your schedule, tasks and notes stay on this computer. No email or password needed.</div>
+      <button className="btn" onClick={f.refresh}>↻ Try again</button>
     </div>
   );
 
