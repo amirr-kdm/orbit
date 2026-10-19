@@ -46,6 +46,10 @@ struct PlanetDef: Identifiable, Hashable {
     var price = 0
     /// A picture (PNG in the app bundle) shown instead of a drawn planet
     var image: String?
+    /// Little creatures / vehicles (emoji) walking back and forth on top of the planet
+    var walkers: [String] = []
+    /// Things standing on the planet (emoji): buildings, trees, castles…
+    var landmarks: [String] = []
 
     /// Groups unlock every 5 levels: group 1 → level 1, group 2 → level 6, … group 10 → level 46
     var unlockLevel: Int { PlanetCatalog.unlockLevel(group: level) }
@@ -289,6 +293,8 @@ enum PlanetPainter {
         }
 
         for f in p.features { drawFront(f, ctx: &ctx, c: c, r: r, accent: accent, shape: p.shape) }
+
+        if !p.landmarks.isEmpty || !p.walkers.isEmpty { drawSurface(p, ctx: &ctx, c: c, r: r, phase: phase) }
 
         if let ring = p.ring { drawRing(ring, ctx: &ctx, c: c, r: r, front: true, phase: phase) }
 

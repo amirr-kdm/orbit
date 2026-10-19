@@ -228,8 +228,57 @@ struct GalaxyPage: View {
 
     // MARK: Collection
 
+    /// Planets bought in the Store wait here until you place them
+    private var storeShelf: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Text("Your Store Planets").font(.title2.weight(.bold))
+                RocketIcon(size: 20)
+                Spacer()
+                Picker("Place in", selection: $targetSystem) {
+                    Text("First system with room").tag(UUID?.none)
+                    ForEach(store.solarSystems) { s in
+                        Text("\(s.name) (\(store.planets(in: s).count)/\(SolarSystem.capacity))").tag(Optional(s.id))
+                    }
+                }
+                .frame(width: 280)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(store.ownedStorePlanets) { p in
+                        let waiting = store.unplacedCount(p.id), placed = store.placedCount(p.id)
+                        VStack(spacing: 6) {
+                            PlanetView(planet: p, size: 96, phase: 0.15)
+                            Text(p.name).font(.callout.weight(.semibold)).lineLimit(1)
+                            Text(waiting > 0 ? "\(waiting) waiting · \(placed) placed" : "All \(placed) placed")
+                                .font(.caption2).foregroundStyle(.secondary)
+                            Button(waiting > 0 ? "Place" : "Placed ✓") {
+                                if store.placeOwned(p.id, into: targetSystem) {
+                                    showToast("\(p.name) joined your galaxy ✨")
+                                } else {
+                                    showToast("That solar system is full. Pick another or create one.")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(waiting == 0)
+                        }
+                        .frame(width: 130)
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: "#0B1020")))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(p.rarity.color.opacity(0.5)))
+                        .foregroundStyle(.white)
+                    }
+                }
+            }
+            Text("Buy planets in the Store, then place them here. Removing a store planet from a system keeps it on this shelf.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
     private func collection(_ progress: GalaxyProgress) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !store.ownedStorePlanets.isEmpty { storeShelf.padding(.bottom, 10) }
             HStack {
                 Text("Planet Collection").font(.title2.weight(.bold))
                 Text("\(progress.unlockedCount)/\(PlanetCatalog.all.count)").foregroundStyle(.secondary)

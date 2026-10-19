@@ -145,8 +145,9 @@ private struct StoreDetail: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let planet: PlanetDef
-    @State private var systemID: UUID?
+    @Environment(Router.self) private var router
     @State private var message: String?
+    @State private var confirmRefund = false
 
     var body: some View {
         let balance = store.rocketBalance
@@ -174,42 +175,33 @@ private struct StoreDetail: View {
                         .foregroundStyle(.green)
                 }
 
-                Picker("Add to", selection: $systemID) {
-                    Text("First system with room").tag(UUID?.none)
-                    ForEach(store.solarSystems) { s in
-                        Text("\(s.name) (\(store.planets(in: s).count)/\(SolarSystem.capacity))").tag(Optional(s.id))
-                    }
-                }
-                .frame(maxWidth: 320)
-
                 HStack {
-                    if unplaced > 0 {
-                        Button("Add to Galaxy (owned)") {
-                            message = store.placeOwned(planet.id, into: systemID) ? "Added to your galaxy ✨" : "That solar system is full."
-                        }
-                    }
                     Button {
-                        if store.buyPlanet(planet.id, into: systemID) {
-                            message = "\(planet.name) is yours! It's now in your galaxy 🎉"
+                        if store.buyPlanet(planet.id) {
+                            message = "\(planet.name) is yours! 🎉 Place it from My Galaxy → Your Store Planets."
                         } else {
-                            message = store.rocketBalance < planet.price ? "Not enough rockets yet." : "That solar system is full. Pick another one."
+                            message = "Not enough rockets yet."
                         }
                     } label: {
                         Label(balance >= planet.price ? (owned > 0 ? "Buy Another" : "Buy") : "Need \((planet.price - balance).formatted()) more",
                               systemImage: balance >= planet.price ? "cart.fill" : "lock.fill")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(balance < planet.price || !store.hasRoom(in: systemID))
+                    .disabled(balance < planet.price)
                     if owned > 0 {
-                        Button(store.avatarPlanet == planet.id ? "Your Profile Picture" : "Use as Profile Picture") {
-                            store.avatarPlanet = planet.id
+                        Button("Go to My Galaxy") { router.selection = .galaxy; dismiss() }
+                        Button {
+                            confirmRefund = true
+                        } label: {
+                            Label("Refund", systemImage: "ticket")
                         }
-                        .disabled(store.avatarPlanet == planet.id)
+                        .disabled(store.refundTicketsLeft == 0)
+                        .help(store.refundTicketsLeft == 0 ? "No refund tickets left" : "Give one back for \(planet.price) rockets")
                     }
                 }
-                if !store.hasRoom(in: systemID) {
-                    Text("Your solar systems are full. Create a new one in My Galaxy.").font(.caption).foregroundStyle(.orange)
-                }
+                Label("\(store.refundTicketsLeft) of \(AppStore.refundTickets) refund tickets left · a refund returns the full price",
+                      systemImage: "ticket")
+                    .font(.caption).foregroundStyle(.secondary)
                 if let message { Text(message).font(.callout.weight(.medium)).foregroundStyle(Color.accentColor) }
                 Spacer()
                 HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.defaultAction) }
@@ -217,5 +209,12 @@ private struct StoreDetail: View {
         }
         .padding(28)
         .frame(width: 760, height: 400)
+        .confirmationDialog("Refund \(planet.name)?", isPresented: $confirmRefund) {
+            Button("Refund for \(planet.price) rockets") {
+                if store.refund(planet.id) { message = "Refunded \(planet.price) rockets. \(store.refundTicketsLeft) tickets left." }
+            }
+        } message: {
+            Text("This uses 1 of your \(store.refundTicketsLeft) refund tickets. If the planet is in your galaxy, it's taken out.")
+        }
     }
 }

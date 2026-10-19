@@ -74,14 +74,34 @@ extension AppStore {
         return target
     }
 
-    /// Spend rockets on a store planet and put it in a solar system
+    /// Spend rockets on a store planet. It waits in My Galaxy → Your Store Planets until you place it.
     @discardableResult
-    func buyPlanet(_ planetID: String, into systemID: UUID?) -> Bool {
-        guard let p = PlanetCatalog.planet(planetID), p.isStoreItem, rocketBalance >= p.price,
-              let target = systemWithRoom(systemID) else { return false }
+    func buyPlanet(_ planetID: String) -> Bool {
+        guard let p = PlanetCatalog.planet(planetID), p.isStoreItem, rocketBalance >= p.price else { return false }
         purchases.append(Purchase(planetID: planetID, price: p.price))
-        galaxy.append(PlacedPlanet(planetID: planetID, systemID: target.id))
         return true
+    }
+
+    static let refundTickets = 3
+    var refundTicketsLeft: Int { max(0, Self.refundTickets - refundsUsed) }
+
+    /// Give one bought copy back for its full price (uses a refund ticket).
+    /// If every copy is in the galaxy, one is taken out.
+    @discardableResult
+    func refund(_ planetID: String) -> Bool {
+        guard refundTicketsLeft > 0, let i = purchases.lastIndex(where: { $0.planetID == planetID }) else { return false }
+        purchases.remove(at: i)
+        refundsUsed += 1
+        if placedCount(planetID) > ownedCount(planetID), let j = galaxy.lastIndex(where: { $0.planetID == planetID }) {
+            galaxy.remove(at: j)
+        }
+        if avatarPlanet == planetID && ownedCount(planetID) == 0 { avatarPlanet = nil }
+        return true
+    }
+
+    /// Store planets you own, for the My Galaxy shelf
+    var ownedStorePlanets: [PlanetDef] {
+        PlanetCatalog.store.filter { ownedCount($0.id) > 0 }
     }
 
     /// Put an already-bought planet back into the galaxy (free)

@@ -30,6 +30,12 @@ enum Rarity: String, CaseIterable, Identifiable {
 /// Spacecraft that orbit a store planet
 enum Craft: Hashable {
     case rocket, ufo, station, satellite, shuttle, comet
+    /// A belt of tumbling rocks around the planet
+    case asteroids
+    /// Twinkling stars around the planet
+    case stars
+    /// An astronaut floating on the orbit
+    case astronaut
 }
 
 extension PlanetDef {
@@ -38,64 +44,122 @@ extension PlanetDef {
 }
 
 extension PlanetCatalog {
-    /// 20 planets you buy with rockets. Kept apart from the 50 level planets.
+    /// Store planets you buy with rockets. Kept apart from the 50 level planets.
+    /// Each one is a little world with a story: who lives there and what flies around it.
     static let store: [PlanetDef] = [
-        // Common
-        PlanetDef(id: "s_lemondrop", name: "Lemon Drop", level: 1, blurb: "Sour, sunny and a little bit sticky.",
-                  colors: ["#FEF9C3", "#FACC15", "#A16207"], pattern: .dots, accent: "#FFFBEB", features: [.leaf], price: 100),
+        // MARK: Common (100–299)
+        PlanetDef(id: "s2_bees", name: "Bee Meadow", level: 1, blurb: "Sunflowers everywhere and bees buzzing between them.",
+                  colors: ["#FEF9C3", "#84CC16", "#365314"], pattern: .dots, accent: "#FDE047",
+                  price: 110, walkers: ["🐝"], landmarks: ["🌻", "🌻", "🌻"]),
+        PlanetDef(id: "s_lemondrop", name: "Citrus Grove", level: 1, blurb: "Lemon trees, a little farmhouse and very sour air.",
+                  colors: ["#FEF9C3", "#FACC15", "#A16207"], pattern: .dots, accent: "#FFFBEB",
+                  price: 130, walkers: ["🐌"], landmarks: ["🌳", "🏡", "🍋"]),
+        PlanetDef(id: "s2_beach", name: "Beach Paradise", level: 1, blurb: "Palm trees, warm sand and crabs on holiday.",
+                  colors: ["#A5F3FC", "#06B6D4", "#155E75"], pattern: .waves, accent: "#FDE68A",
+                  crafts: [.stars], price: 150, walkers: ["🦀"], landmarks: ["🌴", "⛱️", "🌴"]),
         PlanetDef(id: "s_comet", name: "Comet Tail", level: 1, blurb: "An icy world with a comet that never leaves.",
                   colors: ["#E0F2FE", "#7DD3FC", "#0369A1"], pattern: .craters, accent: "#0C4A6E",
-                  crafts: [.comet], price: 150),
-        PlanetDef(id: "s_mint", name: "Mint Orbit", level: 1, blurb: "Fresh mint bands and a tiny busy satellite.",
+                  crafts: [.comet], price: 160),
+        PlanetDef(id: "s2_candy", name: "Candy Land", level: 1, blurb: "Lollipop trees and a gingerbread man out for a walk.",
+                  colors: ["#FCE7F3", "#F472B6", "#9D174D"], pattern: .sprinkles, accent: "#FDE047",
+                  price: 180, walkers: ["🧁"], landmarks: ["🍭", "🍬", "🍭"]),
+        PlanetDef(id: "s_mint", name: "Mint Orbit", level: 1, blurb: "A cool green world watched over by a tiny satellite.",
                   colors: ["#D1FAE5", "#34D399", "#065F46"], pattern: .bands, accent: "#ECFDF5",
-                  crafts: [.satellite], price: 160),
+                  crafts: [.satellite, .stars], price: 200),
+        PlanetDef(id: "s2_farm", name: "Happy Farm", level: 1, blurb: "Cows, a red barn and a tractor working all day.",
+                  colors: ["#D9F99D", "#65A30D", "#365314"], pattern: .mountains, accent: "#1A2E05",
+                  price: 220, walkers: ["🐄", "🚜"], landmarks: ["🌾", "🏠", "🌾"]),
         PlanetDef(id: "s_launchpad", name: "Launch Pad", level: 1, blurb: "Pixel rockets take off from here every hour.",
-                  colors: ["#E2E8F0", "#64748B", "#1E293B"], pattern: .checker, accent: "#CBD5E1",
-                  crafts: [.rocket], price: 200),
-        PlanetDef(id: "s_cottoncandy", name: "Cotton Candy", level: 1, blurb: "Pink and blue fluff. Do not eat the clouds.",
-                  shape: .cloud, colors: ["#FCE7F3", "#C4B5FD", "#7C3AED"], pattern: .swirl, accent: "#BAE6FD", price: 240),
+                  colors: ["#E2E8F0", "#64748B", "#1E293B"], pattern: .craters, accent: "#CBD5E1",
+                  crafts: [.rocket, .stars], price: 240, landmarks: ["🗼", "🏗️"]),
+        PlanetDef(id: "s2_penguins", name: "Penguin Pole", level: 1, blurb: "Penguins waddle between igloos and snowy peaks.",
+                  colors: ["#F8FAFC", "#BAE6FD", "#0EA5E9"], pattern: .snowflakes, accent: "#FFFFFF",
+                  price: 260, walkers: ["🐧", "🐧"], landmarks: ["🏔️", "⛄"]),
+        PlanetDef(id: "s2_winter", name: "Winter Village", level: 1, blurb: "Cosy cabins, Christmas trees and a skier racing past.",
+                  colors: ["#FFFFFF", "#CBD5E1", "#64748B"], pattern: .snowflakes, accent: "#E0F2FE",
+                  crafts: [.stars], price: 290, walkers: ["⛷️"], landmarks: ["🎄", "🏠", "🎄"]),
 
-        // Rare
-        PlanetDef(id: "s_sakura", name: "Sakura", level: 1, blurb: "Cherry blossoms drifting in low gravity.",
-                  shape: .flower, colors: ["#FFE4E6", "#FDA4AF", "#BE123C"], pattern: .dots, accent: "#FFFFFF", price: 300),
-        PlanetDef(id: "s_moonbase", name: "Moonbase", level: 1, blurb: "Flag planted, rocket parked, coffee brewing.",
-                  shape: .crescent, colors: ["#F8FAFC", "#94A3B8", "#334155"], pattern: .craters, accent: "#1E293B",
-                  features: [.flag], crafts: [.rocket], price: 330),
-        PlanetDef(id: "s_neongrid", name: "Neon Grid", level: 1, blurb: "A cyber cube humming with synthwave.",
-                  shape: .cube, colors: ["#F0ABFC", "#C026D3", "#3B0764"], pattern: .hexgrid, accent: "#22D3EE", glow: true,
-                  price: 380),
+        // MARK: Rare (300–549)
+        PlanetDef(id: "s_sakura", name: "Sakura Garden", level: 1, blurb: "A shrine under cherry blossoms, with a panda keeping watch.",
+                  colors: ["#FCE7F3", "#F9A8D4", "#9D174D"], pattern: .waves, accent: "#FFFFFF",
+                  price: 310, walkers: ["🐼"], landmarks: ["🌸", "⛩️", "🌸"]),
+        PlanetDef(id: "s_moonbase", name: "Moonbase", level: 1, blurb: "Flag planted, rocket parked, astronaut on a walk.",
+                  colors: ["#F8FAFC", "#94A3B8", "#334155"], pattern: .craters, accent: "#1E293B",
+                  features: [.flag], crafts: [.rocket], price: 330, walkers: ["🧑‍🚀"]),
+        PlanetDef(id: "s2_spooky", name: "Pumpkin Hollow", level: 1, blurb: "Jack-o'-lanterns glow while a ghost floats around.",
+                  colors: ["#FDBA74", "#EA580C", "#431407"], pattern: .craters, accent: "#1C1917", moons: 1,
+                  crafts: [.stars], price: 350, walkers: ["👻"], landmarks: ["🎃", "🏚️", "🎃"]),
+        PlanetDef(id: "s_neongrid", name: "Cyber City", level: 1, blurb: "Skyscrapers glow all night and robots run the streets.",
+                  colors: ["#818CF8", "#312E81", "#0F0A2E"], pattern: .hexgrid, accent: "#22D3EE", glow: true,
+                  crafts: [.satellite], price: 380, walkers: ["🤖"], landmarks: ["🏢", "🏙️", "🏢"]),
+        PlanetDef(id: "s2_whale", name: "Whale Ocean", level: 1, blurb: "A blue whale cruises past a sailboat and a lighthouse.",
+                  colors: ["#7DD3FC", "#0284C7", "#082F49"], pattern: .waves, accent: "#E0F2FE",
+                  price: 400, walkers: ["🐋", "⛵"], landmarks: ["🗼"]),
         PlanetDef(id: "s_station", name: "Station Alpha", level: 1, blurb: "A golden ring and a space station on patrol.",
                   colors: ["#FEF3C7", "#F59E0B", "#78350F"], pattern: .bands, accent: "#FFFBEB",
-                  ring: .init(color: "#FDE68A", tilt: -14, width: 0.12), crafts: [.station], price: 420),
-        PlanetDef(id: "s_ufo", name: "Close Encounter", level: 1, blurb: "Two little green friends came to say hi.",
+                  ring: .init(color: "#FDE68A", tilt: -14, width: 0.12), crafts: [.station, .stars], price: 420),
+        PlanetDef(id: "s2_desert", name: "Pharaoh's Desert", level: 1, blurb: "Pyramids, cactus and a camel crossing the dunes.",
+                  colors: ["#FEF3C7", "#F59E0B", "#92400E"], pattern: .waves, accent: "#FDE68A",
+                  crafts: [.comet], price: 440, walkers: ["🐪"], landmarks: ["🌵", "🔺", "🌵"]),
+        PlanetDef(id: "s2_jungle", name: "Rainforest", level: 1, blurb: "Monkeys swing and parrots chatter in the canopy.",
+                  colors: ["#86EFAC", "#15803D", "#052E16"], pattern: .mountains, accent: "#14532D",
+                  price: 460, walkers: ["🐒", "🦜"], landmarks: ["🌳", "🌴", "🌳"]),
+        PlanetDef(id: "s_ufo", name: "Close Encounter", level: 1, blurb: "A UFO circles while a little alien explores below.",
                   colors: ["#C7D2FE", "#6366F1", "#1E1B4B"], pattern: .craters, accent: "#312E81",
-                  crafts: [.ufo], price: 480),
+                  crafts: [.ufo, .stars], price: 490, walkers: ["👽"]),
+        PlanetDef(id: "s2_pirates", name: "Pirate Cove", level: 1, blurb: "A pirate ship patrols the island hiding the treasure.",
+                  colors: ["#5EEAD4", "#0F766E", "#042F2E"], pattern: .waves, accent: "#FDE68A",
+                  price: 520, walkers: ["🏴‍☠️"], landmarks: ["🏝️", "💰"]),
 
-        // Epic
+        // MARK: Epic (550–849)
+        PlanetDef(id: "s2_mars", name: "Mars Colony", level: 1, blurb: "Domes, a landed rocket and a rover exploring red dust.",
+                  colors: ["#FDBA74", "#C2410C", "#431407"], pattern: .craters, accent: "#7C2D12",
+                  crafts: [.satellite, .stars], price: 560, walkers: ["🚙"], landmarks: ["🛖", "🚀", "🛖"]),
         PlanetDef(id: "s_crystal", name: "Crystal Fortress", level: 1, blurb: "A diamond citadel under a holy halo.",
                   shape: .diamond, colors: ["#ECFEFF", "#67E8F9", "#155E75"], pattern: .rainbow, accent: "#FFFFFF",
-                  features: [.halo], glow: true, price: 580),
+                  features: [.halo], glow: true, crafts: [.stars], price: 580),
+        PlanetDef(id: "s2_mine", name: "Asteroid Mine", level: 1, blurb: "Miners dig for gems while rocks tumble overhead.",
+                  colors: ["#D6D3D1", "#78716C", "#1C1917"], pattern: .craters, accent: "#FDE047",
+                  crafts: [.asteroids, .shuttle], price: 600, walkers: ["👷"], landmarks: ["⛏️", "💎"]),
         PlanetDef(id: "s_solarsail", name: "Solar Sail", level: 1, blurb: "Sun-powered, with a station and a satellite.",
                   colors: ["#FFEDD5", "#FB923C", "#9A3412"], pattern: .waves, accent: "#FEF3C7",
-                  crafts: [.station, .satellite], price: 620),
+                  crafts: [.station, .satellite, .stars], price: 620),
+        PlanetDef(id: "s2_zoo", name: "Space Zoo", level: 1, blurb: "Giraffes and elephants roam the galaxy's biggest zoo.",
+                  colors: ["#BBF7D0", "#4ADE80", "#14532D"], pattern: .mountains, accent: "#052E16",
+                  crafts: [.rocket], price: 650, walkers: ["🦒", "🐘"], landmarks: ["🌳", "🎪"]),
         PlanetDef(id: "s_rally", name: "Rocket Rally", level: 1, blurb: "Two rockets racing around a double ring.",
                   colors: ["#FECACA", "#EF4444", "#7F1D1D"], pattern: .stripes, accent: "#FEE2E2",
                   ring: .init(color: "#F8FAFC", tilt: 22, width: 0.08, double: true), crafts: [.rocket, .rocket], price: 680),
+        PlanetDef(id: "s2_tokyo", name: "Neon Tokyo", level: 1, blurb: "A pagoda, a tower and a bullet train under the stars.",
+                  colors: ["#F0ABFC", "#A21CAF", "#2E1065"], pattern: .plain, accent: "#F472B6", glow: true,
+                  crafts: [.stars], price: 710, walkers: ["🚄"], landmarks: ["🏯", "🗼", "⛩️"]),
         PlanetDef(id: "s_dragonegg", name: "Dragon Egg", level: 1, blurb: "Warm to the touch. Something is moving inside.",
                   shape: .egg, colors: ["#BBF7D0", "#22C55E", "#14532D"], pattern: .hexgrid, accent: "#052E16",
                   features: [.fireWings], glow: true, price: 740),
+        PlanetDef(id: "s2_observatory", name: "Stargazer Peak", level: 1, blurb: "A telescope on the summit, counting every comet.",
+                  colors: ["#C4B5FD", "#5B21B6", "#1E1B4B"], pattern: .mountains, accent: "#2E1065",
+                  crafts: [.comet, .stars], price: 770, walkers: ["🦉"], landmarks: ["🔭", "🏔️"]),
         PlanetDef(id: "s_mothership", name: "Mothership", level: 1, blurb: "The whole UFO fleet calls this place home.",
                   colors: ["#BEF264", "#4D7C0F", "#1A2E05"], pattern: .spots, accent: "#D9F99D", moons: 1,
-                  glow: true, crafts: [.ufo, .ufo], price: 800),
+                  glow: true, crafts: [.ufo, .ufo, .stars], price: 800, walkers: ["👽"]),
+        PlanetDef(id: "s2_kingdom", name: "Dragon Kingdom", level: 1, blurb: "A castle on the hill and a dragon guarding the sky.",
+                  colors: ["#A7F3D0", "#059669", "#064E3B"], pattern: .mountains, accent: "#022C22",
+                  crafts: [.stars], price: 830, walkers: ["🐉", "🐎"], landmarks: ["🏰"]),
 
-        // Legendary
+        // MARK: Legendary (850–1000)
         PlanetDef(id: "s_blackhole", name: "Event Horizon", level: 1, blurb: "Light bends around it. So does time.",
                   colors: ["#475569", "#0F172A", "#000000"], pattern: .swirl, accent: "#F472B6",
-                  ring: .init(color: "#FB923C", tilt: -10, width: 0.22, double: true), glow: true, crafts: [.comet],
-                  price: 860),
+                  ring: .init(color: "#FB923C", tilt: -10, width: 0.22, double: true), glow: true,
+                  crafts: [.comet, .asteroids], price: 860),
+        PlanetDef(id: "s2_robots", name: "Robot Factory", level: 1, blurb: "Robots build more robots, day and night.",
+                  colors: ["#E2E8F0", "#64748B", "#0F172A"], pattern: .checker, accent: "#38BDF8",
+                  crafts: [.satellite, .station], price: 880, walkers: ["🤖", "🦾"], landmarks: ["🏭", "🏭"]),
         PlanetDef(id: "s_captain", name: "Captain Whiskers", level: 1, blurb: "The coolest cat in the fleet flies his own rocket.",
                   colors: ["#FDE68A", "#F59E0B", "#92400E"], pattern: .stripes, accent: "#78350F",
-                  features: [.catEars, .sunglasses, .whiskers], crafts: [.rocket], price: 900),
+                  features: [.catEars, .sunglasses, .whiskers], crafts: [.rocket, .stars], price: 900),
+        PlanetDef(id: "s2_jurassic", name: "Jurassic World", level: 1, blurb: "Dinosaurs roam the jungle while meteors streak past.",
+                  colors: ["#A3E635", "#3F6212", "#1A2E05"], pattern: .mountains, accent: "#14532D",
+                  crafts: [.asteroids, .comet], price: 920, walkers: ["🦕", "🦖"], landmarks: ["🌴", "🌋", "🌴"]),
         PlanetDef(id: "s_odyssey", name: "Starship Odyssey", level: 1, blurb: "A shuttle, a rocket and a station on one long voyage.",
                   colors: ["#DBEAFE", "#3B82F6", "#1E3A8A"], pattern: .clouds, accent: "#E0F2FE",
                   ring: .init(color: "#93C5FD", tilt: 18, width: 0.1), moons: 1, glow: true,
@@ -103,13 +167,17 @@ extension PlanetCatalog {
         PlanetDef(id: "s_royal", name: "Royal Nebula", level: 1, blurb: "A crowned world wrapped in violet starlight.",
                   colors: ["#F5D0FE", "#A855F7", "#3B0764"], pattern: .waves, accent: "#FDE047",
                   ring: .init(color: "#E9D5FF", tilt: -24, width: 0.14), moons: 2, features: [.crown], glow: true,
-                  crafts: [.satellite], price: 970),
+                  crafts: [.satellite, .stars], price: 970),
+        PlanetDef(id: "s_aliens", name: "Alien Visitors", level: 1, blurb: "Two little green friends dropped by in their pixel saucer.",
+                  colors: ["#BEF264", "#4ADE80", "#14532D"], accent: "#86EFAC", glow: true, price: 990, image: "ufo"),
+        PlanetDef(id: "s2_hub", name: "Galactic Hub", level: 1, blurb: "The busiest port in space: ships come and go all day.",
+                  colors: ["#E0E7FF", "#6366F1", "#1E1B4B"], pattern: .bands, accent: "#C7D2FE",
+                  ring: .init(color: "#A5B4FC", tilt: 14, width: 0.1, double: true), glow: true,
+                  crafts: [.station, .ufo, .rocket, .shuttle, .asteroids, .stars], price: 1000, walkers: ["🧑‍🚀"]),
         PlanetDef(id: "s_infinity", name: "Infinity Core", level: 1, blurb: "Every colour, every orbit — the rarest world of all.",
                   shape: .burst, colors: ["#FEF9C3", "#F472B6", "#4C1D95"], pattern: .rainbow, accent: "#FFFFFF",
                   ring: .init(color: "#FDE68A", tilt: 12, width: 0.12, double: true), moons: 3,
-                  features: [.halo], glow: true, crafts: [.comet, .shuttle], price: 1000),
-        PlanetDef(id: "s_aliens", name: "Alien Visitors", level: 1, blurb: "Two little green friends dropped by in their pixel saucer.",
-                  colors: ["#BEF264", "#4ADE80", "#14532D"], accent: "#86EFAC", glow: true, price: 990, image: "ufo"),
+                  features: [.halo], glow: true, crafts: [.comet, .shuttle, .stars], price: 1000),
     ]
 }
 
@@ -117,7 +185,10 @@ extension PlanetCatalog {
 
 extension PlanetPainter {
     /// Craft fly on an orbit around the planet; `phase` (0…1) moves them
-    static func drawCrafts(_ crafts: [Craft], ctx: inout GraphicsContext, c: CGPoint, r: CGFloat, phase: Double) {
+    static func drawCrafts(_ all: [Craft], ctx: inout GraphicsContext, c: CGPoint, r: CGFloat, phase: Double) {
+        if all.contains(.stars) { twinkles(&ctx, c: c, r: r, phase: phase) }
+        if all.contains(.asteroids) { asteroidBelt(&ctx, c: c, r: r, phase: phase) }
+        let crafts = all.filter { $0 != .stars && $0 != .asteroids }
         for (i, craft) in crafts.enumerated() {
             let a = (Double(i) / Double(max(1, crafts.count)) + phase * (craft == .comet ? 0.6 : 1)) * .pi * 2 + 2.2
             let orbitX = r * (craft == .comet ? 1.55 : 1.42), orbitY = r * 0.62
@@ -135,7 +206,79 @@ extension PlanetPainter {
             case .satellite: satellite(&g, u * 0.85)
             case .shuttle: shuttle(&g, u)
             case .comet: comet(&g, u)
+            case .astronaut:
+                g.rotate(by: .radians(-heading + sin(phase * .pi * 4) * 0.4))
+                g.draw(Text("🧑‍🚀").font(.system(size: u * 2)), at: .zero)
+            case .asteroids, .stars: break
             }
+        }
+    }
+
+    /// A ring of tumbling rocks
+    private static func asteroidBelt(_ ctx: inout GraphicsContext, c: CGPoint, r: CGFloat, phase: Double) {
+        var rng = SeededRandom(seed: "belt")
+        for k in 0..<14 {
+            let a = (Double(k) / 14 + phase * 0.35) * .pi * 2 + rng.next() * 0.3
+            let rx = r * (1.5 + rng.next() * 0.18), ry = r * (0.5 + rng.next() * 0.1)
+            let p = CGPoint(x: c.x + cos(a) * rx, y: c.y + sin(a) * ry)
+            let s = r * (0.06 + rng.next() * 0.07)
+            var rock = Path()
+            let spin = phase * .pi * 4 + Double(k)
+            for v in 0..<6 {
+                let va = Double(v) / 6 * .pi * 2 + spin
+                let vr = s * (0.75 + rng.next() * 0.45)
+                let q = CGPoint(x: p.x + cos(va) * vr, y: p.y + sin(va) * vr)
+                if v == 0 { rock.move(to: q) } else { rock.addLine(to: q) }
+            }
+            rock.closeSubpath()
+            ctx.fill(rock, with: .linearGradient(Gradient(colors: [Color(hex: "#D6D3D1"), Color(hex: "#57534E")]),
+                                                 startPoint: CGPoint(x: p.x - s, y: p.y - s), endPoint: CGPoint(x: p.x + s, y: p.y + s)))
+        }
+    }
+
+    /// Four-point stars that twinkle around the planet
+    private static func twinkles(_ ctx: inout GraphicsContext, c: CGPoint, r: CGFloat, phase: Double) {
+        var rng = SeededRandom(seed: "stars")
+        for k in 0..<7 {
+            let a = rng.next() * .pi * 2, d = r * (1.35 + rng.next() * 0.35)
+            let p = CGPoint(x: c.x + cos(a) * d, y: c.y + sin(a) * d * 0.85)
+            let tw = 0.5 + 0.5 * sin(phase * .pi * 6 + Double(k) * 1.7)
+            let s = r * (0.05 + 0.07 * tw)
+            var star = Path()
+            star.move(to: CGPoint(x: p.x, y: p.y - s * 2))
+            star.addQuadCurve(to: CGPoint(x: p.x + s * 2, y: p.y), control: p)
+            star.addQuadCurve(to: CGPoint(x: p.x, y: p.y + s * 2), control: p)
+            star.addQuadCurve(to: CGPoint(x: p.x - s * 2, y: p.y), control: p)
+            star.addQuadCurve(to: CGPoint(x: p.x, y: p.y - s * 2), control: p)
+            ctx.fill(star, with: .color(Color(hex: "#FEF9C3").opacity(0.55 + 0.45 * tw)))
+        }
+    }
+
+    /// Landmarks stand on the upper rim; walkers stroll back and forth across the top
+    static func drawSurface(_ p: PlanetDef, ctx: inout GraphicsContext, c: CGPoint, r: CGFloat, phase: Double) {
+        let size = r * 0.6
+        func standing(_ emoji: String, angle: Double, scale: CGFloat = 1, flip: Bool = false, lift: CGFloat = 0) {
+            var g = ctx
+            let edge = r + size * scale * 0.38 + lift
+            g.translateBy(x: c.x + cos(angle) * edge, y: c.y + sin(angle) * edge)
+            g.rotate(by: .radians(angle + .pi / 2))
+            if flip { g.scaleBy(x: -1, y: 1) }
+            g.draw(Text(emoji).font(.system(size: size * scale)), at: .zero)
+        }
+        let n = p.landmarks.count
+        for (i, e) in p.landmarks.enumerated() {
+            // Spread over the top of the planet, away from the walkers' path in the middle
+            let t = n == 1 ? 0.5 : Double(i) / Double(n - 1)
+            standing(e, angle: -.pi / 2 + (t - 0.5) * 2.1, scale: 1.05)
+        }
+        for (i, e) in p.walkers.enumerated() {
+            let offset = Double(i) * 2.1
+            let wave = sin(phase * .pi * 2 + offset)
+            let angle = -.pi / 2 + wave * 0.75
+            // Face the way it's walking, with a little step bounce
+            let goingRight = cos(phase * .pi * 2 + offset) > 0
+            let bounce = abs(sin(phase * .pi * 24 + offset)) * size * 0.08
+            standing(e, angle: angle, scale: 0.85, flip: goingRight, lift: bounce)
         }
     }
 

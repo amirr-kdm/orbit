@@ -55,6 +55,8 @@ final class AppStore {
     var planners: [Planner] = [] { didSet { save() } }
     /// Store planets bought with rockets
     var purchases: [Purchase] = [] { didSet { save() } }
+    /// Refund tickets used (everyone gets 3)
+    var refundsUsed = 0 { didSet { save() } }
 
     @ObservationIgnored let fileURL: URL
     @ObservationIgnored private var isLoading = false
@@ -69,6 +71,7 @@ final class AppStore {
         var scheduleMoved: Set<String> = []
         var scheduleSkipped: Set<String> = []
         var purchases: [Purchase] = []
+        var refundsUsed = 0
         var galaxy: [PlacedPlanet] = []
         var avatarPlanet: String?
         var solarSystems: [SolarSystem] = []
@@ -77,7 +80,8 @@ final class AppStore {
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
              galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner],
-             scheduleSkipped: Set<String>, purchases: [Purchase]) {
+             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int) {
+            self.refundsUsed = refundsUsed
             self.scheduleSkipped = scheduleSkipped
             self.purchases = purchases
             self.solarSystems = solarSystems
@@ -104,6 +108,7 @@ final class AppStore {
             scheduleMoved = try c.decodeIfPresent(Set<String>.self, forKey: .scheduleMoved) ?? []
             scheduleSkipped = try c.decodeIfPresent(Set<String>.self, forKey: .scheduleSkipped) ?? []
             purchases = try c.decodeIfPresent([Purchase].self, forKey: .purchases) ?? []
+            refundsUsed = try c.decodeIfPresent(Int.self, forKey: .refundsUsed) ?? 0
             galaxy = try c.decodeIfPresent([PlacedPlanet].self, forKey: .galaxy) ?? []
             avatarPlanet = try c.decodeIfPresent(String.self, forKey: .avatarPlanet)
             solarSystems = try c.decodeIfPresent([SolarSystem].self, forKey: .solarSystems) ?? []
@@ -152,6 +157,7 @@ final class AppStore {
             scheduleMoved = snap.scheduleMoved
             scheduleSkipped = snap.scheduleSkipped
             purchases = snap.purchases
+            refundsUsed = snap.refundsUsed
             galaxy = snap.galaxy
             avatarPlanet = snap.avatarPlanet
             solarSystems = snap.solarSystems
@@ -174,7 +180,7 @@ final class AppStore {
                             schedule: schedule, scheduleDone: scheduleDone, scheduleMoved: scheduleMoved,
                             galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
                             planners: planners, scheduleSkipped: scheduleSkipped,
-                            purchases: purchases)
+                            purchases: purchases, refundsUsed: refundsUsed)
         do {
             try encoder.encode(snap).write(to: fileURL, options: .atomic)
         } catch {
