@@ -14,6 +14,8 @@ struct CategoryGraphView: View {
     /// Shared so the layout, zoom and position survive switching pages
     @State private var sim = GraphSim.shared
     @AppStorage("graphShowDone") private var showDone = false
+    @AppStorage("graphPeriod") private var period: GraphPeriod = .week
+    @State private var anchor = Date()
     @State private var selected: String?
     @State private var dragNode: Int?
     @State private var panStart: CGSize?
@@ -25,6 +27,7 @@ struct CategoryGraphView: View {
             ZStack(alignment: .topLeading) {
                 canvas
                 legend.padding(12)
+                periodBar.padding(12).frame(maxWidth: .infinity, alignment: .top)
                 zoomControls.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 Text("Pinch to zoom · two-finger scroll to move · drag nodes")
                     .font(.caption2).foregroundStyle(.tertiary)
@@ -39,9 +42,10 @@ struct CategoryGraphView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
 
-            if let id = selected, let node = sim.nodes.first(where: { $0.id == id }) {
+            if let id = selected, let node = graph.nodes.first(where: { $0.id == id }) {
                 GraphDetails(node: node,
-                             items: sim.links.filter { sim.nodes[$0.0].id == node.id }.map { sim.nodes[$0.1] },
+                             items: graph.edges.filter { $0.a == node.id }.compactMap { e in graph.nodes.first { $0.id == e.b } },
+                             showDone: showDone,
                              select: { selected = $0 },
                              close: { selected = nil })
                     .frame(width: 300)
@@ -68,7 +72,7 @@ struct CategoryGraphView: View {
             if hubs[id] == nil {
                 let c = store.category(categoryID)
                 hubs[id] = .init(id: id, title: c?.name ?? "No category", color: c?.colorHex ?? "#8E8E93",
-                                 isHub: true, isSchedule: false, isDone: false, detail: "", ref: nil)
+                                 isHub: true, isSchedule: false, isDone: false, detail: "", ref: nil, date: nil)
             }
             return id
         }
@@ -77,25 +81,102 @@ struct CategoryGraphView: View {
             return q.isEmpty || title.lowercased().contains(q)
         }
 
+        let kind = store.settings.primaryCalendar
+        let range = periodInterval
+        let multiDay = period == .week || period == .month
+
+        // Tasks: all of them, or the ones dated inside the period
         for t in store.tasks where (showDone || !t.isDone) && include(t.categoryID, t.title) {
+            if let range {
+                guard let d = t.dueDate, range.contains(d) else { continue }
+            }
             let h = hub(for: t.categoryID)
-            let detail = t.dueDate.map { Fmt.date($0, "EEE, MMM d", store.settings.primaryCalendar) } ?? "No date"
+            let detail = t.dueDate.map { Fmt.date($0, "EEE, MMM d", kind) } ?? "No date"
             nodes.append(.init(id: "task:\(t.id)", title: t.title, color: store.category(t.categoryID)?.colorHex ?? "#8E8E93",
-                               isHub: false, isSchedule: false, isDone: t.isDone, detail: "Task · \(detail)", ref: .task(t.id)))
+                               isHub: false, isSchedule: false, isDone: t.isDone, detail: "Task · \(detail)", ref: .task(t.id),
+                               date: t.dueDate))
             edges.append(.init(a: h, b: "task:\(t.id)"))
         }
-        for e in store.schedule where e.kind == .todo && include(e.categoryID, e.title) {
-            let done = store.isDone(.schedule(e.id), on: store.occurrence(of: e))
-            if done && !showDone { continue }
-            let h = hub(for: e.categoryID)
-            let slot = store.slot(e.slotID)?.title ?? ""
-            let hex = e.colorHex ?? store.category(e.categoryID)?.colorHex ?? "#5B7CFA"
-            nodes.append(.init(id: "entry:\(e.id)", title: e.title, color: hex, isHub: false, isSchedule: true,
-                               isDone: done, detail: "Weekly schedule · \(Cal.weekdayNames[e.weekday]) \(slot)",
-                               ref: .schedule(e.id)))
-            edges.append(.init(a: h, b: "entry:\(e.id)"))
+
+        // Weekly to-dos: every weekly cell once (All), or one node per day it actually happens in the period
+        if let range {
+            for day in Cal.persian.days(in: range) {
+                for r in store.scheduleRows(on: day, kinds: [.todo]) where include(r.entry.categoryID, r.entry.title) {
+                    if r.isDone && !showDone { continue }
+                    let e = r.entry
+                    let id = "entry:\(e.id)|\(Cal.dayKey(day))"
+                    let h = hub(for: e.categoryID)
+                    nodes.append(.init(id: id, title: multiDay ? "\(e.title) · \(Fmt.date(day, period == .week ? "EEE" : "MMM d", kind))" : e.title,
+                                       color: e.colorHex ?? store.category(e.categoryID)?.colorHex ?? "#5B7CFA",
+                                       isHub: false, isSchedule: true, isDone: r.isDone,
+                                       detail: "\(Fmt.date(day, "EEE, MMM d", kind)) · \(r.slot.title)", ref: .schedule(e.id), date: day))
+                    edges.append(.init(a: h, b: id))
+                }
+            }
+        } else {
+            for e in store.schedule where e.kind == .todo && include(e.categoryID, e.title) {
+                let done = store.isDone(.schedule(e.id), on: store.occurrence(of: e))
+                if done && !showDone { continue }
+                let h = hub(for: e.categoryID)
+                let slot = store.slot(e.slotID)?.title ?? ""
+                let hex = e.colorHex ?? store.category(e.categoryID)?.colorHex ?? "#5B7CFA"
+                nodes.append(.init(id: "entry:\(e.id)", title: e.title, color: hex, isHub: false, isSchedule: true,
+                                   isDone: done, detail: "Weekly schedule · \(Cal.weekdayNames[e.weekday]) \(slot)",
+                                   ref: .schedule(e.id), date: nil))
+                edges.append(.init(a: h, b: "entry:\(e.id)"))
+            }
         }
         return GraphData(nodes: hubs.values.sorted { $0.title < $1.title } + nodes, edges: edges)
+    }
+
+    // MARK: Period
+
+    /// nil = everything (no date filter)
+    private var periodInterval: DateInterval? {
+        switch period {
+        case .all: nil
+        case .day: Cal.persian.dayInterval(anchor)
+        case .week: Cal.persian.dateInterval(of: .weekOfYear, for: anchor)
+        case .month: store.settings.primaryCalendar.calendar.dateInterval(of: .month, for: anchor)
+        }
+    }
+
+    private var periodTitle: String {
+        let k = store.settings.primaryCalendar
+        guard let r = periodInterval else { return "Everything" }
+        switch period {
+        case .day: return Fmt.date(anchor, "EEEE, MMM d", k)
+        case .month: return Fmt.date(r.start, "MMMM y", k)
+        default: return "\(Fmt.date(r.start, "MMM d", k)) – \(Fmt.date(r.end.addingTimeInterval(-1), "MMM d", k))"
+        }
+    }
+
+    private func shift(_ delta: Int) {
+        let comp: Calendar.Component = period == .day ? .day : (period == .week ? .weekOfYear : .month)
+        anchor = store.settings.primaryCalendar.calendar.date(byAdding: comp, value: delta, to: anchor) ?? anchor
+    }
+
+    private var periodBar: some View {
+        HStack(spacing: 10) {
+            Picker("", selection: $period) {
+                ForEach(GraphPeriod.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 230)
+            if period != .all {
+                HStack(spacing: 2) {
+                    Button { shift(-1) } label: { Image(systemName: "chevron.left").frame(width: 20, height: 18) }
+                    Button("Today") { anchor = Date() }
+                    Button { shift(1) } label: { Image(systemName: "chevron.right").frame(width: 20, height: 18) }
+                }
+                .buttonStyle(.borderless)
+            }
+            Text(periodTitle).font(.callout.weight(.semibold)).monospacedDigit()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Capsule().fill(.regularMaterial))
     }
 
     // MARK: Canvas
@@ -311,9 +392,10 @@ private struct GraphDetails: View {
     @Environment(AppStore.self) private var store
     @Environment(TimerEngine.self) private var timer
     @Environment(Router.self) private var router
-    let node: GraphSim.Node
+    let node: GraphData.Node
     /// Items of a category hub
-    let items: [GraphSim.Node]
+    let items: [GraphData.Node]
+    let showDone: Bool
     let select: (String) -> Void
     let close: () -> Void
 
@@ -351,7 +433,7 @@ private struct GraphDetails: View {
 
     @ViewBuilder
     private func entryInfo(_ e: ScheduleEntry) -> some View {
-        let (day, when) = nextOccurrence(e)
+        let (day, when) = node.date.map { ($0, "Date") } ?? nextOccurrence(e)
         let done = store.isDone(.schedule(e.id), on: day)
         let slot = store.slot(e.slotID)
 
@@ -434,8 +516,20 @@ private struct GraphDetails: View {
                 row("calendar", "This week", w > 0 ? Fmt.duration(w) : "—")
             }
         }
-        section("Items") {
-            ForEach(items, id: \.id) { i in
+        let open = items.filter { !$0.isDone }, done = items.filter(\.isDone)
+        section("To do (\(open.count))") {
+            if open.isEmpty { Text("Nothing left 🎉").font(.callout).foregroundStyle(.secondary) }
+            itemList(open)
+        }
+        if !done.isEmpty {
+            section("Done (\(done.count))") { itemList(done) }
+        } else if !showDone {
+            Text("Turn on “Show done” to list finished items.").font(.caption).foregroundStyle(.tertiary)
+        }
+    }
+
+    private func itemList(_ list: [GraphData.Node]) -> some View {
+        ForEach(list, id: \.id) { i in
                 Button { select(i.id) } label: {
                     HStack {
                         Image(systemName: i.isDone ? "checkmark.circle.fill" : (i.isSchedule ? "square" : "circle"))
@@ -447,7 +541,6 @@ private struct GraphDetails: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-            }
         }
     }
 
@@ -496,7 +589,7 @@ private struct GraphDetails: View {
             HStack {
                 Button(done ? "Mark not done" : "Mark done") {
                     if case .schedule(let id) = ref, let e = store.entry(id) {
-                        store.toggleDone(ref, on: store.occurrence(of: e))
+                        store.toggleDone(ref, on: node.date ?? nextOccurrence(e).0)
                     } else {
                         store.toggleDone(ref, on: Date())
                     }
@@ -540,6 +633,21 @@ private struct GraphDetails: View {
 
 // MARK: - Model
 
+/// Which items the graph shows
+enum GraphPeriod: String, CaseIterable, Identifiable {
+    case all, day, week, month
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .all: "All"
+        case .day: "Day"
+        case .week: "Week"
+        case .month: "Month"
+        }
+    }
+}
+
 struct GraphData: Equatable {
     struct Node: Equatable {
         let id: String
@@ -550,6 +658,8 @@ struct GraphData: Equatable {
         let isDone: Bool
         let detail: String
         let ref: TodoRef?
+        /// The day this item happens (nil = undated / every week)
+        let date: Date?
     }
     struct Edge: Equatable {
         let a: String
