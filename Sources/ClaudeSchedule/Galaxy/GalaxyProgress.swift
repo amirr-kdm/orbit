@@ -69,9 +69,8 @@ struct SolarSystem: Codable, Identifiable, Hashable {
 /// Level and planet credits, all derived from study time
 struct GalaxyProgress {
     static let maxLevel = 50
-    /// Hours in one week needed to level up (+1), and for a double level-up (+2)
-    static let levelUpHours: Double = 10
-    static let doubleLevelUpHours: Double = 20
+    /// Every 3 hours of study (in total) is one level
+    static let hoursPerLevel: Double = 3
 
     let level: Int
     let totalHours: Double
@@ -81,32 +80,24 @@ struct GalaxyProgress {
     let placed: Int
 
     var isMaxLevel: Bool { level >= Self.maxLevel }
-    var weekProgress: Double { min(1, weekHours / Self.levelUpHours) }
+    /// Progress towards the next level (0…1)
+    var levelProgress: Double { isMaxLevel ? 1 : (totalHours - Double(level - 1) * Self.hoursPerLevel) / Self.hoursPerLevel }
+    /// Hours of study left until the next level
+    var hoursToNext: Double { isMaxLevel ? 0 : max(0, Double(level) * Self.hoursPerLevel - totalHours) }
     var unlockedCount: Int { PlanetCatalog.unlocked(at: level).count }
 }
 
 extension AppStore {
-    /// Every finished week (Sat–Fri) with 10h+ of study gives +1 level, 20h+ gives +2. Max level 10.
+    /// One level for every 3 hours studied in total (max 50). Level-ups happen straight away.
     func galaxyProgress(now: Date = Date()) -> GalaxyProgress {
         let total = sessions.reduce(0) { $0 + $1.duration } / 3600
         let currentWeek = Cal.weekStart(now)
         let weekHours = studyTime(in: DateInterval(start: currentWeek, end: now.addingTimeInterval(1))) / 3600
-
-        var level = 1
-        if let first = sessions.first?.start {
-            var week = Cal.weekStart(first)
-            while week < currentWeek, level < GalaxyProgress.maxLevel {
-                let next = Cal.persian.date(byAdding: .day, value: 7, to: week) ?? currentWeek
-                let hours = studyTime(in: DateInterval(start: week, end: next)) / 3600
-                if hours >= GalaxyProgress.doubleLevelUpHours { level += 2 }
-                else if hours >= GalaxyProgress.levelUpHours { level += 1 }
-                week = next
-            }
-        }
-        level = min(level, GalaxyProgress.maxLevel)
-        let earned = level
+        let level = min(GalaxyProgress.maxLevel, 1 + Int(total / GalaxyProgress.hoursPerLevel))
+        // Bought planets don't use up level credits
+        let levelPlanets = galaxy.filter { !(PlanetCatalog.planet($0.planetID)?.isStoreItem ?? false) }.count
         return GalaxyProgress(level: level, totalHours: total, weekHours: weekHours,
-                              credits: max(0, earned - galaxy.count), placed: galaxy.count)
+                              credits: max(0, level - levelPlanets), placed: galaxy.count)
     }
 
     func planets(in system: SolarSystem) -> [PlacedPlanet] {

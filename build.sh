@@ -33,6 +33,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Orbit"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+cp Resources/rocket.png "$APP/Contents/Resources/rocket.png"
+cp Resources/ufo.png "$APP/Contents/Resources/ufo.png"
 if [ -f Resources/Supabase.plist ]; then
     cp Resources/Supabase.plist "$APP/Contents/Resources/Supabase.plist"
 else

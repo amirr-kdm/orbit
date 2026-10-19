@@ -71,9 +71,9 @@ struct GalaxyPage: View {
                 if p.isMaxLevel {
                     Text("Max level reached — every planet is yours 🏆").foregroundStyle(.secondary)
                 } else {
-                    Text("This week: \(String(format: "%.1f", p.weekHours))h of \(Int(GalaxyProgress.levelUpHours))h — reach it before Friday ends to level up (20h = +2 levels)")
+                    Text("\(String(format: "%.1f", p.hoursToNext))h of study to level \(p.level + 1) · every \(Int(GalaxyProgress.hoursPerLevel))h studied = +1 level")
                         .font(.callout).foregroundStyle(.secondary)
-                    ProgressView(value: p.weekProgress).tint(accent).frame(maxWidth: 420)
+                    ProgressView(value: p.levelProgress).tint(accent).frame(maxWidth: 420)
                 }
                 HStack(spacing: 16) {
                     Label("\(String(format: "%.1f", p.totalHours))h studied", systemImage: "clock")
@@ -326,7 +326,7 @@ struct GalaxyPage: View {
                         }
                     }
                 } else {
-                    Label("Reach level \(planet.unlockLevel) to unlock — study \(Int(GalaxyProgress.levelUpHours))h in a week to level up",
+                    Label("Reach level \(planet.unlockLevel) to unlock — every \(Int(GalaxyProgress.hoursPerLevel))h of study is +1 level",
                           systemImage: "lock.fill")
                         .foregroundStyle(.secondary)
                 }

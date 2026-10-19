@@ -40,6 +40,12 @@ struct PlanetDef: Identifiable, Hashable {
     var emoji: String?
     var features: [Feature] = []
     var glow = false
+    /// Spacecraft orbiting it (store planets)
+    var crafts: [Craft] = []
+    /// Rocket price; 0 = a level planet (not sold in the store)
+    var price = 0
+    /// A picture (PNG in the app bundle) shown instead of a drawn planet
+    var image: String?
 
     /// Groups unlock every 5 levels: group 1 → level 1, group 2 → level 6, … group 10 → level 46
     var unlockLevel: Int { PlanetCatalog.unlockLevel(group: level) }
@@ -51,7 +57,7 @@ enum PlanetCatalog {
         return byID[id]
     }
 
-    static let byID: [String: PlanetDef] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+    static let byID: [String: PlanetDef] = Dictionary(uniqueKeysWithValues: (all + store).map { ($0.id, $0) })
 
     static func unlocked(at level: Int) -> [PlanetDef] { all.filter { $0.unlockLevel <= level } }
 
@@ -234,6 +240,10 @@ enum PlanetPainter {
         let s = min(size.width, size.height)
         let c = CGPoint(x: size.width / 2, y: size.height / 2)
         let r = s * 0.3
+        if let name = p.image, let img = bundleImage(name) {
+            drawPicture(img, p: p, ctx: &ctx, c: c, r: r, phase: phase)
+            return
+        }
         var rng = SeededRandom(seed: p.id)
         let accent = Color(hex: p.accent)
         let c0 = Color(hex: p.colors[0]), c1 = Color(hex: p.colors[1]), c2 = Color(hex: p.colors[2])
@@ -281,6 +291,8 @@ enum PlanetPainter {
         for f in p.features { drawFront(f, ctx: &ctx, c: c, r: r, accent: accent, shape: p.shape) }
 
         if let ring = p.ring { drawRing(ring, ctx: &ctx, c: c, r: r, front: true, phase: phase) }
+
+        if !p.crafts.isEmpty { drawCrafts(p.crafts, ctx: &ctx, c: c, r: r, phase: phase) }
 
         for i in 0..<p.moons {
             let a = (Double(i) / Double(max(1, p.moons)) + phase) * .pi * 2 + 0.6
@@ -791,12 +803,14 @@ struct SeededRandom {
 /// Developer contact sheet of every planet
 @MainActor
 enum PlanetSheet {
-    static func render(to url: URL) {
+    /// `store: true` renders the 20 store planets by rarity instead
+    static func render(to url: URL, store: Bool = false) {
         let view = VStack(alignment: .leading, spacing: 6) {
-            ForEach(1...10, id: \.self) { level in
+            ForEach(1...(store ? 4 : 10), id: \.self) { level in
                 HStack(spacing: 6) {
-                    Text("L\(level)").font(.headline).foregroundStyle(.white).frame(width: 34)
-                    ForEach(PlanetCatalog.all.filter { $0.level == level }) { p in
+                    Text(store ? Rarity.allCases[level - 1].title.prefix(1) + "" : "L\(level)").font(.headline).foregroundStyle(.white).frame(width: 34)
+                    ForEach(store ? PlanetCatalog.store.filter { $0.rarity == Rarity.allCases[level - 1] }
+                                  : PlanetCatalog.all.filter { $0.level == level }) { p in
                         VStack(spacing: 2) {
                             PlanetView(planet: p, size: 130, phase: 0.1)
                             Text(p.name).font(.caption).foregroundStyle(.white)

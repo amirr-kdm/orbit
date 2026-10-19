@@ -9,8 +9,10 @@ struct ClaudeScheduleApp: App {
 
     init() {
         // Developer tool: CS_RENDER_PLANETS=/path.png renders all planets to one image and quits
+        // (add CS_RENDER_STORE=1 for the store planets)
         if let out = ProcessInfo.processInfo.environment["CS_RENDER_PLANETS"] {
-            PlanetSheet.render(to: URL(fileURLWithPath: out))
+            PlanetSheet.render(to: URL(fileURLWithPath: out),
+                               store: ProcessInfo.processInfo.environment["CS_RENDER_STORE"] != nil)
             exit(0)
         }
         if let out = ProcessInfo.processInfo.environment["CS_RENDER_SYSTEM"] {
