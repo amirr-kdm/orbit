@@ -40,7 +40,8 @@ struct TasksView: View {
     @Environment(AppStore.self) private var store
     @Environment(Router.self) private var router
     // CS_TASKS_MODE=graph opens a given view (handy for testing)
-    @State private var mode: TasksMode = ProcessInfo.processInfo.environment["CS_TASKS_MODE"].flatMap(TasksMode.init(rawValue:)) ?? .week
+    /// Remembered, so coming back to Tasks opens the same view
+    @AppStorage("tasksMode") private var mode: TasksMode = ProcessInfo.processInfo.environment["CS_TASKS_MODE"].flatMap(TasksMode.init(rawValue:)) ?? .week
     @State private var anchor = Date()
     @State private var filter: TaskFilter = .all
     @State private var categoryFilter: UUID?
@@ -72,7 +73,10 @@ struct TasksView: View {
             .keyboardShortcut("n")
         }
         .sheet(item: $editing) { TaskEditor(task: $0) }
-        .onAppear(perform: consumeFocusDate)
+        .onAppear {
+            if let m = ProcessInfo.processInfo.environment["CS_TASKS_MODE"].flatMap(TasksMode.init(rawValue:)) { mode = m }
+            consumeFocusDate()
+        }
         .onChange(of: router.tasksFocusDate) { _, _ in consumeFocusDate() }
     }
 

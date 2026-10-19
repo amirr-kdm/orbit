@@ -150,6 +150,36 @@ final class RichTextController {
         textView?.orderFrontTablePanel(nil)
     }
 
+    /// Alignment for the selected paragraphs (keeps table cells and other paragraph settings)
+    func setAlignment(_ alignment: NSTextAlignment) {
+        changeParagraphs { $0.alignment = alignment }
+    }
+
+    /// Right-to-left (Persian, Arabic…) or left-to-right writing for the selected paragraphs
+    func setDirection(rightToLeft: Bool) {
+        changeParagraphs {
+            $0.baseWritingDirection = rightToLeft ? .rightToLeft : .leftToRight
+            $0.alignment = rightToLeft ? .right : .left
+        }
+    }
+
+    private func changeParagraphs(_ change: (NSMutableParagraphStyle) -> Void) {
+        guard let tv = textView, let storage = tv.textStorage else { return }
+        let range = (storage.string as NSString).paragraphRange(for: tv.selectedRange())
+        // Typing on an empty line uses the typing attributes
+        let typing = ((tv.typingAttributes[.paragraphStyle] as? NSParagraphStyle) ?? .default).mutableCopy() as! NSMutableParagraphStyle
+        change(typing)
+        tv.typingAttributes[.paragraphStyle] = typing
+        guard range.length > 0 else { return }
+        edit(range) { s in
+            s.enumerateAttribute(.paragraphStyle, in: range) { v, r, _ in
+                let ps = ((v as? NSParagraphStyle) ?? .default).mutableCopy() as! NSMutableParagraphStyle
+                change(ps)
+                s.addAttribute(.paragraphStyle, value: ps, range: r)
+            }
+        }
+    }
+
     func insertDivider() {
         guard let tv = textView else { return }
         tv.insertText("\n──────────────────────────\n", replacementRange: tv.selectedRange())

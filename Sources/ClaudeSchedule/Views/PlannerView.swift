@@ -583,6 +583,16 @@ private struct NotesPanel: View {
                 tool("checklist", "Checklist (click a box to tick it)") { controller.toggleList(.check) }
             }
             group {
+                tool("text.alignleft", "Align left") { controller.setAlignment(.left) }
+                tool("text.aligncenter", "Centre") { controller.setAlignment(.center) }
+                tool("text.alignright", "Align right") { controller.setAlignment(.right) }
+                tool("text.justify", "Justify") { controller.setAlignment(.justified) }
+            }
+            group {
+                textTool("LTR", "Left to right (English)") { controller.setDirection(rightToLeft: false) }
+                textTool("RTL", "Right to left (Persian / فارسی)") { controller.setDirection(rightToLeft: true) }
+            }
+            group {
                 Menu {
                     Button("Default") { controller.setColor(nil) }
                     ForEach(store.settings.cellPalette.filter { $0 != "#FFFFFF" }, id: \.self) { hex in
@@ -626,6 +636,12 @@ private struct NotesPanel: View {
 
     private func tool(_ icon: String, _ help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) { Image(systemName: icon).frame(width: 26, height: 22) }
+            .buttonStyle(.borderless)
+            .help(help)
+    }
+
+    private func textTool(_ label: String, _ help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Text(label).font(.system(size: 10, weight: .bold)).frame(width: 30, height: 22) }
             .buttonStyle(.borderless)
             .help(help)
     }

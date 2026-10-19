@@ -1,22 +1,23 @@
+import AppKit
 import SwiftUI
 
 /// Obsidian-style graph: every category is a hub, and its tasks and schedule to-dos orbit around it.
+/// Trackpad: two-finger scroll pans, pinch zooms around the pointer. Drag nodes to move them.
 struct CategoryGraphView: View {
     @Environment(AppStore.self) private var store
     @Environment(TimerEngine.self) private var timer
     @Environment(Router.self) private var router
+    @Environment(\.colorScheme) private var scheme
     var categoryFilter: UUID?
     var search: String
 
-    @State private var sim = GraphSim()
-    @State private var showDone = false
+    /// Shared so the layout, zoom and position survive switching pages
+    @State private var sim = GraphSim.shared
+    @AppStorage("graphShowDone") private var showDone = false
     @State private var selected: String?
-    @State private var hovered: String?
-    @State private var scale: CGFloat = 1
-    @State private var pan: CGSize = .zero
-    @State private var panStart: CGSize?
     @State private var dragNode: Int?
-    @State private var pinchStart: CGFloat?
+    @State private var panStart: CGSize?
+    @State private var monitor: Any?
 
     var body: some View {
         let graph = buildGraph()
@@ -25,13 +26,16 @@ struct CategoryGraphView: View {
                 canvas
                 legend.padding(12)
                 zoomControls.padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                Text("Pinch to zoom · two-finger scroll to move · drag nodes")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .padding(14).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 if graph.nodes.isEmpty {
                     Text("Nothing to show. Add tasks or To-do cells with a category.")
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(nsColor: .textBackgroundColor).opacity(0.6)))
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(nsColor: .underPageBackgroundColor)))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.08)))
 
@@ -39,7 +43,11 @@ struct CategoryGraphView: View {
                 details(node).frame(width: 260)
             }
         }
-        .onAppear { sim.sync(graph) }
+        .onAppear {
+            sim.sync(graph)
+            installMonitor()
+        }
+        .onDisappear(perform: removeMonitor)
         .onChange(of: graph) { _, g in sim.sync(g) }
     }
 
@@ -93,41 +101,25 @@ struct CategoryGraphView: View {
             let size = geo.size
             TimelineView(.animation(paused: sim.settled && dragNode == nil)) { _ in
                 Canvas { ctx, _ in
-                    sim.step()
+                    sim.tick()
                     draw(ctx, size: size)
                 }
             }
             .contentShape(Rectangle())
             .gesture(drag(size: size))
-            .simultaneousGesture(MagnifyGesture()
-                .onChanged { v in
-                    if pinchStart == nil { pinchStart = scale }
-                    scale = min(4, max(0.25, (pinchStart ?? 1) * v.magnification))
-                }
-                .onEnded { _ in pinchStart = nil })
             .onContinuousHover { phase in
                 switch phase {
-                case .active(let p): hovered = hit(p, size: size).map { sim.nodes[$0].id }
-                case .ended: hovered = nil
+                case .active(let p):
+                    sim.pointer = p
+                    let h = sim.hit(p, size: size).map { sim.nodes[$0].id }
+                    if h != sim.hovered { sim.hovered = h }
+                case .ended:
+                    sim.pointer = nil
+                    sim.hovered = nil
                 }
             }
-        }
-    }
-
-    private func toScreen(_ p: CGPoint, _ size: CGSize) -> CGPoint {
-        CGPoint(x: size.width / 2 + pan.width + p.x * scale, y: size.height / 2 + pan.height + p.y * scale)
-    }
-
-    private func toWorld(_ p: CGPoint, _ size: CGSize) -> CGPoint {
-        CGPoint(x: (p.x - size.width / 2 - pan.width) / scale, y: (p.y - size.height / 2 - pan.height) / scale)
-    }
-
-    private func hit(_ p: CGPoint, size: CGSize) -> Int? {
-        let w = toWorld(p, size)
-        return sim.nodes.indices.min { a, b in
-            hypot(sim.nodes[a].pos.x - w.x, sim.nodes[a].pos.y - w.y) < hypot(sim.nodes[b].pos.x - w.x, sim.nodes[b].pos.y - w.y)
-        }.flatMap { i in
-            hypot(sim.nodes[i].pos.x - w.x, sim.nodes[i].pos.y - w.y) <= sim.nodes[i].radius + 6 / scale ? i : nil
+            .onAppear { sim.viewSize = size }
+            .onChange(of: size) { _, s in sim.viewSize = s }
         }
     }
 
@@ -135,20 +127,23 @@ struct CategoryGraphView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { v in
                 if dragNode == nil && panStart == nil {
-                    if let i = hit(v.startLocation, size: size) { dragNode = i } else { panStart = pan }
+                    if let i = sim.hit(v.startLocation, size: size) { dragNode = i } else { panStart = sim.pan }
                 }
                 if let i = dragNode, sim.nodes.indices.contains(i) {
-                    sim.nodes[i].pos = toWorld(v.location, size)
+                    let w = sim.toWorld(v.location, size)
+                    sim.nodes[i].x = w.x
+                    sim.nodes[i].y = w.y
                     sim.nodes[i].pinned = true
-                    sim.wake()
+                    sim.reheat(0.3)
                 } else if let s = panStart {
-                    pan = CGSize(width: s.width + v.translation.width, height: s.height + v.translation.height)
+                    sim.pan = CGSize(width: s.width + v.translation.width, height: s.height + v.translation.height)
                 }
             }
             .onEnded { v in
-                let moved = hypot(v.translation.width, v.translation.height) > 4
-                if !moved {
-                    selected = hit(v.location, size: size).map { sim.nodes[$0].id }
+                if hypot(v.translation.width, v.translation.height) <= 4 {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        selected = sim.hit(v.location, size: size).map { sim.nodes[$0].id }
+                    }
                 }
                 if let i = dragNode, sim.nodes.indices.contains(i) { sim.nodes[i].pinned = false }
                 dragNode = nil
@@ -156,49 +151,124 @@ struct CategoryGraphView: View {
             }
     }
 
-    private func draw(_ ctx: GraphicsContext, size: CGSize) {
-        let focus = hovered ?? selected
-        let neighbours: Set<String> = focus.map { f in
-            Set(sim.links.flatMap { l -> [String] in
-                let a = sim.nodes[l.0].id, b = sim.nodes[l.1].id
-                return a == f || b == f ? [a, b] : []
-            } + [f])
-        } ?? []
+    // MARK: Trackpad
 
-        for l in sim.links {
-            let a = sim.nodes[l.0], b = sim.nodes[l.1]
-            var path = Path()
-            path.move(to: toScreen(a.pos, size))
-            path.addLine(to: toScreen(b.pos, size))
-            let lit = focus != nil && neighbours.contains(a.id) && neighbours.contains(b.id)
-            ctx.stroke(path, with: .color(lit ? Color(hex: a.color).opacity(0.8) : Color.primary.opacity(focus == nil ? 0.16 : 0.06)),
-                       lineWidth: lit ? 1.6 : 1)
+    /// Two-finger scroll pans, pinch (or a mouse wheel) zooms around the pointer — only while over the graph
+    private func installMonitor() {
+        guard monitor == nil else { return }
+        let sim = sim
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .magnify]) { event in
+            MainActor.assumeIsolated {
+                guard let p = sim.pointer else { return event }
+                switch event.type {
+                case .magnify:
+                    sim.zoom(by: 1 + event.magnification, at: p)
+                case .scrollWheel:
+                    if event.hasPreciseScrollingDeltas && !event.modifierFlags.contains(.command) {
+                        sim.pan.width += event.scrollingDeltaX
+                        sim.pan.height += event.scrollingDeltaY
+                    } else {
+                        let dy = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 120 : event.scrollingDeltaY / 12
+                        sim.zoom(by: exp(dy), at: p)
+                    }
+                default:
+                    return event
+                }
+                return nil
+            }
+        }
+    }
+
+    private func removeMonitor() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+
+    // MARK: Drawing
+
+    private func draw(_ ctx: GraphicsContext, size: CGSize) {
+        let dark = scheme == .dark
+        let bg = Color(nsColor: .underPageBackgroundColor)
+        let scale = sim.scale
+
+        // Dot grid that moves with the view
+        let spacing = 28 * scale
+        if spacing > 9 {
+            var dots = Path()
+            let ox = (size.width / 2 + sim.pan.width).truncatingRemainder(dividingBy: spacing)
+            let oy = (size.height / 2 + sim.pan.height).truncatingRemainder(dividingBy: spacing)
+            var x = ox
+            while x < size.width {
+                var y = oy
+                while y < size.height {
+                    dots.addEllipse(in: CGRect(x: x - 0.8, y: y - 0.8, width: 1.6, height: 1.6))
+                    y += spacing
+                }
+                x += spacing
+            }
+            ctx.fill(dots, with: .color(.primary.opacity(dark ? 0.07 : 0.09)))
         }
 
+        let focus = sim.hovered ?? selected
+        var near: Set<String> = []
+        if let focus {
+            near.insert(focus)
+            for (a, b) in sim.links where sim.nodes[a].id == focus || sim.nodes[b].id == focus {
+                near.insert(sim.nodes[a].id); near.insert(sim.nodes[b].id)
+            }
+        }
+
+        // Links
+        for (a, b) in sim.links {
+            let A = sim.nodes[a], B = sim.nodes[b]
+            var path = Path()
+            path.move(to: sim.toScreen(A.point, size))
+            path.addLine(to: sim.toScreen(B.point, size))
+            let lit = focus != nil && near.contains(A.id) && near.contains(B.id)
+            let opacity = lit ? 0.75 : (focus == nil ? 0.28 : 0.07)
+            ctx.stroke(path, with: .color(Color(hex: A.color).opacity(opacity)),
+                       lineWidth: (lit ? 1.8 : 1.1) * min(1.4, max(0.7, scale)))
+        }
+
+        // Nodes
         for n in sim.nodes {
-            let p = toScreen(n.pos, size)
+            let p = sim.toScreen(n.point, size)
             let r = n.radius * scale
-            let dim = focus != nil && !neighbours.contains(n.id)
-            let rect = CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)
-            let shape = n.isSchedule ? Path(roundedRect: rect.insetBy(dx: r * 0.1, dy: r * 0.1), cornerRadius: r * 0.35) : Path(ellipseIn: rect)
+            let dim = focus != nil && !near.contains(n.id)
             let color = Color(hex: n.color)
+            let alpha = dim ? 0.18 : 1.0
+            let rect = CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)
+
             if n.isHub {
-                ctx.fill(Path(ellipseIn: rect.insetBy(dx: -r * 0.5, dy: -r * 0.5)), with: .color(color.opacity(dim ? 0.03 : 0.14)))
+                let glow = rect.insetBy(dx: -r * 1.2, dy: -r * 1.2)
+                ctx.fill(Path(ellipseIn: glow), with: .radialGradient(
+                    Gradient(colors: [color.opacity(dim ? 0.05 : 0.35), color.opacity(0)]),
+                    center: p, startRadius: r * 0.6, endRadius: glow.width / 2))
             }
-            ctx.fill(shape, with: .color(color.opacity(dim ? 0.2 : (n.isDone ? 0.35 : 1))))
-            if n.id == selected {
-                ctx.stroke(Path(ellipseIn: rect.insetBy(dx: -4, dy: -4)), with: .color(.primary), lineWidth: 2)
-            }
+            let shape = n.isSchedule
+                ? Path(roundedRect: rect.insetBy(dx: r * 0.08, dy: r * 0.08), cornerRadius: r * 0.45)
+                : Path(ellipseIn: rect)
             if n.isDone {
-                ctx.draw(Text(Image(systemName: "checkmark")).font(.system(size: max(7, r), weight: .bold)).foregroundStyle(.white), at: p)
+                ctx.fill(shape, with: .color(bg))
+                ctx.stroke(shape, with: .color(color.opacity(0.7 * alpha)), lineWidth: max(1.2, r * 0.28))
+            } else {
+                ctx.fill(shape, with: .linearGradient(
+                    Gradient(colors: [color.opacity(alpha), color.opacity(alpha * 0.78)]),
+                    startPoint: CGPoint(x: rect.minX, y: rect.minY), endPoint: CGPoint(x: rect.maxX, y: rect.maxY)))
+                ctx.stroke(shape, with: .color(bg.opacity(alpha)), lineWidth: max(1, r * 0.18))
+            }
+            if n.id == selected || n.id == sim.hovered {
+                ctx.stroke(Path(ellipseIn: rect.insetBy(dx: -3.5, dy: -3.5)),
+                           with: .color(n.id == selected ? Color.primary.opacity(0.85) : color.opacity(0.6)), lineWidth: 1.6)
             }
 
-            let showLabel = n.isHub || scale > 1.3 || n.id == focus || (focus != nil && neighbours.contains(n.id))
+            let showLabel = n.isHub || scale >= 1.15 || n.id == focus || (focus != nil && near.contains(n.id))
             if showLabel {
-                let label = Text(n.title)
-                    .font(n.isHub ? .system(size: 13, weight: .bold) : .system(size: 11))
-                    .foregroundStyle(dim ? Color.secondary.opacity(0.4) : (n.isHub ? Color.primary : Color.secondary))
-                ctx.draw(label, at: CGPoint(x: p.x, y: p.y + r + 9), anchor: .center)
+                let title = n.title.count > 26 ? String(n.title.prefix(25)) + "…" : n.title
+                let label = Text(title)
+                    .font(n.isHub ? .system(size: 12.5, weight: .semibold) : .system(size: 10.5))
+                    .foregroundStyle(n.isHub ? Color.primary.opacity(dim ? 0.3 : 0.9) : Color.secondary.opacity(dim ? 0.3 : 1))
+                ctx.draw(label, at: CGPoint(x: p.x, y: p.y + r + (n.isHub ? 6 : 4)), anchor: .top)
             }
         }
     }
@@ -209,7 +279,8 @@ struct CategoryGraphView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) { Circle().frame(width: 12, height: 12); Text("Category") }
             HStack(spacing: 6) { Circle().frame(width: 7, height: 7).padding(.horizontal, 2.5); Text("Task") }
-            HStack(spacing: 6) { RoundedRectangle(cornerRadius: 2).frame(width: 7, height: 7).padding(.horizontal, 2.5); Text("Weekly to-do") }
+            HStack(spacing: 6) { RoundedRectangle(cornerRadius: 2.5).frame(width: 8, height: 8).padding(.horizontal, 2); Text("Weekly to-do") }
+            HStack(spacing: 6) { Circle().strokeBorder(lineWidth: 1.5).frame(width: 8, height: 8).padding(.horizontal, 2); Text("Done") }
             Toggle("Show done", isOn: $showDone).toggleStyle(.checkbox).padding(.top, 2)
         }
         .font(.caption)
@@ -220,9 +291,9 @@ struct CategoryGraphView: View {
 
     private var zoomControls: some View {
         HStack(spacing: 4) {
-            Button { withAnimation { scale = max(0.25, scale / 1.25) } } label: { Image(systemName: "minus.magnifyingglass") }
-            Button { withAnimation { scale = 1; pan = .zero } } label: { Image(systemName: "scope") }.help("Re-centre")
-            Button { withAnimation { scale = min(4, scale * 1.25) } } label: { Image(systemName: "plus.magnifyingglass") }
+            Button { sim.zoom(by: 1 / 1.25, at: nil) } label: { Image(systemName: "minus.magnifyingglass") }.help("Zoom out")
+            Button { withAnimation(.easeInOut) { sim.fit() } } label: { Image(systemName: "scope") }.help("Fit everything")
+            Button { sim.zoom(by: 1.25, at: nil) } label: { Image(systemName: "plus.magnifyingglass") }.help("Zoom in")
             Button { sim.shake() } label: { Image(systemName: "wand.and.rays") }.help("Re-arrange")
         }
         .buttonStyle(.borderless)
@@ -296,9 +367,11 @@ struct GraphData: Equatable {
     var edges: [Edge]
 }
 
-/// A tiny force simulation: nodes repel, links pull, everything drifts to the centre.
+/// A small d3-style force simulation: charge, links, centring and collision, cooling down over a few seconds.
 @MainActor @Observable
 final class GraphSim {
+    static let shared = GraphSim()
+
     struct Node {
         let id: String
         var title: String
@@ -308,83 +381,195 @@ final class GraphSim {
         var isDone: Bool
         var detail: String
         var ref: TodoRef?
-        var pos: CGPoint
-        var vel: CGVector = .zero
+        var degree = 0
+        var x: CGFloat
+        var y: CGFloat
+        var vx: CGFloat = 0
+        var vy: CGFloat = 0
         var pinned = false
-        var radius: CGFloat { isHub ? 16 : 7 }
+
+        var point: CGPoint { CGPoint(x: x, y: y) }
+        var radius: CGFloat {
+            isHub ? min(26, 12 + 2.2 * sqrt(CGFloat(degree))) : (isSchedule ? 6.5 : 6)
+        }
     }
 
     @ObservationIgnored var nodes: [Node] = []
     @ObservationIgnored var links: [(Int, Int)] = []
-    @ObservationIgnored private var heat: CGFloat = 1
+    @ObservationIgnored private var alpha: CGFloat = 1
+    @ObservationIgnored private var alphaTarget: CGFloat = 0
+    @ObservationIgnored var pointer: CGPoint?
+    @ObservationIgnored var viewSize: CGSize = CGSize(width: 800, height: 600)
+
     /// Observed so the canvas stops animating once the layout is still
     var settled = false
+    var hovered: String?
+    var scale: CGFloat = 1
+    var pan: CGSize = .zero
+
+    // MARK: Coordinates
+
+    func toScreen(_ p: CGPoint, _ size: CGSize) -> CGPoint {
+        CGPoint(x: size.width / 2 + pan.width + p.x * scale, y: size.height / 2 + pan.height + p.y * scale)
+    }
+
+    func toWorld(_ p: CGPoint, _ size: CGSize) -> CGPoint {
+        CGPoint(x: (p.x - size.width / 2 - pan.width) / scale, y: (p.y - size.height / 2 - pan.height) / scale)
+    }
+
+    func hit(_ p: CGPoint, size: CGSize) -> Int? {
+        let w = toWorld(p, size)
+        var best: Int?
+        var bestD = CGFloat.infinity
+        for i in nodes.indices {
+            let d = hypot(nodes[i].x - w.x, nodes[i].y - w.y) - nodes[i].radius
+            if d < bestD { bestD = d; best = i }
+        }
+        return bestD <= 5 / scale ? best : nil
+    }
+
+    /// Zoom keeping the point under the pointer (or the centre) still
+    func zoom(by factor: CGFloat, at screenPoint: CGPoint?) {
+        let p = screenPoint ?? CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
+        let w = toWorld(p, viewSize)
+        let newScale = min(5, max(0.2, scale * factor))
+        scale = newScale
+        pan = CGSize(width: p.x - viewSize.width / 2 - w.x * newScale, height: p.y - viewSize.height / 2 - w.y * newScale)
+    }
+
+    /// Zoom and centre so every node is visible
+    func fit() {
+        guard !nodes.isEmpty else { scale = 1; pan = .zero; return }
+        let xs = nodes.map(\.x), ys = nodes.map(\.y)
+        let w = (xs.max()! - xs.min()!) + 120, h = (ys.max()! - ys.min()!) + 120
+        scale = min(2, max(0.2, min(viewSize.width / max(w, 1), viewSize.height / max(h, 1))))
+        let cx = (xs.max()! + xs.min()!) / 2, cy = (ys.max()! + ys.min()!) / 2
+        pan = CGSize(width: -cx * scale, height: -cy * scale)
+    }
+
+    // MARK: Simulation
 
     func sync(_ g: GraphData) {
         let old = Dictionary(nodes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        nodes = g.nodes.map { n in
-            let prev = old[n.id]
-            let start = prev?.pos ?? CGPoint(x: .random(in: -200...200), y: .random(in: -150...150))
-            return Node(id: n.id, title: n.title, color: n.color, isHub: n.isHub, isSchedule: n.isSchedule,
-                        isDone: n.isDone, detail: n.detail, ref: n.ref, pos: start)
+        var hubCenters: [String: CGPoint] = [:]
+        let hubs = g.nodes.filter(\.isHub)
+        for (i, h) in hubs.enumerated() {
+            if let p = old[h.id] { hubCenters[h.id] = p.point; continue }
+            // Spread new hubs on a circle
+            let angle = CGFloat(i) / CGFloat(max(1, hubs.count)) * 2 * .pi
+            hubCenters[h.id] = CGPoint(x: cos(angle) * 160, y: sin(angle) * 160)
+        }
+        let parent = Dictionary(g.edges.map { ($0.b, $0.a) }, uniquingKeysWith: { a, _ in a })
+        var added = false
+        nodes = g.nodes.enumerated().map { i, n in
+            var node = Node(id: n.id, title: n.title, color: n.color, isHub: n.isHub, isSchedule: n.isSchedule,
+                            isDone: n.isDone, detail: n.detail, ref: n.ref, x: 0, y: 0)
+            if let p = old[n.id] {
+                node.x = p.x; node.y = p.y; node.vx = p.vx; node.vy = p.vy
+            } else {
+                added = true
+                // Start each item close to its category, on a little spiral
+                let c = n.isHub ? hubCenters[n.id]! : (parent[n.id].flatMap { hubCenters[$0] } ?? .zero)
+                let k = CGFloat(i)
+                let a = k * .pi * (3 - sqrt(5))
+                let r: CGFloat = n.isHub ? 0 : 30 + 4 * sqrt(k)
+                node.x = c.x + cos(a) * r
+                node.y = c.y + sin(a) * r
+            }
+            return node
         }
         let index = Dictionary(nodes.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
         links = g.edges.compactMap { e in
             guard let a = index[e.a], let b = index[e.b] else { return nil }
             return (a, b)
         }
-        wake()
+        for (a, b) in links { nodes[a].degree += 1; nodes[b].degree += 1 }
+        reheat(added || old.isEmpty ? 1 : 0.3)
     }
 
-    func wake() {
-        heat = max(heat, 0.6)
+    func reheat(_ to: CGFloat) {
+        alpha = max(alpha, to)
         if settled { settled = false }
     }
 
     func shake() {
-        for i in nodes.indices { nodes[i].pos = CGPoint(x: .random(in: -250...250), y: .random(in: -180...180)) }
-        heat = 1
-        settled = false
+        for i in nodes.indices {
+            nodes[i].x = .random(in: -300...300)
+            nodes[i].y = .random(in: -220...220)
+        }
+        reheat(1)
     }
 
-    func step() {
-        guard heat > 0.01, !nodes.isEmpty else {
+    func tick() {
+        if pinnedCount > 0 { alphaTarget = 0.3 } else { alphaTarget = 0 }
+        alpha += (alphaTarget - alpha) * 0.0228
+        guard alpha > 0.003, !nodes.isEmpty else {
             if !settled { DispatchQueue.main.async { self.settled = true } }
             return
         }
         let n = nodes.count
-        var force = [CGVector](repeating: .zero, count: n)
 
+        // Links: pull each item towards its category, at a distance that grows with the category's size
+        for (a, b) in links {
+            let ra = nodes[a].radius, rb = nodes[b].radius
+            let target = 34 + ra + rb + 3 * sqrt(CGFloat(nodes[a].degree))
+            var dx = nodes[b].x + nodes[b].vx - nodes[a].x - nodes[a].vx
+            var dy = nodes[b].y + nodes[b].vy - nodes[a].y - nodes[a].vy
+            if dx == 0 && dy == 0 { dx = .random(in: -0.5...0.5); dy = .random(in: -0.5...0.5) }
+            let l = sqrt(dx * dx + dy * dy)
+            let strength = 0.7 / CGFloat(max(1, min(nodes[a].degree, nodes[b].degree)))
+            let k = (l - target) / l * alpha * strength
+            dx *= k; dy *= k
+            let bias = CGFloat(nodes[a].degree) / CGFloat(nodes[a].degree + nodes[b].degree)
+            nodes[b].vx -= dx * bias; nodes[b].vy -= dy * bias
+            nodes[a].vx += dx * (1 - bias); nodes[a].vy += dy * (1 - bias)
+        }
+
+        // Charge: everything repels, categories much more so clusters keep apart
         for i in 0..<n {
             for j in (i + 1)..<n {
-                var dx = nodes[i].pos.x - nodes[j].pos.x, dy = nodes[i].pos.y - nodes[j].pos.y
+                var dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y
                 var d2 = dx * dx + dy * dy
-                if d2 < 0.01 { dx = .random(in: -1...1); dy = .random(in: -1...1); d2 = 1 }
-                let k: CGFloat = (nodes[i].isHub && nodes[j].isHub) ? 9000 : 1400
-                let f = k / d2
-                let d = sqrt(d2)
-                force[i].dx += dx / d * f; force[i].dy += dy / d * f
-                force[j].dx -= dx / d * f; force[j].dy -= dy / d * f
+                if d2 > 360_000 { continue }
+                if d2 < 1 { dx = .random(in: -1...1); dy = .random(in: -1...1); d2 = 1 }
+                d2 = max(d2, 100)
+                let si: CGFloat = nodes[i].isHub ? -520 : -55
+                let sj: CGFloat = nodes[j].isHub ? -520 : -55
+                nodes[i].vx += dx * sj * alpha / d2; nodes[i].vy += dy * sj * alpha / d2
+                nodes[j].vx -= dx * si * alpha / d2; nodes[j].vy -= dy * si * alpha / d2
             }
         }
-        for (a, b) in links {
-            let dx = nodes[b].pos.x - nodes[a].pos.x, dy = nodes[b].pos.y - nodes[a].pos.y
-            let d = max(1, sqrt(dx * dx + dy * dy))
-            let f = (d - 60) * 0.05
-            force[a].dx += dx / d * f; force[a].dy += dy / d * f
-            force[b].dx -= dx / d * f; force[b].dy -= dy / d * f
-        }
+
+        // Gentle pull to the centre
         for i in 0..<n {
-            force[i].dx -= nodes[i].pos.x * 0.008
-            force[i].dy -= nodes[i].pos.y * 0.008
-            if nodes[i].pinned { nodes[i].vel = .zero; continue }
-            nodes[i].vel.dx = (nodes[i].vel.dx + force[i].dx * heat) * 0.82
-            nodes[i].vel.dy = (nodes[i].vel.dy + force[i].dy * heat) * 0.82
-            let speed = hypot(nodes[i].vel.dx, nodes[i].vel.dy)
-            if speed > 30 { nodes[i].vel.dx *= 30 / speed; nodes[i].vel.dy *= 30 / speed }
-            nodes[i].pos.x += nodes[i].vel.dx
-            nodes[i].pos.y += nodes[i].vel.dy
+            let k: CGFloat = nodes[i].isHub ? 0.05 : 0.02
+            nodes[i].vx -= nodes[i].x * k * alpha
+            nodes[i].vy -= nodes[i].y * k * alpha
         }
-        heat *= 0.992
+
+        // Collision: nodes never overlap
+        for i in 0..<n {
+            for j in (i + 1)..<n {
+                let dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y
+                let minD = nodes[i].radius + nodes[j].radius + 5
+                let d2 = dx * dx + dy * dy
+                guard d2 < minD * minD else { continue }
+                let d = max(0.01, sqrt(d2))
+                let push = (minD - d) / d * 0.5
+                nodes[i].x -= dx * push; nodes[i].y -= dy * push
+                nodes[j].x += dx * push; nodes[j].y += dy * push
+            }
+        }
+
+        // Move with friction
+        for i in 0..<n {
+            if nodes[i].pinned { nodes[i].vx = 0; nodes[i].vy = 0; continue }
+            nodes[i].vx *= 0.6
+            nodes[i].vy *= 0.6
+            nodes[i].x += nodes[i].vx
+            nodes[i].y += nodes[i].vy
+        }
     }
+
+    private var pinnedCount: Int { nodes.reduce(0) { $0 + ($1.pinned ? 1 : 0) } }
 }

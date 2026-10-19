@@ -66,14 +66,17 @@ struct ProgressRing: View {
     var tint: Color = .accentColor
 
     var body: some View {
+        // Inset by half the line width so the stroke stays inside the frame and is never clipped
         ZStack {
-            Circle().stroke(tint.opacity(0.15), lineWidth: lineWidth)
+            Circle().inset(by: lineWidth / 2).stroke(tint.opacity(0.22), lineWidth: lineWidth)
             Circle()
+                .inset(by: lineWidth / 2)
                 .trim(from: 0, to: min(1, max(0, progress)))
                 .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.easeInOut(duration: 0.3), value: progress)
         }
+        .padding(1)
     }
 }
 
