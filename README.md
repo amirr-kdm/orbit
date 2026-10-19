@@ -65,8 +65,8 @@ Windows 10 / 11 · 64-bit
 <tr><td>⏱ <b>Study timer</b></td><td>Stopwatch or Pomodoro; every session is saved</td><td>✅</td><td>✅</td></tr>
 <tr><td>📊 <b>Reports & calendar</b></td><td>Weekly / monthly charts, what was left undone, Persian & Gregorian calendars</td><td>✅</td><td>✅</td></tr>
 <tr><td>🌌 <b>My Galaxy</b></td><td>Level up by studying, collect 50 planets, build solar systems</td><td>✅</td><td>✅</td></tr>
-<tr><td>🛍 <b>Store</b></td><td>Earn rockets 🚀 and buy 40+ special planets</td><td>✅</td><td>soon</td></tr>
-<tr><td>👥 <b>Friends & groups</b></td><td>Leaderboard, who's studying now, groups with join codes, friend requests</td><td>✅</td><td>friends only</td></tr>
+<tr><td>🛍 <b>Store</b></td><td>Earn rockets 🚀 and buy 40+ special planets</td><td>✅</td><td>✅</td></tr>
+<tr><td>👥 <b>Friends & groups</b></td><td>Leaderboard, who's studying now, groups with join codes, friend requests</td><td>✅</td><td>✅</td></tr>
 <tr><td>🔒 <b>Private</b></td><td>Your schedule and tasks stay on your computer; only daily totals are shared</td><td>✅</td><td>✅</td></tr>
 </table>
 
@@ -77,7 +77,7 @@ Windows 10 / 11 · 64-bit
 | ⏱ **Study timer** | Stopwatch or Pomodoro; every session is saved |
 | 📊 **Reports & calendar** | Weekly and monthly charts, a month calendar in Persian or Gregorian |
 | 🌌 **My Galaxy** | Level up by studying, collect 50 planets and build solar systems |
-| 🛍 **Store** | Earn rockets by studying and buy 40+ special planets (Mac) |
+| 🛍 **Store** | Earn rockets by studying and buy 40+ special planets |
 | 👥 **Friends & groups** | Leaderboard, who's studying now, study groups with join codes and friend requests |
 | 🔒 **Private** | Your schedule and tasks stay on your computer; only daily totals are shared |
 
@@ -180,7 +180,7 @@ Choose **Stopwatch** or **Pomodoro**, pick what you're studying, then **Start �
 </tr>
 </table>
 
-- **Levels:** everyone starts at level 1 and gets **+1 level for every 3 hours** studied, straight away. Max level 50. *(The Windows app still uses the older weekly rule.)*
+- **Levels:** everyone starts at level 1 and gets **+1 level for every 3 hours** studied, straight away. Max level 50.
 - **Planets:** one new planet per level. 50 planets in 10 groups; a new group unlocks every 5 levels (1, 6, 11 … 46).
 - **Solar systems:** up to 8 planets each, with stars that unlock as you level up (Yellow Sun, Red Giant, Blue Star, White Dwarf, Twin Stars, Pulsar).
 - **Map:** drag to explore, zoom, and click a system to fly in. Any planet can be your **profile picture**.
@@ -192,7 +192,7 @@ Choose **Stopwatch** or **Pomodoro**, pick what you're studying, then **Start �
 <img src="docs/planets.png" alt="All 50 planets" width="100%">
 </details>
 
-### 🛍 Store (Mac)
+### 🛍 Store
 
 <img src="docs/screenshots/store.png" alt="Planet Store" width="100%">
 
@@ -220,7 +220,7 @@ Spend them on special planets (100–1000 rockets, by rarity: Common, Rare, Epic
 
 You'll see who's **studying right now**, a weekly **leaderboard** with levels, 🔥 streaks and 🚀 rockets (click a row for a subject-by-subject breakdown and their **Galaxy**), and friend cards with 7-day charts.
 
-**Groups (Mac):** open the **Groups** tab, create a group and share its code, or join one with a code. Everyone in a group sees the group's weekly leaderboard and who's studying now. Members who aren't your friends yet have an **Add Friend** button; they get a request they can accept or decline.
+**Groups:** open the **Groups** tab, create a group and share its code, or join one with a code. Everyone in a group sees the group's weekly leaderboard and who's studying now. Members who aren't your friends yet have an **Add Friend** button; they get a request they can accept or decline.
 
 ### ⚙️ Settings
 
