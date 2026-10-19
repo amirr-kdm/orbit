@@ -223,10 +223,7 @@ struct CategoryGraphView: View {
                     if let i = sim.hit(v.startLocation, size: size) { dragNode = i } else { panStart = sim.pan }
                 }
                 if let i = dragNode, sim.nodes.indices.contains(i) {
-                    let w = sim.toWorld(v.location, size)
-                    sim.nodes[i].x = w.x
-                    sim.nodes[i].y = w.y
-                    sim.nodes[i].pinned = true
+                    sim.place(i, at: sim.toWorld(v.location, size))
                     sim.reheat(0.3)
                 } else if let s = panStart {
                     sim.pan = CGSize(width: s.width + v.translation.width, height: s.height + v.translation.height)
@@ -780,6 +777,8 @@ final class GraphSim {
         var pinned = false
         /// When the node starts to grow in (for the appear / re-arrange animation)
         var birth = Date()
+        /// Where you dropped a category: it stays there instead of drifting to the centre
+        var anchor: CGPoint?
 
         var point: CGPoint { CGPoint(x: x, y: y) }
     }
@@ -876,7 +875,7 @@ final class GraphSim {
             var node = Node(id: n.id, title: n.title, color: n.color, isHub: n.isHub, isSchedule: n.isSchedule,
                             isDone: n.isDone, detail: n.detail, ref: n.ref, x: 0, y: 0)
             if let p = old[n.id] {
-                node.x = p.x; node.y = p.y; node.vx = p.vx; node.vy = p.vy; node.birth = p.birth
+                node.x = p.x; node.y = p.y; node.vx = p.vx; node.vy = p.vy; node.birth = p.birth; node.anchor = p.anchor
             } else {
                 node.birth = Date().addingTimeInterval(n.isHub ? 0 : 0.15 + min(1, Double(i) * 0.02))
                 added = true
@@ -909,6 +908,7 @@ final class GraphSim {
     func shake() {
         let now = Date()
         var leaf = 0
+        for i in nodes.indices { nodes[i].anchor = nil }
         let hubs = nodes.indices.filter { nodes[$0].isHub }
         for (k, i) in hubs.enumerated() {
             let a = CGFloat(k) / CGFloat(max(1, hubs.count)) * 2 * .pi
@@ -925,6 +925,32 @@ final class GraphSim {
         }
         alpha = 1
         settled = false
+    }
+
+    /// How close two nodes may get. Categories keep room for their items so clusters never overlap.
+    func minDistance(_ a: Node, _ b: Node) -> CGFloat {
+        if a.isHub && b.isHub {
+            func reach(_ n: Node) -> CGFloat { radius(n) + (40 + 3 * sqrt(CGFloat(n.degree))) * linkLength + 14 * leafSize }
+            return reach(a) + reach(b) + 10
+        }
+        return radius(a) + radius(b) + 5
+    }
+
+    /// Move a dragged node to `p`, sliding around other categories instead of over them
+    func place(_ i: Int, at p: CGPoint) {
+        var q = p
+        if nodes[i].isHub {
+            for _ in 0..<4 {
+                for j in nodes.indices where j != i && nodes[j].isHub {
+                    let dx = q.x - nodes[j].x, dy = q.y - nodes[j].y
+                    let d = max(0.01, hypot(dx, dy)), minD = minDistance(nodes[i], nodes[j])
+                    if d < minD { q = CGPoint(x: nodes[j].x + dx / d * minD, y: nodes[j].y + dy / d * minD) }
+                }
+            }
+        }
+        nodes[i].x = q.x; nodes[i].y = q.y
+        nodes[i].pinned = true
+        if nodes[i].isHub { nodes[i].anchor = q }
     }
 
     /// Size / length settings changed: let the layout adjust smoothly
@@ -980,6 +1006,12 @@ final class GraphSim {
 
         // Gentle pull to the centre
         for i in 0..<n {
+            if let a = nodes[i].anchor {
+                // A dropped category is held at its spot
+                nodes[i].vx += (a.x - nodes[i].x) * 0.12
+                nodes[i].vy += (a.y - nodes[i].y) * 0.12
+                continue
+            }
             let k: CGFloat = nodes[i].isHub ? 0.05 : 0.02
             nodes[i].vx -= nodes[i].x * k * alpha
             nodes[i].vy -= nodes[i].y * k * alpha
@@ -989,13 +1021,18 @@ final class GraphSim {
         for i in 0..<n {
             for j in (i + 1)..<n {
                 let dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y
-                let minD = radius(nodes[i]) + radius(nodes[j]) + 5
+                let minD = minDistance(nodes[i], nodes[j])
                 let d2 = dx * dx + dy * dy
                 guard d2 < minD * minD else { continue }
                 let d = max(0.01, sqrt(d2))
-                let push = (minD - d) / d * 0.5
-                nodes[i].x -= dx * push; nodes[i].y -= dy * push
-                nodes[j].x += dx * push; nodes[j].y += dy * push
+                // Dragged nodes hold still; the others make room
+                let wi: CGFloat = nodes[i].pinned ? 0 : (nodes[j].pinned ? 1 : 0.5)
+                let wj: CGFloat = nodes[j].pinned ? 0 : (nodes[i].pinned ? 1 : 0.5)
+                let push = (minD - d) / d
+                nodes[i].x -= dx * push * wi; nodes[i].y -= dy * push * wi
+                nodes[j].x += dx * push * wj; nodes[j].y += dy * push * wj
+                if nodes[i].anchor != nil { nodes[i].anchor = nodes[i].point }
+                if nodes[j].anchor != nil { nodes[j].anchor = nodes[j].point }
             }
         }
 
