@@ -6,6 +6,12 @@
 
 **Plan your week, study with focus, and watch your galaxy grow.**
 
+*Every journey starts with a single planet.* 🪐<br>
+Plan your days, check off your tasks and start the timer.<br>
+Every hour you study is fuel 🚀. Every 3 hours you level up and a new world appears in your sky.<br>
+Collect rare planets, build solar systems, and race your friends to the top of the leaderboard.<br>
+**Your study time builds your universe. How big will your galaxy get?** ✨
+
 [![macOS](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](https://github.com/amirr-kdm/orbit/releases/latest/download/Orbit.zip)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows)](https://github.com/amirr-kdm/orbit/releases/latest/download/Orbit-Setup.exe)
 [![Release](https://img.shields.io/github/v/release/amirr-kdm/orbit?color=8b5cf6)](https://github.com/amirr-kdm/orbit/releases)
