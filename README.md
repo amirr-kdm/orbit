@@ -260,7 +260,7 @@ The downloads already use the shared Orbit server. You only need this if you bui
 <summary><b>Setup steps</b></summary>
 
 1. Create a free project at [supabase.com](https://supabase.com).
-2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql) and press **Run**.
+2. **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql) and press **Run**. Then do the same with [`supabase/groups.sql`](supabase/groups.sql) (groups and friend requests).
 3. **Authentication → Sign In / Providers**: turn on **Allow anonymous sign-ins**.
 4. **Project Settings → API Keys**: copy the **Project URL** and **Publishable key** (`sb_publishable_…`).
 5. Mac: `cp Resources/Supabase.example.plist Resources/Supabase.plist`, fill in `URL` and `PublishableKey`, then `./build.sh install`.

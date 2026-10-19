@@ -16,6 +16,8 @@ struct FriendsView: View {
     @State private var confirmDelete = false
     @State private var viewingGalaxy: FriendCard?
     @State private var expandedRow: UUID?
+    /// 0 = friends, 1 = groups
+    @AppStorage("friendsTab") private var tab = 0
 
     private var accent: Color { store.settings.template.style.accent }
 
@@ -118,6 +120,19 @@ struct FriendsView: View {
                         .foregroundStyle(.red).font(.callout)
                 }
 
+                if !friends.incoming.isEmpty { FriendRequestsCard() }
+
+                Picker("", selection: $tab) {
+                    Text("Friends (\(friends.friends.count))").tag(0)
+                    Text("Groups (\(friends.groups.count))").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 320)
+
+                if tab == 1 {
+                    GroupsSection(mine: mine, accent: accent) { viewingGalaxy = $0 }
+                } else {
                 if !studying.isEmpty {
                     Card(title: "Studying right now", systemImage: "dot.radiowaves.left.and.right") {
                         ForEach(studying) { f in
@@ -160,6 +175,7 @@ struct FriendsView: View {
                                 }
                         }
                     }
+                }
                 }
 
                 HStack {

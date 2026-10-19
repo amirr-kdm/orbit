@@ -91,6 +91,13 @@ struct FriendCard: Identifiable, Hashable {
 final class FriendsService {
     private(set) var me: FriendProfile?
     private(set) var friends: [FriendCard] = []
+    /// My study groups and who's in them
+    private(set) var groups: [StudyGroup] = []
+    /// Everyone I can see (friends and group members), by id
+    private(set) var people: [UUID: FriendCard] = [:]
+    /// Friend requests sent to me / by me
+    private(set) var incoming: [UUID] = []
+    private(set) var outgoing: [UUID] = []
     private(set) var isLoading = false
     private(set) var hasSession = false
     private(set) var lastSync: Date?
@@ -181,6 +188,65 @@ final class FriendsService {
         return added
     }
 
+    // MARK: Groups
+
+    func createGroup(name: String) async {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty else { return }
+        await run { _ = try await self.client.rpc("create_group", ["group_name": n]) }
+        await refresh()
+    }
+
+    /// Returns the group's name on success
+    @discardableResult
+    func joinGroup(code: String) async -> String? {
+        var joined: String?
+        await run {
+            let data = try await self.client.rpc("join_group", ["group_code": code])
+            joined = try JSONDecoder().decode(String.self, from: data)
+        }
+        if joined != nil { await refresh() }
+        return joined
+    }
+
+    func leaveGroup(_ id: UUID) async {
+        await run { _ = try await self.client.rpc("leave_group", ["g": id.uuidString]) }
+        await refresh()
+    }
+
+    func renameGroup(_ id: UUID, to name: String) async {
+        struct Body: Encodable { let name: String }
+        await run { try await self.client.update("groups?id=eq.\(id.uuidString)", Body(name: name)) }
+        await refresh()
+    }
+
+    // MARK: Friend requests
+
+    func isFriend(_ id: UUID) -> Bool { friends.contains { $0.id == id } }
+
+    /// Returns "sent" or "friends" (when they had already asked you)
+    @discardableResult
+    func sendRequest(to id: UUID) async -> String? {
+        var result: String?
+        await run {
+            let data = try await self.client.rpc("send_friend_request", ["other": id.uuidString])
+            result = try JSONDecoder().decode(String.self, from: data)
+        }
+        await refresh()
+        return result
+    }
+
+    func respond(to id: UUID, accept: Bool) async {
+        struct Body: Encodable { let other: String; let accept: Bool }
+        await run { _ = try await self.client.rpc("respond_friend_request", Body(other: id.uuidString, accept: accept)) }
+        await refresh()
+    }
+
+    func cancelRequest(to id: UUID) async {
+        await run { _ = try await self.client.rpc("cancel_friend_request", ["other": id.uuidString]) }
+        await refresh()
+    }
+
     func removeFriend(_ id: UUID) async {
         await run { _ = try await self.client.rpc("remove_friend", ["friend": id.uuidString]) }
         friends.removeAll { $0.id == id }
@@ -196,10 +262,26 @@ final class FriendsService {
             self.me = mine.first
 
             struct Link: Decodable { let friend_id: UUID }
-            let links = try await self.client.select("friendships?select=friend_id&user_id=eq.\(uid.uuidString)", as: [Link].self)
-            let ids = links.map(\.friend_id)
+            struct Member: Decodable { let group_id: UUID; let user_id: UUID }
+            struct Request: Decodable { let from_user: UUID; let to_user: UUID }
+            async let linksQ = self.client.select("friendships?select=friend_id&user_id=eq.\(uid.uuidString)", as: [Link].self)
+            async let groupsQ = self.client.select("groups?select=id,name,code,owner&order=created_at", as: [StudyGroup.Row].self)
+            async let membersQ = self.client.select("group_members?select=group_id,user_id&order=joined_at", as: [Member].self)
+            async let requestsQ = self.client.select("friend_requests?select=from_user,to_user", as: [Request].self)
+            let (links, groupRows, members, requests) = try await (linksQ, groupsQ, membersQ, requestsQ)
+
+            let friendIDs = links.map(\.friend_id)
+            self.groups = groupRows.map { row in
+                StudyGroup(id: row.id, name: row.name, code: row.code, owner: row.owner,
+                           members: members.filter { $0.group_id == row.id }.map(\.user_id))
+            }
+            self.incoming = requests.filter { $0.to_user == uid }.map(\.from_user)
+            self.outgoing = requests.filter { $0.from_user == uid }.map(\.to_user)
+
+            let ids = Array(Set(friendIDs + members.map(\.user_id) + self.incoming + self.outgoing).subtracting([uid]))
             guard !ids.isEmpty else {
                 self.friends = []
+                self.people = [:]
                 self.lastSync = Date()
                 return
             }
@@ -212,13 +294,14 @@ final class FriendsService {
             let (p, s, l) = try await (profiles, stats, live)
 
             let statsByUser = Dictionary(grouping: s, by: \.user_id)
-            self.friends = p.map { prof in
+            let cards = p.map { prof in
                 FriendCard(profile: prof,
                            stats: Dictionary((statsByUser[prof.id] ?? []).map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a }),
                            live: l.first { $0.user_id == prof.id },
                            isMe: false)
             }
-            .sorted { $0.weekMinutes > $1.weekMinutes }
+            self.people = Dictionary(cards.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            self.friends = cards.filter { friendIDs.contains($0.id) }.sorted { $0.weekMinutes > $1.weekMinutes }
             self.lastSync = Date()
         }
     }
@@ -312,4 +395,14 @@ final class FriendsService {
         if message.contains("own code") { return "That's your own code 🙂" }
         return message
     }
+}
+
+/// A study group: everyone in it can see each other's progress
+struct StudyGroup: Identifiable, Hashable {
+    struct Row: Decodable { let id: UUID; let name: String; let code: String; let owner: UUID }
+    let id: UUID
+    var name: String
+    var code: String
+    var owner: UUID
+    var members: [UUID]
 }
