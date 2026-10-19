@@ -74,6 +74,13 @@ export default function App() {
       <div className="app">
         <aside className="sidebar">
           <div className="brand"><img src={iconUrl} alt="" />Orbit</div>
+          {account.state === "approved" && (
+              <button className="account-chip" style={{ marginBottom: 10 }} onClick={() => setShowProfile(true)}>
+                <Avatar name={account.profile?.name ?? "?"} planet={data.avatarPlanet} size={26} color="var(--accent)" />
+                <div style={{ flex: 1, minWidth: 0 }}><b className="small">@{account.profile?.username ?? account.profile?.name}</b>
+                  <div className="small muted">{account.syncError ? "Offline" : "Synced"}</div></div>
+              </button>
+            )}
           {TABS.map((t) => (
             <button key={t.id} className={`nav ${tab === t.id ? "active" : ""}`} onClick={() => nav.go(t.id)}>
               <span className="ico">{t.icon}</span>{t.title}
@@ -89,13 +96,6 @@ export default function App() {
             {account.isAdmin && (
               <button className="nav" onClick={() => setShowAdmin((v) => !v)} title="Sign-ups and members (only you see this)">
                 <span className="ico">👑</span>Admin{account.pendingCount > 0 && <span className="badge" style={{ background: "#ef4444", marginLeft: "auto" }}>{account.pendingCount}</span>}
-              </button>
-            )}
-            {account.state === "approved" && (
-              <button className="account-chip" onClick={() => setShowProfile(true)}>
-                <Avatar name={account.profile?.name ?? "?"} planet={data.avatarPlanet} size={26} color="var(--accent)" />
-                <div style={{ flex: 1, minWidth: 0 }}><b className="small">@{account.profile?.username ?? account.profile?.name}</b>
-                  <div className="small muted">{account.syncError ? "Offline" : "Synced"}</div></div>
               </button>
             )}
           </div>
