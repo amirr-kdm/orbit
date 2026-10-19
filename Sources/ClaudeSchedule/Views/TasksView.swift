@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TaskFilter: String, CaseIterable, Identifiable {
-    case today, upcoming, inbox, all, done
+    case today, upcoming, inbox, all, done, skipped
 
     var id: String { rawValue }
     var title: String {
@@ -11,6 +11,7 @@ enum TaskFilter: String, CaseIterable, Identifiable {
         case .inbox: "No Date"
         case .all: "All Open"
         case .done: "Done"
+        case .skipped: "Skipped"
         }
     }
 }
@@ -180,7 +181,7 @@ struct TasksView: View {
     }
 
     private var inbox: [TaskItem] {
-        store.tasks.filter { $0.dueDate == nil && !$0.isDone && matches($0) }
+        store.tasks.filter { $0.dueDate == nil && !$0.isDone && !$0.isSkipped && matches($0) }
             .sorted { $0.createdAt < $1.createdAt }
     }
 
@@ -196,6 +197,7 @@ struct TasksView: View {
         let items = tasks(on: anchor)
         let all = rows.count + items.count
         let done = rows.filter(\.isDone).count + items.filter(\.isDone).count
+        let skipped = rows.filter(\.isSkipped).count + items.filter(\.isSkipped).count
         let fixed = store.scheduleRows(on: anchor, kinds: [.fixed])
 
         return ScrollView {
@@ -209,7 +211,7 @@ struct TasksView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(Cal.persian.isDateInToday(anchor) ? "Today" : Fmt.date(anchor, "EEEE", .gregorian))
                             .font(.title2.weight(.bold))
-                        Text(all == 0 ? "Nothing planned" : "\(all - done) left · \(done) done")
+                        Text(all == 0 ? "Nothing planned" : "\(all - done - skipped) left · \(done) done" + (skipped > 0 ? " · \(skipped) skipped" : ""))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -315,10 +317,11 @@ struct TasksView: View {
             guard matches(t) else { return false }
             switch filter {
             case .today: return t.dueDate.map { $0 >= todayStart && $0 < tomorrow } ?? false
-            case .upcoming: return !t.isDone && (t.dueDate.map { $0 >= tomorrow } ?? false)
-            case .inbox: return !t.isDone && t.dueDate == nil
-            case .all: return !t.isDone
+            case .upcoming: return !t.isDone && !t.isSkipped && (t.dueDate.map { $0 >= tomorrow } ?? false)
+            case .inbox: return !t.isDone && !t.isSkipped && t.dueDate == nil
+            case .all: return !t.isDone && !t.isSkipped
             case .done: return t.isDone
+            case .skipped: return t.isSkipped
             }
         }
         if filter == .done {
@@ -338,10 +341,11 @@ struct TasksView: View {
             guard matches(r) else { return false }
             switch filter {
             case .today: return Cal.persian.isDate(r.date, inSameDayAs: todayStart)
-            case .upcoming: return !r.isDone && r.date > todayStart
+            case .upcoming: return !r.isDone && !r.isSkipped && r.date > todayStart
             case .inbox: return false
-            case .all: return !r.isDone
+            case .all: return !r.isDone && !r.isSkipped
             case .done: return r.isDone
+            case .skipped: return r.isSkipped
             }
         }
     }
@@ -518,13 +522,13 @@ struct BoardScheduleCard: View {
         let category = store.category(e.categoryID)
         let color = e.color ?? category?.color ?? .accentColor
 
-        BoardCard(color: color, isDone: row.isDone, hovering: hovering,
-                  toggle: { store.toggleDone(.schedule(e.id), on: row.date) },
-                  play: row.isDone || timer.isActive ? nil : {
+        BoardCard(color: color, isDone: row.isDone, isSkipped: row.isSkipped, hovering: hovering,
+                  toggle: { store.tapStatus(.schedule(e.id), on: row.date) },
+                  play: row.isDone || row.isSkipped || timer.isActive ? nil : {
                       timer.select(.schedule(e.id))
                       router.selection = .timer
                   }) {
-            Text(e.title).strikethrough(row.isDone)
+            Text(e.title).strikethrough(row.isDone || row.isSkipped)
         } meta: {
             Text(row.slot.title).monospacedDigit()
             if let badge = e.recurrence.badge { Text(badge).fontWeight(.heavy) }
@@ -538,7 +542,7 @@ struct BoardScheduleCard: View {
         }
         .help("Drag to another day to move just this day's session")
         .contextMenu {
-            Button(row.isDone ? "Mark as Not Done" : "Mark as Done") { store.toggleDone(.schedule(e.id), on: row.date) }
+            StatusMenuItems(ref: .schedule(e.id), day: row.date)
             MoveToMenu(from: row.date) { day in withAnimation { store.moveOccurrence(e.id, from: row.date, to: day) } }
             Button("Study Now") { timer.select(.schedule(e.id)); router.selection = .timer }
                 .disabled(timer.isActive)
@@ -559,14 +563,14 @@ struct BoardTaskCard: View {
     var body: some View {
         let category = store.category(task.categoryID)
 
-        BoardCard(color: category?.color ?? .gray, isDone: task.isDone, hovering: hovering,
-                  toggle: { store.toggleTask(task.id) },
+        BoardCard(color: category?.color ?? .gray, isDone: task.isDone, isSkipped: task.isSkipped, hovering: hovering,
+                  toggle: { store.tapStatus(.task(task.id), on: task.dueDate ?? Date()) },
                   edit: onEdit,
-                  play: task.isDone || timer.isActive ? nil : {
+                  play: task.isDone || task.isSkipped || timer.isActive ? nil : {
                       timer.select(.task(task.id))
                       router.selection = .timer
                   }) {
-            Text(task.title).strikethrough(task.isDone)
+            Text(task.title).strikethrough(task.isDone || task.isSkipped)
         } meta: {
             if task.hasTime, let d = task.dueDate { Label(Fmt.time(d), systemImage: "clock") }
             if let category { Text(category.name) }
@@ -580,7 +584,7 @@ struct BoardTaskCard: View {
         }
         .contextMenu {
             Button("Edit", action: onEdit)
-            Button(task.isDone ? "Mark as Not Done" : "Mark as Done") { store.toggleTask(task.id) }
+            StatusMenuItems(ref: .task(task.id), day: task.dueDate ?? Date())
             MoveToMenu(from: task.dueDate ?? Date()) { day in withAnimation { store.moveTask(task.id, to: day) } }
             Divider()
             Button("Delete", role: .destructive) { store.deleteTask(task.id) }
@@ -592,6 +596,7 @@ struct BoardTaskCard: View {
 struct BoardCard<Title: View, Meta: View>: View {
     let color: Color
     let isDone: Bool
+    var isSkipped = false
     let hovering: Bool
     var toggle: () -> Void
     var edit: (() -> Void)? = nil
@@ -602,8 +607,7 @@ struct BoardCard<Title: View, Meta: View>: View {
     var body: some View {
         HStack(alignment: .top, spacing: 7) {
             Button(action: { withAnimation { toggle() } }) {
-                Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isDone ? Color.green : Color.secondary)
+                StatusIcon(done: isDone, skipped: isSkipped)
             }
             .buttonStyle(.plain)
             .padding(.top, 1)
@@ -612,7 +616,7 @@ struct BoardCard<Title: View, Meta: View>: View {
                 title
                     .font(.callout.weight(.medium))
                     .lineLimit(3)
-                    .foregroundStyle(isDone ? .secondary : .primary)
+                    .foregroundStyle(isDone || isSkipped ? .secondary : .primary)
                 HStack(spacing: 6) { meta }
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -644,7 +648,7 @@ struct BoardCard<Title: View, Meta: View>: View {
                 .fill(color)
                 .frame(width: 4)
         }
-        .opacity(isDone ? 0.7 : 1)
+        .opacity(isDone || isSkipped ? 0.7 : 1)
         .contentShape(Rectangle())
     }
 }
@@ -754,11 +758,9 @@ struct ScheduleTaskRow: View {
 
         HStack(spacing: 10) {
             Button {
-                withAnimation { store.toggleDone(.schedule(entry.id), on: row.date) }
+                withAnimation { store.tapStatus(.schedule(entry.id), on: row.date) }
             } label: {
-                Image(systemName: row.isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(row.isDone ? Color.green : Color.secondary)
+                StatusIcon(done: row.isDone, skipped: row.isSkipped).font(.title3)
             }
             .buttonStyle(.plain)
 
@@ -768,8 +770,8 @@ struct ScheduleTaskRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.text.replacingOccurrences(of: "\n", with: " · "))
-                    .strikethrough(row.isDone)
-                    .foregroundStyle(row.isDone ? .secondary : .primary)
+                    .strikethrough(row.isDone || row.isSkipped)
+                    .foregroundStyle(row.isDone || row.isSkipped ? .secondary : .primary)
                 HStack(spacing: 8) {
                     CategoryChip(category: category)
                     Label(isToday ? "Today" : (entry.recurrence == .weekly ? "Every \(Cal.weekdayNames[entry.weekday])"
@@ -801,7 +803,9 @@ struct ScheduleTaskRow: View {
             .fixedSize()
             .help("Set category")
 
-            if !row.isDone {
+            if row.isSkipped {
+                Text("Skipped").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+            } else if !row.isDone {
                 Button {
                     timer.select(.schedule(entry.id))
                     router.selection = .timer
@@ -817,9 +821,7 @@ struct ScheduleTaskRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .contextMenu {
-            Button(row.isDone ? "Mark as Not Done" : "Mark as Done") {
-                store.toggleDone(.schedule(entry.id), on: row.date)
-            }
+            StatusMenuItems(ref: .schedule(entry.id), day: row.date)
             Button("Show in Weekly Schedule") { router.selection = .schedule }
         }
     }

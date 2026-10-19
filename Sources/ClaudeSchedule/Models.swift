@@ -34,6 +34,8 @@ struct TaskItem: Identifiable, Codable, Hashable {
     var hasTime = false
     var estimatedMinutes = 30
     var isDone = false
+    /// Given up: won't be done (counts as neither done nor left)
+    var isSkipped = false
     var createdAt = Date()
     var completedAt: Date?
 }
@@ -220,6 +222,7 @@ extension TaskItem {
         hasTime = try c.decodeIfPresent(Bool.self, forKey: .hasTime) ?? false
         estimatedMinutes = try c.decodeIfPresent(Int.self, forKey: .estimatedMinutes) ?? 30
         isDone = try c.decodeIfPresent(Bool.self, forKey: .isDone) ?? false
+        isSkipped = try c.decodeIfPresent(Bool.self, forKey: .isSkipped) ?? false
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
     }

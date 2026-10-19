@@ -179,14 +179,17 @@ struct ReportsView: View {
                              : "Everything planned so far was done 🎉")
                             .foregroundStyle(.secondary).font(.callout)
                     } else {
-                        Text("\(undone.count) to-do\(undone.count == 1 ? "" : "s") planned for days that have already started weren't ticked off.")
+                        let skipped = undone.filter(\.skipped).count
+                        Text("\(undone.count - skipped) not ticked off" + (skipped > 0 ? ", \(skipped) skipped (won't do)" : "") + " on days that have already started.")
                             .font(.callout).foregroundStyle(.secondary)
                         ForEach(undone) { u in
                             HStack {
-                                Image(systemName: "circle").foregroundStyle(u.color)
+                                Image(systemName: u.skipped ? "xmark.circle.fill" : "circle")
+                                    .foregroundStyle(u.skipped ? Color.orange : u.color)
                                 Text(u.title).lineLimit(1)
                                 Text(u.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                                 Spacer()
+                                if u.skipped { Text("Skipped").font(.caption.weight(.semibold)).foregroundStyle(.orange) }
                                 Text(Fmt.date(u.day, "EEE, MMM d", kind)).font(.caption).foregroundStyle(.secondary)
                             }
                         }
@@ -220,6 +223,7 @@ struct ReportsView: View {
         let detail: String
         let color: Color
         let day: Date
+        let skipped: Bool
     }
 
     /// Schedule to-dos and dated tasks in the period, on days up to today, that were never ticked off
@@ -228,7 +232,7 @@ struct ReportsView: View {
         for day in days where day <= Date() {
             for t in store.todos(on: day) where !t.isDone {
                 out.append(Undone(id: "\(t.id)|\(Cal.dayKey(day))", title: t.title, detail: t.detail,
-                                  color: t.color, day: day))
+                                  color: t.color, day: day, skipped: t.isSkipped))
             }
         }
         return out

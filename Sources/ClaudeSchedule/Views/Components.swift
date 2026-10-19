@@ -131,18 +131,16 @@ struct TaskRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Button {
-                withAnimation { store.toggleTask(task.id) }
+                withAnimation { store.tapStatus(.task(task.id), on: task.dueDate ?? Date()) }
             } label: {
-                Image(systemName: task.isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(task.isDone ? Color.green : Color.secondary)
+                StatusIcon(done: task.isDone, skipped: task.isSkipped).font(.title3)
             }
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
-                    .strikethrough(task.isDone)
-                    .foregroundStyle(task.isDone ? .secondary : .primary)
+                    .strikethrough(task.isDone || task.isSkipped)
+                    .foregroundStyle(task.isDone || task.isSkipped ? .secondary : .primary)
                 HStack(spacing: 8) {
                     CategoryChip(category: store.category(task.categoryID))
                     if let d = task.dueDate {
@@ -167,7 +165,9 @@ struct TaskRow: View {
             if task.priority == .high && !task.isDone {
                 Image(systemName: "flag.fill").foregroundStyle(.red).help("High priority")
             }
-            if !task.isDone {
+            if task.isSkipped {
+                Text("Skipped").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+            } else if !task.isDone {
                 Button {
                     timer.select(.task(task.id))
                     router.selection = .timer
@@ -184,7 +184,7 @@ struct TaskRow: View {
         .onTapGesture(count: 2, perform: onEdit)
         .contextMenu {
             Button("Edit", action: onEdit)
-            Button(task.isDone ? "Mark as Not Done" : "Mark as Done") { store.toggleTask(task.id) }
+            StatusMenuItems(ref: .task(task.id), day: task.dueDate ?? Date())
             Divider()
             Button("Delete", role: .destructive) { store.deleteTask(task.id) }
         }
@@ -219,5 +219,33 @@ struct SessionRow: View {
         if showDate { s = Fmt.date(session.start, "EEE, MMM d", store.settings.primaryCalendar) + " · " + s }
         if !session.note.isEmpty { s += " · " + session.note }
         return s
+    }
+}
+
+/// The round status icon of a to-do: ○ to do, ✓ done, ✕ skipped (won't be done)
+struct StatusIcon: View {
+    let done: Bool
+    var skipped = false
+
+    var body: some View {
+        Image(systemName: skipped ? "xmark.circle.fill" : (done ? "checkmark.circle.fill" : "circle"))
+            .foregroundStyle(skipped ? Color.orange : (done ? Color.green : Color.secondary))
+            .help(skipped ? "Skipped, won't be done. Click to bring it back." : (done ? "Done" : "Mark as done"))
+    }
+}
+
+/// Right-click items for a to-do's status: done, skipped (won't do), or back to to-do
+struct StatusMenuItems: View {
+    let ref: TodoRef
+    let day: Date
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        if store.isSkipped(ref, on: day) {
+            Button("Bring Back to To-Do") { withAnimation { store.setSkipped(ref, on: day, false) } }
+        } else {
+            Button(store.isDone(ref, on: day) ? "Mark as Not Done" : "Mark as Done") { withAnimation { store.toggleDone(ref, on: day) } }
+            Button("Skip (Won't Do)") { withAnimation { store.setSkipped(ref, on: day, true) } }
+        }
     }
 }

@@ -437,8 +437,12 @@ private struct GraphDetails: View {
         let done = store.isDone(.schedule(e.id), on: day)
         let slot = store.slot(e.slotID)
 
+        if store.isSkipped(.schedule(e.id), on: day) {
+            status("Skipped (won't do)", .orange)
+        } else {
         status(done ? "Done this week" : (day < Cal.persian.startOfDay(for: Date()) ? "Not done (day has passed)" : "To do"),
                done ? .green : (day < Cal.persian.startOfDay(for: Date()) ? .orange : .accentColor))
+        }
 
         section("When") {
             row("calendar", when, Fmt.date(day, "EEEE, MMMM d", kind))
@@ -476,8 +480,12 @@ private struct GraphDetails: View {
     @ViewBuilder
     private func taskInfo(_ t: TaskItem) -> some View {
         let overdue = !t.isDone && (t.dueDate.map { $0 < Cal.persian.startOfDay(for: Date()) } ?? false)
+        if t.isSkipped {
+            status("Skipped (won't do)", .orange)
+        } else {
         status(t.isDone ? "Done\(t.completedAt.map { " · " + Fmt.date($0, "MMM d", kind) } ?? "")" : (overdue ? "Overdue" : "To do"),
                t.isDone ? .green : (overdue ? .orange : .accentColor))
+        }
 
         section("When") {
             if let d = t.dueDate {
@@ -601,6 +609,14 @@ private struct GraphDetails: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(timer.isActive)
             }
+            let day: Date = {
+                if case .schedule(let id) = ref, let e = store.entry(id) { return node.date ?? nextOccurrence(e).0 }
+                if case .task(let id) = ref { return store.task(id)?.dueDate ?? Date() }
+                return Date()
+            }()
+            let skipped = store.isSkipped(ref, on: day)
+            Button(skipped ? "Bring back to to-do" : "Skip (won't do)") { store.setSkipped(ref, on: day, !skipped) }
+                .buttonStyle(.borderless).foregroundStyle(.orange)
             HStack { extra() }.buttonStyle(.borderless).font(.caption)
         }
     }

@@ -54,8 +54,9 @@ struct TodayView: View {
                         .shadow(color: .black.opacity(0.06), radius: 3, y: 1))
 
                     StatTile(title: "To-dos done",
-                             value: "\(all.filter(\.isDone).count) of \(all.count)",
-                             subtitle: all.isEmpty ? "Nothing planned yet" : nil,
+                             value: "\(all.filter(\.isDone).count) of \(all.filter { !$0.isSkipped }.count)",
+                             subtitle: all.isEmpty ? "Nothing planned yet"
+                                : (all.contains(where: \.isSkipped) ? "\(all.filter(\.isSkipped).count) skipped" : nil),
                              systemImage: "checkmark.circle", tint: .green)
                     StatTile(title: "This week", value: Fmt.duration(store.studyTime(in: week)),
                              subtitle: "Total time logged", systemImage: "calendar", tint: .purple)
@@ -173,11 +174,9 @@ struct TodoRow: View {
 
         HStack(spacing: 10) {
             Button {
-                withAnimation { store.toggleDone(item.ref, on: day) }
+                withAnimation { store.tapStatus(item.ref, on: day) }
             } label: {
-                Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(item.isDone ? Color.green : Color.secondary)
+                StatusIcon(done: item.isDone, skipped: item.isSkipped).font(.title3)
             }
             .buttonStyle(.plain)
 
@@ -185,8 +184,8 @@ struct TodoRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
-                    .strikethrough(item.isDone)
-                    .foregroundStyle(item.isDone ? .secondary : .primary)
+                    .strikethrough(item.isDone || item.isSkipped)
+                    .foregroundStyle(item.isDone || item.isSkipped ? .secondary : .primary)
                 HStack(spacing: 8) {
                     Label(item.detail, systemImage: {
                         if case .schedule = item.ref { return "clock" } else { return "tag" }
@@ -201,7 +200,9 @@ struct TodoRow: View {
 
             Spacer()
 
-            if !item.isDone {
+            if item.isSkipped {
+                Text("Skipped").font(.caption.weight(.semibold)).foregroundStyle(.orange)
+            } else if !item.isDone {
                 Button {
                     timer.select(item.ref)
                     router.selection = .timer
@@ -220,7 +221,7 @@ struct TodoRow: View {
         .onTapGesture(count: 2) { onEdit?() }
         .contextMenu {
             if let onEdit { Button("Edit", action: onEdit) }
-            Button(item.isDone ? "Mark as Not Done" : "Mark as Done") { store.toggleDone(item.ref, on: day) }
+            StatusMenuItems(ref: item.ref, day: day)
         }
     }
 }

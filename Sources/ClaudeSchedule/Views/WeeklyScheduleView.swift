@@ -265,11 +265,12 @@ struct WeeklyScheduleView: View {
                             isNow: isNow,
                             isTodayRow: day == today,
                             isDone: entry.map { $0.kind == .todo && store.isDone(.schedule($0.id), on: date) } ?? false,
+                            isSkipped: entry.map { $0.kind == .todo && store.isSkipped(.schedule($0.id), on: date) } ?? false,
                             slotProgress: isNow ? Double(minute - slot.startMinute) / Double(max(1, slot.endMinute - slot.startMinute)) : nil,
                             draft: $draft,
                             onCommit: { commit(key) },
                             onCancel: { cancel(key) },
-                            onToggleDone: entry.map { e in { store.toggleDone(.schedule(e.id), on: date) } }
+                            onToggleDone: entry.map { e in { store.tapStatus(.schedule(e.id), on: date) } }
                         )
                         .overlay {
                             // Empty this week, but used in other weeks (e.g. an every-other-week class)
@@ -500,6 +501,8 @@ struct WeeklyScheduleView: View {
                 }
             }
             if entry.kind == .todo {
+                Divider()
+                StatusMenuItems(ref: .schedule(entry.id), day: store.occurrence(of: entry, inWeekOf: viewDate))
                 Button("Study This Now") {
                     timer.select(.schedule(entry.id))
                     router.selection = .timer
@@ -603,6 +606,7 @@ struct ScheduleCellView: View {
     var isNow = false
     var isTodayRow = false
     var isDone = false
+    var isSkipped = false
     var slotProgress: Double?
     var draft: Binding<String> = .constant("")
     var onCommit: () -> Void = {}
@@ -650,7 +654,7 @@ struct ScheduleCellView: View {
                     Text(entry.text)
                         .font(font.font(size: fontSize, weight: .semibold))
                         .multilineTextAlignment(.center)
-                        .strikethrough(isDone)
+                        .strikethrough(isDone || isSkipped)
                         .minimumScaleFactor(0.5)
                         .lineLimit(5)
                     if let category {
@@ -663,7 +667,7 @@ struct ScheduleCellView: View {
                     }
                 }
                 .foregroundStyle(textColor)
-                .opacity(isDone ? 0.6 : 1)
+                .opacity(isDone || isSkipped ? 0.6 : 1)
                 .padding(.top, showBadge && recurrence?.badge != nil ? 10 : 0)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 10)
@@ -756,10 +760,10 @@ struct ScheduleCellView: View {
     /// Pin for fixed cells, a tickable circle for to-dos
     @ViewBuilder
     private func badge(_ entry: ScheduleEntry) -> some View {
-        let icon = entry.kind == .fixed ? "pin.fill" : (isDone ? "checkmark.circle.fill" : "circle")
+        let icon = entry.kind == .fixed ? "pin.fill" : (isSkipped ? "xmark.circle.fill" : (isDone ? "checkmark.circle.fill" : "circle"))
         let image = Image(systemName: icon)
             .font(.system(size: entry.kind == .fixed ? 8 : 11, weight: .semibold))
-            .foregroundStyle(isDone ? Color.green : textColor.opacity(0.65))
+            .foregroundStyle(isSkipped ? Color.orange : (isDone ? Color.green : textColor.opacity(0.65)))
             .rotationEffect(.degrees(entry.kind == .fixed ? 45 : 0))
         VStack {
             HStack {

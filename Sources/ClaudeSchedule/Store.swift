@@ -14,6 +14,8 @@ struct TodoItem: Identifiable, Hashable {
     let color: Color
     let isDone: Bool
     let sortMinute: Int
+    /// Given up: won't be done
+    var isSkipped = false
 
     var id: TodoRef { ref }
 }
@@ -25,6 +27,7 @@ struct ScheduleTodoRow: Identifiable, Hashable {
     /// This week's occurrence
     let date: Date
     let isDone: Bool
+    var isSkipped = false
 
     var id: UUID { entry.id }
 }
@@ -42,6 +45,8 @@ final class AppStore {
     var scheduleDone: Set<String> = [] { didSet { save() } }
     /// Single occurrences moved off their day, keyed "entryID|yyyy-MM-dd" (they became tasks)
     var scheduleMoved: Set<String> = [] { didSet { save() } }
+    /// Schedule to-dos given up on a day, keyed "entryID|yyyy-MM-dd"
+    var scheduleSkipped: Set<String> = [] { didSet { save() } }
     /// Planets placed in my galaxy, in the order they were added
     var galaxy: [PlacedPlanet] = [] { didSet { save() } }
     /// Planet used as my profile picture
@@ -60,6 +65,7 @@ final class AppStore {
         var schedule: [ScheduleEntry] = []
         var scheduleDone: Set<String> = []
         var scheduleMoved: Set<String> = []
+        var scheduleSkipped: Set<String> = []
         var galaxy: [PlacedPlanet] = []
         var avatarPlanet: String?
         var solarSystems: [SolarSystem] = []
@@ -67,7 +73,9 @@ final class AppStore {
 
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
-             galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner]) {
+             galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner],
+             scheduleSkipped: Set<String>) {
+            self.scheduleSkipped = scheduleSkipped
             self.solarSystems = solarSystems
             self.planners = planners
             self.scheduleMoved = scheduleMoved
@@ -90,6 +98,7 @@ final class AppStore {
             schedule = try c.decodeIfPresent([ScheduleEntry].self, forKey: .schedule) ?? []
             scheduleDone = try c.decodeIfPresent(Set<String>.self, forKey: .scheduleDone) ?? []
             scheduleMoved = try c.decodeIfPresent(Set<String>.self, forKey: .scheduleMoved) ?? []
+            scheduleSkipped = try c.decodeIfPresent(Set<String>.self, forKey: .scheduleSkipped) ?? []
             galaxy = try c.decodeIfPresent([PlacedPlanet].self, forKey: .galaxy) ?? []
             avatarPlanet = try c.decodeIfPresent(String.self, forKey: .avatarPlanet)
             solarSystems = try c.decodeIfPresent([SolarSystem].self, forKey: .solarSystems) ?? []
@@ -136,6 +145,7 @@ final class AppStore {
             schedule = snap.schedule
             scheduleDone = snap.scheduleDone
             scheduleMoved = snap.scheduleMoved
+            scheduleSkipped = snap.scheduleSkipped
             galaxy = snap.galaxy
             avatarPlanet = snap.avatarPlanet
             solarSystems = snap.solarSystems
@@ -157,7 +167,7 @@ final class AppStore {
         let snap = Snapshot(tasks: tasks, categories: categories, sessions: sessions, settings: settings,
                             schedule: schedule, scheduleDone: scheduleDone, scheduleMoved: scheduleMoved,
                             galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
-                            planners: planners)
+                            planners: planners, scheduleSkipped: scheduleSkipped)
         do {
             try encoder.encode(snap).write(to: fileURL, options: .atomic)
         } catch {
@@ -216,6 +226,7 @@ final class AppStore {
     func toggleTask(_ id: UUID) {
         guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[i].isDone.toggle()
+        tasks[i].isSkipped = false
         tasks[i].completedAt = tasks[i].isDone ? Date() : nil
     }
 
@@ -230,13 +241,14 @@ final class AppStore {
     /// Unfinished tasks whose day has passed
     func overdueTasks(before day: Date = Date()) -> [TaskItem] {
         let start = Cal.persian.startOfDay(for: day)
-        return tasks.filter { !$0.isDone && ($0.dueDate.map { $0 < start } ?? false) }
+        return tasks.filter { !$0.isDone && !$0.isSkipped && ($0.dueDate.map { $0 < start } ?? false) }
             .sorted { ($0.dueDate ?? .distantPast) < ($1.dueDate ?? .distantPast) }
     }
 
     /// Open first, then timed tasks by time, then by priority
     static func dayOrder(_ a: TaskItem, _ b: TaskItem) -> Bool {
-        if a.isDone != b.isDone { return !a.isDone }
+        let ca = a.isDone || a.isSkipped, cb = b.isDone || b.isSkipped
+        if ca != cb { return !ca }
         if a.hasTime != b.hasTime { return a.hasTime }
         if a.hasTime, let da = a.dueDate, let db = b.dueDate, da != db { return da < db }
         if a.priority != b.priority { return a.priority.rawValue > b.priority.rawValue }
@@ -378,7 +390,8 @@ final class AppStore {
                 let day = occurrence(of: e, inWeekOf: date)
                 if isMoved(e.id, from: day) { return nil }
                 return ScheduleTodoRow(entry: e, slot: slot, date: day,
-                                       isDone: isDone(.schedule(e.id), on: day))
+                                       isDone: isDone(.schedule(e.id), on: day),
+                                       isSkipped: isSkipped(.schedule(e.id), on: day))
             }
             .sorted { ($0.date, $0.slot.startMinute) < ($1.date, $1.slot.startMinute) }
     }
@@ -392,7 +405,8 @@ final class AppStore {
                       && !isMoved($0.id, from: day) }
             .compactMap { e -> ScheduleTodoRow? in
                 guard let slot = slot(e.slotID) else { return nil }
-                return ScheduleTodoRow(entry: e, slot: slot, date: start, isDone: isDone(.schedule(e.id), on: start))
+                return ScheduleTodoRow(entry: e, slot: slot, date: start, isDone: isDone(.schedule(e.id), on: start),
+                                       isSkipped: isSkipped(.schedule(e.id), on: start))
             }
             .sorted { $0.slot.startMinute < $1.slot.startMinute }
     }
@@ -471,7 +485,33 @@ final class AppStore {
         }
     }
 
+    func isSkipped(_ ref: TodoRef, on day: Date) -> Bool {
+        switch ref {
+        case .schedule(let id): scheduleSkipped.contains(doneKey(id, day))
+        case .task(let id): task(id)?.isSkipped ?? false
+        }
+    }
+
+    /// Mark as given up (won't be done) or bring it back to "to do". Skipping clears "done".
+    func setSkipped(_ ref: TodoRef, on day: Date, _ skipped: Bool) {
+        switch ref {
+        case .schedule(let id):
+            let key = doneKey(id, day)
+            if skipped { scheduleSkipped.insert(key); scheduleDone.remove(key) } else { scheduleSkipped.remove(key) }
+        case .task(let id):
+            guard let i = tasks.firstIndex(where: { $0.id == id }) else { return }
+            tasks[i].isSkipped = skipped
+            if skipped { tasks[i].isDone = false; tasks[i].completedAt = nil }
+        }
+    }
+
+    /// The round status button: a skipped item goes back to "to do", otherwise done is toggled
+    func tapStatus(_ ref: TodoRef, on day: Date) {
+        if isSkipped(ref, on: day) { setSkipped(ref, on: day, false) } else { toggleDone(ref, on: day) }
+    }
+
     func toggleDone(_ ref: TodoRef, on day: Date) {
+        if isSkipped(ref, on: day) { setSkipped(ref, on: day, false) }
         switch ref {
         case .schedule(let id):
             let key = doneKey(id, day)
@@ -493,7 +533,8 @@ final class AppStore {
                 let detail = category(e.categoryID).map { "\(slot.title) · \($0.name)" } ?? slot.title
                 return TodoItem(ref: .schedule(e.id), title: e.title, detail: detail,
                                 color: e.color ?? .accentColor,
-                                isDone: isDone(.schedule(e.id), on: day), sortMinute: slot.startMinute)
+                                isDone: isDone(.schedule(e.id), on: day), sortMinute: slot.startMinute,
+                                isSkipped: isSkipped(.schedule(e.id), on: day))
             }
             .sorted { $0.sortMinute < $1.sortMinute }
     }
@@ -505,7 +546,8 @@ final class AppStore {
                      detail: category(t.categoryID)?.name ?? "Task",
                      color: category(t.categoryID)?.color ?? .gray,
                      isDone: t.isDone,
-                     sortMinute: t.hasTime ? (t.dueDate.map(Cal.minuteOfDay) ?? 9999) : 9999)
+                     sortMinute: t.hasTime ? (t.dueDate.map(Cal.minuteOfDay) ?? 9999) : 9999,
+                     isSkipped: t.isSkipped)
         }
         return scheduleTodos(on: day) + taskItems
     }
