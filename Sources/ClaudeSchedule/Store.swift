@@ -114,6 +114,7 @@ final class AppStore {
         }
 
         load()
+        normalizeSchedule()
         if categories.isEmpty { seedCategories() }
         ensureHomeSystem()
     }
@@ -311,7 +312,25 @@ final class AppStore {
                                           colorHex: colorHex, kind: kind, categoryID: categoryID,
                                           recurrence: recurrence,
                                           weekStart: recurrence == .once ? Cal.weekStart(date) : nil))
+            normalizeSchedule()
         }
+    }
+
+    /// An "every week" cell that shares its slot with an even-only (or odd-only) cell can only ever show
+    /// in the other weeks, so make that explicit: it becomes odd-only (or even-only).
+    /// Nothing visible changes, but it no longer silently disappears in the other weeks, it carries an
+    /// EVEN / ODD tag, and the shadowed copy never hides in Today, Tasks or the graph.
+    func normalizeSchedule() {
+        var changed = schedule
+        let groups = Dictionary(grouping: changed.indices) { "\(changed[$0].weekday)|\(changed[$0].slotID)" }
+        for (_, idx) in groups where idx.count > 1 {
+            let parities = Set(idx.map { changed[$0].recurrence }.filter { $0 == .even || $0 == .odd })
+            guard parities.count == 1, let taken = parities.first else { continue }
+            for i in idx where changed[i].recurrence == .weekly {
+                changed[i].recurrence = taken == .even ? .odd : .even
+            }
+        }
+        if changed != schedule { schedule = changed }
     }
 
     /// Change a cell's repeat rule; "this week only" pins it to the week being viewed
@@ -320,6 +339,7 @@ final class AppStore {
             e.recurrence = r
             e.weekStart = r == .once ? Cal.weekStart(date) : nil
         }
+        normalizeSchedule()
     }
 
     func updateEntry(_ id: UUID, _ change: (inout ScheduleEntry) -> Void) {

@@ -130,6 +130,7 @@ extension AppStore {
                                              weekStart: recurrence == .once ? week : nil))
         }
         schedule = newSchedule
+        normalizeSchedule()
         return result
     }
 }

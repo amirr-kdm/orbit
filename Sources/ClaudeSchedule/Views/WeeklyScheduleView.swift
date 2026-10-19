@@ -271,6 +271,18 @@ struct WeeklyScheduleView: View {
                             onCancel: { cancel(key) },
                             onToggleDone: entry.map { e in { store.toggleDone(.schedule(e.id), on: date) } }
                         )
+                        .overlay {
+                            // Empty this week, but used in other weeks (e.g. an every-other-week class)
+                            if entry == nil && editing != key, let other = otherWeeks(day: day, slotID: slot.id) {
+                                Text(other)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.tertiary)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(2)
+                                    .padding(4)
+                                    .allowsHitTesting(false)
+                            }
+                        }
                         .onTapGesture { beginEditing(key) }
                         .onHover { inside in
                             if inside { hovered = key } else if hovered == key { hovered = nil }
@@ -290,6 +302,13 @@ struct WeeklyScheduleView: View {
             }
         }
         .frame(maxHeight: .infinity)
+    }
+
+    /// "Odd weeks: Robotics" for a slot that is empty this week but used in other weeks
+    private func otherWeeks(day: Int, slotID: UUID) -> String? {
+        let others = store.schedule.filter { $0.weekday == day && $0.slotID == slotID && ($0.recurrence == .even || $0.recurrence == .odd) }
+        guard !others.isEmpty else { return nil }
+        return others.map { "\($0.recurrence.title): \($0.title)" }.joined(separator: "\n")
     }
 
     private func slotHeader(_ slot: TimeSlot, isCurrent: Bool) -> some View {
