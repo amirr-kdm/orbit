@@ -39,9 +39,10 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 -- Is a username free? (asked before / while signing up)
-create or replace function public.username_available(name text)
+drop function if exists public.username_available(text);
+create or replace function public.username_available(wanted text)
 returns boolean language sql stable security definer set search_path = public as $$
-  select not exists (select 1 from profiles where lower(username) = lower(trim(name)));
+  select not exists (select 1 from profiles p where lower(p.username) = lower(trim(wanted)));
 $$;
 
 -- Only approved people share stats and live status

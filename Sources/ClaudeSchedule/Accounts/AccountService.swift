@@ -425,7 +425,7 @@ final class AccountService {
     // MARK: Helpers
 
     private func usernameFree(_ name: String) async throws -> Bool {
-        let data = try await client.rpcAnon("username_available", ["name": name])
+        let data = try await client.rpcAnon("username_available", ["wanted": name])
         return (try? JSONDecoder().decode(Bool.self, from: data)) ?? true
     }
 
