@@ -366,8 +366,17 @@ final class AccountService {
         let new = gifts.filter { !store.claimedGifts.contains($0.id.uuidString) }
         guard !new.isEmpty else { return }
         store.claimedGifts += new.map(\.id.uuidString)
-        store.rocketGrant += new.reduce(0) { $0 + $1.amount }
+        let total = new.reduce(0) { $0 + $1.amount }
+        store.rocketGrant += total
+        if total > 0 {
+            giftNotice = total
+            Notifier.post(id: "gift-\(new[0].id)", title: "You got \(total) 🚀 rockets!",
+                          body: "A gift from the Orbit admin. Spend them in the Store.")
+        }
     }
+
+    /// Rockets just received as a gift (shown as a banner until dismissed)
+    var giftNotice: Int?
 
     /// Sets a new temporary password and returns it, so the owner can pass it on
     func resetPassword(_ id: UUID) async -> String? {

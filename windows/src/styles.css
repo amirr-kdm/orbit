@@ -229,3 +229,5 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 /* Admin panel */
 .admin-panel { width: 330px; flex-shrink: 0; border-left: 1px solid var(--line); background: var(--sidebar); padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
 .account-chip { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, transparent); border: none; color: var(--text); text-align: left; }
+
+.banner { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line); font-size: 13px; }

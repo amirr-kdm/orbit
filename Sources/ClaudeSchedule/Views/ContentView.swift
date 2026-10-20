@@ -51,6 +51,7 @@ struct ContentView: View {
     @Environment(AppStore.self) private var store
     @Environment(FriendsService.self) private var friends
     @Environment(AccountService.self) private var account
+    @Environment(UpdateChecker.self) private var updates
     @State private var showAdmin = false
 
     var body: some View {
@@ -73,18 +74,9 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            switch router.selection ?? .today {
-            case .today: TodayView()
-            case .schedule: WeeklyScheduleView()
-            case .planner: PlannerView()
-            case .timer: TimerView()
-            case .tasks: TasksView()
-            case .calendar: CalendarView()
-            case .reports: ReportsView()
-            case .galaxy: GalaxyPage()
-            case .store: StoreView()
-            case .friends: FriendsView()
-            case .settings: SettingsView()
+            VStack(spacing: 0) {
+                banners
+                page
             }
         }
         // The owner's admin panel (right side) — only for the admin account
@@ -123,6 +115,46 @@ struct ContentView: View {
         .onChange(of: timer.isRunning) { _, _ in Task { await friends.pushLive(timer: timer) } }
         .onChange(of: timer.phase) { _, _ in Task { await friends.pushLive(timer: timer) } }
         .onChange(of: store.sessions.count) { _, _ in Task { await friends.syncNow() } }
+    }
+
+    @ViewBuilder private var page: some View {
+            switch router.selection ?? .today {
+            case .today: TodayView()
+            case .schedule: WeeklyScheduleView()
+            case .planner: PlannerView()
+            case .timer: TimerView()
+            case .tasks: TasksView()
+            case .calendar: CalendarView()
+            case .reports: ReportsView()
+            case .galaxy: GalaxyPage()
+            case .store: StoreView()
+            case .friends: FriendsView()
+            case .settings: SettingsView()
+            }
+    }
+
+    /// Rocket gifts and new versions
+    @ViewBuilder private var banners: some View {
+        if let n = account.giftNotice {
+            banner(icon: "gift.fill", tint: .orange, text: "You got \(n) rockets from the Orbit admin! 🚀",
+                   action: ("Open Store", { router.selection = .store; account.giftNotice = nil })) { account.giftNotice = nil }
+        }
+        if let v = updates.available, !updates.dismissed {
+            banner(icon: "arrow.down.circle.fill", tint: .accentColor, text: "Orbit \(v) is out — you have \(updates.current).",
+                   action: ("Download", { updates.openDownload() })) { updates.dismissed = true }
+        }
+    }
+
+    private func banner(icon: String, tint: Color, text: String, action: (String, () -> Void), close: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(tint)
+            Text(text).font(.callout.weight(.medium))
+            Spacer()
+            Button(action.0, action: action.1).buttonStyle(.borderedProminent).controlSize(.small)
+            Button { close() } label: { Image(systemName: "xmark") }.buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .background(tint.opacity(0.15))
     }
 
     private var miniTimer: some View {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useStore } from "./lib/store";
+import { APP_VERSION, RELEASES_PAGE, useUpdateCheck } from "./lib/updates";
 import { useTimer } from "./lib/timer";
 import { clock } from "./lib/dates";
 import Today from "./pages/Today";
@@ -45,6 +46,9 @@ export default function App() {
   const account = useAccount();
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const update = useUpdateCheck();
+  const [updateHidden, setUpdateHidden] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Theme + accent
   useEffect(() => {
@@ -101,7 +105,25 @@ export default function App() {
             )}
           </div>
         </aside>
-        <main className="main"><Page /></main>
+        <main className="main">
+          {account.giftNotice != null && (
+            <div className="banner" style={{ background: "color-mix(in srgb, #F97316 18%, transparent)" }}>
+              🎁 <b>You got {account.giftNotice} rockets from the Orbit admin! 🚀</b><span className="spacer" />
+              <button className="btn small primary" onClick={() => { nav.go("store"); account.clearGiftNotice(); }}>Open Store</button>
+              <button className="icon-btn" onClick={account.clearGiftNotice}>✕</button>
+            </div>
+          )}
+          {update && !updateHidden && (
+            <div className="banner" style={{ background: "color-mix(in srgb, var(--accent) 18%, transparent)" }}>
+              ⬇️ <b>Orbit {update} is out</b> <span className="muted">— you have {APP_VERSION}.</span><span className="spacer" />
+              <button className="btn small primary" onClick={async () => {
+                try { await navigator.clipboard.writeText(RELEASES_PAGE); setCopied(true); } catch { prompt("Open this link in your browser:", RELEASES_PAGE); }
+              }}>{copied ? "Link copied — paste it in your browser" : "Copy download link"}</button>
+              <button className="icon-btn" onClick={() => setUpdateHidden(true)}>✕</button>
+            </div>
+          )}
+          <Page />
+        </main>
         {showAdmin && account.isAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
         {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
       </div>

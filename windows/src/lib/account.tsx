@@ -32,6 +32,8 @@ interface Account {
   resetPassword: (id: string) => Promise<string | null>;
   /** Give (or take back, if negative) rockets; their app adds them on its next check */
   giftRockets: (id: string, amount: number) => Promise<boolean>;
+  /** Rockets just received as a gift (banner until dismissed) */
+  giftNotice: number | null; clearGiftNotice: () => void;
 }
 
 const Ctx = createContext<Account | null>(null);
@@ -73,6 +75,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const dataRef = useRef<AppData>(data); dataRef.current = data;
   const stateRef = useRef(state); stateRef.current = state;
   const restoring = useRef(false);
+  const [giftNotice, setGiftNotice] = useState<number | null>(null);
   const timer = useRef<number>();
   const notified = useRef<Set<string>>(new Set());
 
@@ -149,6 +152,11 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       const gifts: { id: string; amount: number }[] = await client.get("rocket_gifts?select=id,amount");
       const known = dataRef.current.claimedGifts ?? [];
       if (!gifts.some((g) => !known.includes(g.id))) return;
+      const total = gifts.filter((g) => !known.includes(g.id)).reduce((a, g) => a + g.amount, 0);
+      if (total > 0) {
+        setGiftNotice(total);
+        notify(`You got ${total} 🚀 rockets!`, "A gift from the Orbit admin. Spend them in the Store.");
+      }
       update((d) => {
         const claimed = d.claimedGifts ?? (d.claimedGifts = []);
         for (const g of gifts) if (!claimed.includes(g.id)) { claimed.push(g.id); d.rocketGrant += g.amount; }
@@ -315,6 +323,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       await perform(async () => { await client.rpc("admin_reset_password", { uid: id, new_password: temp }); ok = true; });
       return ok ? temp : null;
     },
+    giftNotice, clearGiftNotice: () => setGiftNotice(null),
     giftRockets: async (id, amount) => {
       let ok = false;
       await perform(async () => { await client.rpc("admin_gift_rockets", { uid: id, amount }); ok = true; });
@@ -329,4 +338,13 @@ export function useAccount(): Account {
   const a = useContext(Ctx);
   if (!a) throw new Error("AccountProvider missing");
   return a;
+}
+
+/** A system notification when allowed (falls back silently; the in-app banner always shows) */
+export function notify(title: string, body: string) {
+  try {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted") new Notification(title, { body });
+    else if (Notification.permission !== "denied") Notification.requestPermission().then((p) => { if (p === "granted") new Notification(title, { body }); });
+  } catch { /* not supported in this webview */ }
 }

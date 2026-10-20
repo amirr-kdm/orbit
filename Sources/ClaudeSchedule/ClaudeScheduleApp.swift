@@ -8,6 +8,7 @@ struct ClaudeScheduleApp: App {
     @State private var friends: FriendsService
     @State private var account: AccountService
     @State private var router = Router()
+    @State private var updates = UpdateChecker()
 
     init() {
         // Developer tool: CS_RENDER_PLANETS=/path.png renders all planets to one image and quits
@@ -45,6 +46,8 @@ struct ClaudeScheduleApp: App {
                 .environment(timer)
                 .environment(router)
                 .environment(friends)
+                .environment(updates)
+                .task { updates.start() }
         }
         .defaultSize(width: 1320, height: 820)
 
