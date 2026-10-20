@@ -160,26 +160,29 @@ struct FriendsView: View {
                     }
                     let top = max(1, everyone.map(\.weekMinutes).max() ?? 1)
                     ForEach(Array(everyone.enumerated()), id: \.element.id) { i, f in
-                        LeaderboardRow(rank: i + 1, card: f, maxMinutes: top, accent: accent,
-                                       expanded: expandedRow == f.id,
-                                       onToggle: { withAnimation(.spring(duration: 0.3)) { expandedRow = expandedRow == f.id ? nil : f.id } },
-                                       onOpenGalaxy: { viewingGalaxy = f })
+                        HStack(alignment: .top, spacing: 8) {
+                            LeaderboardRow(rank: i + 1, card: f, maxMinutes: top, accent: accent,
+                                           expanded: expandedRow == f.id,
+                                           onToggle: { withAnimation(.spring(duration: 0.3)) { expandedRow = expandedRow == f.id ? nil : f.id } },
+                                           onOpenGalaxy: { viewingGalaxy = f })
+                            if !f.isMe {
+                                Button { promising = f } label: { Image(systemName: "hand.raised.fingers.spread") }
+                                    .buttonStyle(.borderless)
+                                    .padding(.top, 10)
+                                    .help("Promise \(f.profile.name) you'll study — with rockets at stake")
+                            }
+                        }
+                        .contextMenu {
+                            if !f.isMe {
+                                Button("Make a Promise…") { promising = f }
+                                Divider()
+                                Button("Remove Friend", role: .destructive) { confirmRemove = f }
+                            }
+                        }
                         if f.id != everyone.last?.id { Divider() }
                     }
                 }
 
-                if !friends.friends.isEmpty {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 14)], spacing: 14) {
-                        ForEach(friends.friends) { f in
-                            FriendDetailCard(card: f, accent: accent, onOpenGalaxy: { viewingGalaxy = f }, onPromise: { promising = f })
-                                .contextMenu {
-                                    Button("Make a Promise…") { promising = f }
-                                    Divider()
-                                    Button("Remove Friend", role: .destructive) { confirmRemove = f }
-                                }
-                        }
-                    }
-                }
                 }
 
                 HStack {
