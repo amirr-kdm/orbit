@@ -71,7 +71,7 @@ struct SolarSystem: Codable, Identifiable, Hashable {
 
 /// Level and planet credits, all derived from study time
 struct GalaxyProgress {
-    static let maxLevel = 50
+    static let maxLevel = 60
     /// Every 3 hours of study (in total) is one level
     static let hoursPerLevel: Double = 3
 
@@ -91,7 +91,7 @@ struct GalaxyProgress {
 }
 
 extension AppStore {
-    /// One level for every 3 hours studied in total (max 50). Level-ups happen straight away.
+    /// One level for every 3 hours studied in total (max 60). Level-ups happen straight away.
     func galaxyProgress(now: Date = Date()) -> GalaxyProgress {
         let total = sessions.reduce(0) { $0 + $1.duration } / 3600
         let currentWeek = Cal.weekStart(now)

@@ -49,6 +49,22 @@ extension PlanetCatalog {
         store.filter { p in p.image.map { PlanetPainter.bundleImage($0) != nil } ?? true }
     }
 
+    /// Level Pass prizes (levels 10, 20 … 60): animated planets you can't buy
+    static let rewards: [PlanetDef] = [
+        PlanetDef(id: "lv_t1", name: "Penguin Ride", level: 1, blurb: "Level 10 prize: two penguins riding a rocket through pink clouds.",
+                  colors: ["#FBCFE8", "#EC4899", "#831843"], accent: "#F9A8D4", glow: true, price: 0, image: "lv_t1"),
+        PlanetDef(id: "lv_t2", name: "Penguin Probe", level: 1, blurb: "Level 20 prize: a penguin keeping watch from its satellite.",
+                  colors: ["#BAE6FD", "#38BDF8", "#0C4A6E"], accent: "#7DD3FC", glow: true, price: 0, image: "lv_t2"),
+        PlanetDef(id: "lv_t3", name: "Shiba Launch", level: 1, blurb: "Level 30 prize: a pixel Shiba blasting off.",
+                  colors: ["#FED7AA", "#F97316", "#7C2D12"], accent: "#FDBA74", glow: true, price: 0, image: "lv_t3"),
+        PlanetDef(id: "lv_t4", name: "Frog Planet", level: 1, blurb: "Level 40 prize: a very tired frog world with its own ring.",
+                  colors: ["#BBF7D0", "#22C55E", "#14532D"], accent: "#86EFAC", glow: true, price: 0, image: "lv_t4"),
+        PlanetDef(id: "lv_t5", name: "Happy Earth", level: 1, blurb: "Level 50 prize: a cheerful Earth waving at its moon.",
+                  colors: ["#BFDBFE", "#3B82F6", "#14532D"], accent: "#93C5FD", glow: true, price: 0, image: "lv_t5"),
+        PlanetDef(id: "lv_t6", name: "Penguin Voyager", level: 1, blurb: "Level 60 prize: the final ride — a penguin rocketing past Mars.",
+                  colors: ["#E9D5FF", "#A855F7", "#3B0764"], accent: "#D8B4FE", glow: true, price: 0, image: "lv_t6"),
+    ]
+
     /// Store planets you buy with rockets. Kept apart from the 50 level planets.
     /// Each one is a little world with a story: who lives there and what flies around it.
     static let store: [PlanetDef] = [
@@ -443,7 +459,8 @@ extension PlanetPainter {
                  with: .radialGradient(Gradient(colors: [accent.opacity(0.45), accent.opacity(0)]),
                                        center: c, startRadius: r * 0.3, endRadius: r * 1.6))
         let bob = sin(phase * .pi * 2) * r * 0.08
-        let side = r * 3.3
+        // Round "portal" pictures (Level Pass planets) are already planet-shaped
+        let side = r * ((p.image ?? "").hasPrefix("lv_") ? 2.9 : 3.3)
         let rect = CGRect(x: c.x - side / 2, y: c.y - side / 2 + bob, width: side, height: side)
         let frames = p.image.map(Self.frames) ?? []
         // Animated pictures play at about 8 frames a second

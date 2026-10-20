@@ -61,7 +61,7 @@ enum PlanetCatalog {
         return byID[id]
     }
 
-    static let byID: [String: PlanetDef] = Dictionary(uniqueKeysWithValues: (all + store).map { ($0.id, $0) })
+    static let byID: [String: PlanetDef] = Dictionary(uniqueKeysWithValues: (all + store + rewards).map { ($0.id, $0) })
 
     static func unlocked(at level: Int) -> [PlanetDef] { all.filter { $0.unlockLevel <= level } }
 

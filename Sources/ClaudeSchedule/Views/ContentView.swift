@@ -80,6 +80,10 @@ struct ContentView: View {
                 page
             }
         }
+        // After a study session: the ship flies along the Level Pass
+        .sheet(item: Binding(get: { store.passMoment }, set: { store.passMoment = $0 })) { m in
+            LevelPassView(fromHours: m.fromHours)
+        }
         // The owner's admin panel (right side) — only for the admin account
         .inspector(isPresented: Binding(get: { showAdmin && account.isAdmin }, set: { showAdmin = $0 })) {
             AdminPanel().inspectorColumnWidth(min: 280, ideal: 320, max: 420)

@@ -54,6 +54,10 @@ final class AppStore {
     var solarSystems: [SolarSystem] = [] { didSet { save() } }
     var planners: [Planner] = [] { didSet { save() } }
     var plannerFolders: [PlannerFolder] = [] { didSet { save() } }
+    /// Level Pass rewards taken
+    var claimedLevels: [Int] = [] { didSet { save() } }
+    /// Set after a study session is saved, to show the Level Pass (not saved)
+    var passMoment: PassMoment?
     /// Store planets bought with rockets
     var purchases: [Purchase] = [] { didSet { save() } }
     /// Refund tickets used (everyone gets 3)
@@ -87,11 +91,13 @@ final class AppStore {
         var solarSystems: [SolarSystem] = []
         var planners: [Planner] = []
         var plannerFolders: [PlannerFolder] = []
+        var claimedLevels: [Int] = []
 
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
              galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner],
-             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String], plannerFolders: [PlannerFolder]) {
+             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String], plannerFolders: [PlannerFolder], claimedLevels: [Int]) {
+            self.claimedLevels = claimedLevels
             self.plannerFolders = plannerFolders
             self.groupWins = groupWins
             self.claimedGifts = claimedGifts
@@ -132,6 +138,7 @@ final class AppStore {
             solarSystems = try c.decodeIfPresent([SolarSystem].self, forKey: .solarSystems) ?? []
             planners = try c.decodeIfPresent([Planner].self, forKey: .planners) ?? []
             plannerFolders = try c.decodeIfPresent([PlannerFolder].self, forKey: .plannerFolders) ?? []
+            claimedLevels = try c.decodeIfPresent([Int].self, forKey: .claimedLevels) ?? []
         }
     }
 
@@ -200,6 +207,7 @@ final class AppStore {
             solarSystems = snap.solarSystems
             planners = snap.planners
             plannerFolders = snap.plannerFolders
+            claimedLevels = snap.claimedLevels
         }
     }
 
@@ -236,7 +244,7 @@ final class AppStore {
                             galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
                             planners: planners, scheduleSkipped: scheduleSkipped,
                             purchases: purchases, refundsUsed: refundsUsed,
-                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts, plannerFolders: plannerFolders)
+                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts, plannerFolders: plannerFolders, claimedLevels: claimedLevels)
         return try? encoder.encode(snap)
     }
 
@@ -677,8 +685,11 @@ final class AppStore {
     }
 
     func addSession(_ s: StudySession) {
+        let before = sessions.reduce(0) { $0 + $1.duration } / 3600
         sessions.append(s)
         sessions.sort { $0.start < $1.start }
+        // Show the ship moving along the Level Pass
+        if s.duration >= 60 { passMoment = PassMoment(fromHours: before, toHours: before + s.duration / 3600) }
     }
 
     func deleteSession(_ id: UUID) {
@@ -718,4 +729,11 @@ final class Router {
     // CS_START_TAB opens a given screen (handy for testing)
     var selection: SidebarItem? = ProcessInfo.processInfo.environment["CS_START_TAB"]
         .flatMap(SidebarItem.init(rawValue:)) ?? .today
+}
+
+/// A study session was just saved: animate the ship from where it was to where it is now
+struct PassMoment: Identifiable {
+    let id = UUID()
+    let fromHours: Double
+    let toHours: Double
 }

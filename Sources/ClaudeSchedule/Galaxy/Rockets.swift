@@ -57,7 +57,26 @@ extension AppStore {
         return out
     }
 
-    var rocketsFromStudy: Int { Int(sessions.reduce(0) { $0 + $1.duration } / 3600 * Double(Self.rocketsPerHour)) }
+    /// Until this day rockets came automatically for every hour studied; since then they come from the Level Pass
+    static let levelPassStart = Cal.persian.date(from: DateComponents(calendar: Cal.persian, year: 1405, month: 7, day: 29)) ?? Date()
+    var rocketsFromStudy: Int {
+        Int(sessions.filter { $0.start < Self.levelPassStart }.reduce(0) { $0 + $1.duration } / 3600 * Double(Self.rocketsPerHour))
+    }
+    /// Rockets claimed on the Level Pass (25 per level)
+    static let rocketsPerLevel = 25
+    var rocketsFromLevels: Int { claimedLevels.count * Self.rocketsPerLevel }
+
+    /// Levels 10, 20 … 60 also give a special planet
+    static func levelPlanet(_ level: Int) -> String? { level % 10 == 0 && level > 0 ? "lv_t\(level / 10)" : nil }
+
+    func canClaim(level: Int) -> Bool { level >= 1 && level <= galaxyProgress().level && !claimedLevels.contains(level) }
+
+    /// Take a level's rewards: 25 rockets, plus a planet on every 10th level
+    func claim(level: Int) {
+        guard canClaim(level: level) else { return }
+        claimedLevels.append(level)
+        if let p = Self.levelPlanet(level) { purchases.append(Purchase(planetID: p, price: 0)) }
+    }
     var rocketsFromBonuses: Int { weekBonuses().reduce(0) { $0 + $1.rockets } }
     var rocketsSpent: Int { purchases.reduce(0) { $0 + $1.price } }
     /// Prize for studying the most in a group in a finished week
@@ -65,7 +84,7 @@ extension AppStore {
     var rocketsFromGroups: Int { groupWins.count * Self.groupWinRockets }
 
     var rocketBalance: Int {
-        Self.startingRockets + rocketGrant + rocketsFromStudy + rocketsFromBonuses + rocketsFromGroups - rocketsSpent
+        Self.startingRockets + rocketGrant + rocketsFromStudy + rocketsFromLevels + rocketsFromBonuses + rocketsFromGroups - rocketsSpent
     }
 
     /// Record a weekly group win once; returns true if it's new
@@ -111,7 +130,8 @@ extension AppStore {
     /// If every copy is in the galaxy, one is taken out.
     @discardableResult
     func refund(_ planetID: String) -> Bool {
-        guard refundTicketsLeft > 0, let i = purchases.lastIndex(where: { $0.planetID == planetID }) else { return false }
+        guard refundTicketsLeft > 0, PlanetCatalog.planet(planetID)?.isStoreItem == true,
+              let i = purchases.lastIndex(where: { $0.planetID == planetID }) else { return false }
         purchases.remove(at: i)
         refundsUsed += 1
         if placedCount(planetID) > ownedCount(planetID), let j = galaxy.lastIndex(where: { $0.planetID == planetID }) {
@@ -123,7 +143,7 @@ extension AppStore {
 
     /// Store planets you own, for the My Galaxy shelf
     var ownedStorePlanets: [PlanetDef] {
-        PlanetCatalog.store.filter { ownedCount($0.id) > 0 }
+        (PlanetCatalog.rewards + PlanetCatalog.store).filter { ownedCount($0.id) > 0 }
     }
 
     /// Put an already-bought planet back into the galaxy (free)

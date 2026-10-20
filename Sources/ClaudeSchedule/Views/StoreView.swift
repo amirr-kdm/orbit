@@ -52,13 +52,13 @@ struct StoreView: View {
                         Text(store.rocketBalance.formatted()).font(.system(size: 38, weight: .heavy, design: .rounded)).monospacedDigit()
                         RocketIcon(size: 22)
                     }
-                    Text("\(store.rocketsFromStudy.formatted()) from study · \(store.rocketsFromBonuses.formatted()) weekly bonuses · \(store.rocketsFromGroups.formatted()) group wins · \(store.rocketsSpent.formatted()) spent")
+                    Text("\((store.rocketsFromStudy + store.rocketsFromLevels).formatted()) from study · \(store.rocketsFromBonuses.formatted()) weekly bonuses · \(store.rocketsFromGroups.formatted()) group wins · \(store.rocketsSpent.formatted()) spent")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer()
             VStack(alignment: .leading, spacing: 8) {
-                Label("\(AppStore.rocketsPerHour) rockets for every hour you study", systemImage: "clock")
+                Label("\(AppStore.rocketsPerLevel) rockets for every level — claim them on the Level Pass", systemImage: "flag.checkered")
                     .font(.callout.weight(.medium))
                 Text("Weekly bonus when Friday ends:").font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 6) {

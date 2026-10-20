@@ -39,6 +39,7 @@ struct GalaxyPage: View {
     @State private var targetSystem: UUID?
     @State private var toast: String?
     @State private var zoom = 0.62
+    @State private var showPass = false
 
     private var accent: Color { store.settings.template.style.accent }
 
@@ -54,6 +55,7 @@ struct GalaxyPage: View {
         }
         .navigationTitle("My Galaxy")
         .onAppear { store.ensureHomeSystem() }
+        .sheet(isPresented: $showPass) { LevelPassView() }
     }
 
     // MARK: Profile
@@ -98,6 +100,12 @@ struct GalaxyPage: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
+            let ready = (1...max(1, p.level)).filter { store.canClaim(level: $0) }.count
+            Button { showPass = true } label: {
+                Label(ready > 0 ? "Level Pass · \(ready) to claim" : "Level Pass", systemImage: "flag.checkered")
+            }
+            .buttonStyle(.borderedProminent).tint(ready > 0 ? .orange : accent)
+            .controlSize(.large)
         }
         .padding(18)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color(nsColor: .controlBackgroundColor))
