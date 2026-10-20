@@ -501,7 +501,6 @@ struct GalaxyMapView: View {
     /// Set to let the user drag solar systems around (their own galaxy only)
     var onMove: ((UUID, CGPoint) -> Void)? = nil
     var onSelect: ((UUID) -> Void)?
-    @State private var movingSystem: (id: UUID, by: CGSize)?
 
     @State private var pan: CGSize = .zero
     @State private var flyZoom: Double?
@@ -541,23 +540,12 @@ struct GalaxyMapView: View {
 
                 ForEach(Array(data.systems.enumerated()), id: \.element.id) { i, system in
                     let base = Self.position(of: system, index: i)
-                    let shift = movingSystem?.id == system.id ? movingSystem!.by : .zero
-                    let pos = CGPoint(x: base.x + shift.width / zoom, y: base.y + shift.height / zoom)
                     let isOpen = focused == system.id
-                    // Painted at the real on-screen size, so it stays sharp when zoomed in
-                    SolarSystemView(system: system, large: false, paintScale: zoom * 1.1, showName: focused == nil)
-                        .frame(width: 330 * zoom * 1.1, height: 260 * zoom * 1.1)
-                        .contentShape(Ellipse())
-                        .onTapGesture { if focused == nil { onSelect?(system.id) } }
-                        .gesture(DragGesture(minimumDistance: 6)
-                            .onChanged { v in if focused == nil, onMove != nil { movingSystem = (system.id, v.translation) } }
-                            .onEnded { v in
-                                guard focused == nil, let onMove else { return }
-                                onMove(system.id, CGPoint(x: base.x + v.translation.width / zoom, y: base.y + v.translation.height / zoom))
-                                movingSystem = nil
-                            }, including: onMove == nil ? .none : .all)
+                    MapSystemTile(system: system, zoom: zoom, showName: focused == nil, canMove: focused == nil && onMove != nil,
+                                  onTap: { if focused == nil { onSelect?(system.id) } },
+                                  onDrop: { t in onMove?(system.id, CGPoint(x: base.x + t.width / zoom, y: base.y + t.height / zoom)) })
                         .opacity(focused == nil || isOpen ? 1 : 0)
-                        .position(x: pos.x * zoom, y: pos.y * zoom)
+                        .position(x: base.x * zoom, y: base.y * zoom)
                         .help(focused == nil ? "Open \(system.name)" : "")
                 }
             }
@@ -999,5 +987,33 @@ struct InfiniteStars: View {
                 }
             } }
         }
+    }
+}
+
+/// One solar system on the map. Dragging only moves this tile (its own gesture state),
+/// so the rest of the map isn't redrawn on every mouse move.
+private struct MapSystemTile: View {
+    let system: GalaxyData.System
+    let zoom: Double
+    let showName: Bool
+    let canMove: Bool
+    let onTap: () -> Void
+    let onDrop: (CGSize) -> Void
+    @GestureState private var drag: CGSize = .zero
+
+    var body: some View {
+        // Painted at the real on-screen size, so it stays sharp when zoomed in
+        SolarSystemView(system: system, large: false, paintScale: zoom * 1.1, showName: showName)
+            .frame(width: 330 * zoom * 1.1, height: 260 * zoom * 1.1)
+            .contentShape(Ellipse())
+            .offset(drag)
+            .onTapGesture(perform: onTap)
+            // Measured in window coordinates: the tile itself moves while dragging
+            .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .global)
+                .updating($drag) { v, state, _ in state = v.translation }
+                .onEnded { v in onDrop(v.translation) },
+                including: canMove ? .all : .none)
+            .zIndex(drag == .zero ? 0 : 1)
+            .help(showName ? "Open \(system.name) · drag to move it" : "")
     }
 }
