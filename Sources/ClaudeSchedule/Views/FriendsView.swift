@@ -507,7 +507,6 @@ struct FriendGalaxySheet: View {
     let card: FriendCard
     @Environment(\.dismiss) private var dismiss
     @State private var focused: UUID?
-    @State private var last: UUID?
 
     var body: some View {
         let data = card.profile.galaxy ?? GalaxyData(systems: [])
@@ -525,7 +524,7 @@ struct FriendGalaxySheet: View {
                 }
                 Spacer()
                 if system != nil {
-                    Button { withAnimation(.easeIn(duration: 0.35)) { focused = nil } } label: { Label("Galaxy", systemImage: "chevron.left") }
+                    Button { focused = nil } label: { Label("Galaxy", systemImage: "chevron.left") }
                 }
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.cancelAction)
@@ -535,21 +534,19 @@ struct FriendGalaxySheet: View {
             .zIndex(1)
 
             ZStack {
-                if let system {
-                    SolarSystemView(system: system, large: true)
-                        .overlay(alignment: .topLeading) {
-                            Text("\(system.name) · \(system.sun.name)").font(.headline).foregroundStyle(.white).padding(14)
-                        }
-                        .transition(.systemZoom)
-                } else if data.systems.allSatisfy({ $0.planets.isEmpty }) {
+                if data.systems.allSatisfy({ $0.planets.isEmpty }) {
                     ZStack {
                         StarsBackground()
                         Text("No planets yet — \(card.isMe ? "study" : "they need to study") an hour to add one ✨")
                             .foregroundStyle(.white.opacity(0.8))
                     }
                 } else {
-                    GalaxyMapView(data: data, zoom: 0.5, returningFrom: last) { id in last = id; withAnimation(.easeOut(duration: 0.45)) { focused = id } }
-                        .transition(.opacity)
+                    GalaxyMapView(data: data, zoom: 0.5, focused: focused) { id in focused = id }
+                        .overlay(alignment: .topLeading) {
+                            if let system {
+                                Text("\(system.name) · \(system.sun.name)").font(.headline).foregroundStyle(.white).padding(14)
+                            }
+                        }
                 }
             }
             .frame(width: 900, height: 560)

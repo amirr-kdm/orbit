@@ -59,6 +59,9 @@ struct SolarSystem: Codable, Identifiable, Hashable {
     var id = UUID()
     var name: String
     var sun: SunType = .yellow
+    /// Where it sits on the galaxy map (world coordinates); nil = its place on the spiral
+    var x: Double?
+    var y: Double?
 
     /// Planets one solar system can hold
     static let capacity = 8

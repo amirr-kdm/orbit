@@ -7,14 +7,23 @@ struct GalaxyData: Codable, Hashable {
         var name: String
         var sun: SunType
         var planets: [String]
+        var x: Double?
+        var y: Double?
     }
     var systems: [System]
 }
 
 extension AppStore {
+    /// Saves where a solar system was dragged to on the map
+    func moveSystem(_ id: UUID, to p: CGPoint) {
+        guard let i = solarSystems.firstIndex(where: { $0.id == id }) else { return }
+        solarSystems[i].x = p.x
+        solarSystems[i].y = p.y
+    }
+
     var galaxyData: GalaxyData {
         GalaxyData(systems: solarSystems.map { s in
-            GalaxyData.System(id: s.id, name: s.name, sun: s.sun, planets: planets(in: s).map(\.planetID))
+            GalaxyData.System(id: s.id, name: s.name, sun: s.sun, planets: planets(in: s).map(\.planetID), x: s.x, y: s.y)
         })
     }
 }
@@ -27,8 +36,6 @@ struct GalaxyPage: View {
     /// A bought planet opened on the Your Store Planets shelf
     @State private var selectedStore: String?
     @State private var focusedSystem: UUID?
-    /// The system we just left, so the map can zoom back out from it
-    @State private var lastSystem: UUID?
     @State private var targetSystem: UUID?
     @State private var toast: String?
     @State private var zoom = 0.62
@@ -105,23 +112,15 @@ struct GalaxyPage: View {
         let focused = focusedSystem.flatMap { id in data.systems.first { $0.id == id } }
 
         return ZStack(alignment: .topLeading) {
-            if let focused {
-                SolarSystemView(system: focused, large: true)
-                    .transition(.systemZoom)
-            } else {
-                GalaxyMapView(data: data, zoom: zoom, returningFrom: lastSystem) { id in
-                    lastSystem = id
-                    withAnimation(.easeInOut(duration: 0.4)) { focusedSystem = id }
-                }
-                .transition(.opacity)
-            }
+            // One continuous map: opening a system is just the camera zooming in on it
+            GalaxyMapView(data: data, zoom: zoom, focused: focusedSystem, onMove: { id, p in store.moveSystem(id, to: p) }) { id in focusedSystem = id }
 
             // Overlay: title + controls
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     if let focused {
                         Button {
-                            withAnimation(.easeInOut(duration: 0.4)) { focusedSystem = nil }
+                            focusedSystem = nil
                         } label: {
                             Label("Galaxy", systemImage: "chevron.left")
                         }
@@ -497,9 +496,12 @@ struct GalaxyPage: View {
 struct GalaxyMapView: View {
     let data: GalaxyData
     var zoom: Double = 0.62
-    /// When set, the map opens zoomed in on this system and pulls back out
-    var returningFrom: UUID? = nil
+    /// The open solar system: the camera zooms in on it (nil = whole galaxy)
+    var focused: UUID? = nil
+    /// Set to let the user drag solar systems around (their own galaxy only)
+    var onMove: ((UUID, CGPoint) -> Void)? = nil
     var onSelect: ((UUID) -> Void)?
+    @State private var movingSystem: (id: UUID, by: CGSize)?
 
     @State private var pan: CGSize = .zero
     @State private var flyZoom: Double?
@@ -520,33 +522,54 @@ struct GalaxyMapView: View {
             let w = Self.worldSize.width * zoom, h = Self.worldSize.height * zoom
             let offset = CGSize(width: pan.width + dragging.width, height: pan.height + dragging.height)
             ZStack {
+                // Endless starfield (drawn for the visible area only) — the galaxy has no edge
+                // (world origin on screen = o; the canvas covers exactly the visible area)
+                let o = CGSize(width: geo.size.width / 2 + offset.width - w / 2, height: geo.size.height / 2 + offset.height - h / 2)
+                InfiniteStars(offset: o, zoom: zoom)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .position(x: -o.width + geo.size.width / 2, y: -o.height + geo.size.height / 2)
+                    .allowsHitTesting(false)
+                // The backdrop is rendered once at the normal zoom and scaled for close-ups (keeps memory low)
                 GalaxyBackdrop()
-                    .frame(width: w, height: h)
+                    .frame(width: Self.worldSize.width * baseZoom, height: Self.worldSize.height * baseZoom)
                     .drawingGroup()
+                    // fade the spiral's rectangle into the endless starfield (no visible edge)
+                    .mask(EllipticalGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: 0.62),
+                                                     .init(color: .clear, location: 1)], center: .center))
+                    .scaleEffect(zoom / baseZoom)
+                    .frame(width: w, height: h)
 
                 ForEach(Array(data.systems.enumerated()), id: \.element.id) { i, system in
-                    let pos = Self.position(i)
-                    SolarSystemView(system: system, large: false)
-                        .frame(width: 330, height: 260)
-                        .scaleEffect(zoom * 1.1)
+                    let base = Self.position(of: system, index: i)
+                    let shift = movingSystem?.id == system.id ? movingSystem!.by : .zero
+                    let pos = CGPoint(x: base.x + shift.width / zoom, y: base.y + shift.height / zoom)
+                    let isOpen = focused == system.id
+                    // Painted at the real on-screen size, so it stays sharp when zoomed in
+                    SolarSystemView(system: system, large: false, paintScale: zoom * 1.1, showName: focused == nil)
                         .frame(width: 330 * zoom * 1.1, height: 260 * zoom * 1.1)
                         .contentShape(Ellipse())
-                        .onTapGesture { flyIn(to: i, id: system.id) }
+                        .onTapGesture { if focused == nil { onSelect?(system.id) } }
+                        .gesture(DragGesture(minimumDistance: 6)
+                            .onChanged { v in if focused == nil, onMove != nil { movingSystem = (system.id, v.translation) } }
+                            .onEnded { v in
+                                guard focused == nil, let onMove else { return }
+                                onMove(system.id, CGPoint(x: base.x + v.translation.width / zoom, y: base.y + v.translation.height / zoom))
+                                movingSystem = nil
+                            }, including: onMove == nil ? .none : .all)
+                        .opacity(focused == nil || isOpen ? 1 : 0)
                         .position(x: pos.x * zoom, y: pos.y * zoom)
-                        .help("Open \(system.name)")
+                        .help(focused == nil ? "Open \(system.name)" : "")
                 }
             }
             .frame(width: w, height: h)
             .position(x: geo.size.width / 2 + offset.width, y: geo.size.height / 2 + offset.height)
+            .contentShape(Rectangle())   // drag anywhere, even beyond the spiral
             .gesture(
-                DragGesture(minimumDistance: 4)
+                DragGesture(minimumDistance: focused == nil ? 4 : 10_000)
                     .updating($dragging) { value, state, _ in state = value.translation }
                     .onEnded { value in
                         pan.width += value.translation.width
                         pan.height += value.translation.height
-                        // keep some of the galaxy on screen
-                        pan.width = max(-w / 2, min(w / 2, pan.width))
-                        pan.height = max(-h / 2, min(h / 2, pan.height))
                     }
             )
         }
@@ -558,7 +581,8 @@ struct GalaxyMapView: View {
         .environment(\.colorScheme, .dark)
         .background(GeometryReader { g in Color.clear.onAppear { viewSize = g.size }.onChange(of: g.size) { _, s in viewSize = s } })
         .onHover { hovering = $0 }
-        .onAppear { zoomOutFromReturn(); startTrackpad() }
+        .onAppear { startTrackpad(); if focused != nil { camera(to: focused, animated: false) } }
+        .onChange(of: focused) { _, id in camera(to: id, animated: true) }
         .onDisappear { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
         .onChange(of: zoom) { old, new in
             pan = CGSize(width: pan.width * new / old, height: pan.height * new / old)
@@ -569,13 +593,12 @@ struct GalaxyMapView: View {
     private func startTrackpad() {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .magnify]) { e in
-            guard hovering, flyZoom == nil else { return e }
+            guard hovering, focused == nil, flyZoom == nil else { return e }
             if e.type == .magnify {
                 rescale(by: 1 + e.magnification)
             } else if e.hasPreciseScrollingDeltas {
-                let w = Self.worldSize.width * baseZoom, h = Self.worldSize.height * baseZoom
-                pan.width = max(-w / 2, min(w / 2, pan.width + e.scrollingDeltaX))
-                pan.height = max(-h / 2, min(h / 2, pan.height + e.scrollingDeltaY))
+                pan.width += e.scrollingDeltaX
+                pan.height += e.scrollingDeltaY
             } else {
                 rescale(by: 1 + e.scrollingDeltaY * 0.03)
             }
@@ -599,35 +622,48 @@ struct GalaxyMapView: View {
         return CGSize(width: -(p.x - worldSize.width / 2) * z, height: -(p.y - worldSize.height / 2) * z)
     }
 
-    /// Camera glides to the system and zooms in, then the close-up opens
-    private func flyIn(to index: Int, id: UUID) {
-        let z = flyTarget
-        withAnimation(.easeInOut(duration: 0.7)) {
+    @State private var flight: Task<Void, Never>?
+
+    /// Zooms the camera onto a system (fills the view) or back out to the whole galaxy.
+    /// Zoom and position move together (zoom on a log scale, the system gliding on screen),
+    /// so the camera never swings through empty space on the way.
+    private func camera(to id: UUID?, animated: Bool) {
+        let target = id ?? focusedBefore
+        guard let target, let i = data.systems.firstIndex(where: { $0.id == target }) else { flyZoom = nil; return }
+        let p = Self.position(of: data.systems[i], index: i)
+        let rel = CGSize(width: p.x - Self.worldSize.width / 2, height: p.y - Self.worldSize.height / 2)
+        let z0 = flyZoom ?? baseZoom
+        let z1 = id != nil ? flyTarget : baseZoom
+        // where the system sits on screen (relative to the centre), now and at the end
+        let s0 = CGSize(width: pan.width + rel.width * z0, height: pan.height + rel.height * z0)
+        let s1 = id != nil ? .zero : CGSize(width: s0.width * 0.4 + rel.width * z1 * 0.0, height: s0.height * 0.4)
+        focusedBefore = id
+        flight?.cancel()
+        func apply(_ t: Double) {
+            let e = t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2   // ease in-out
+            let z = exp(log(z0) + (log(z1) - log(z0)) * e)
+            let sx = s0.width + (s1.width - s0.width) * e, sy = s0.height + (s1.height - s0.height) * e
             flyZoom = z
-            pan = Self.centre(on: index, zoom: z)
+            pan = CGSize(width: sx - rel.width * z, height: sy - rel.height * z)
         }
-        // Hand over while the camera is still settling, so it reads as one continuous zoom
-        Task {
-            try? await Task.sleep(for: .milliseconds(560))
-            onSelect?(id)
+        guard animated else { apply(1); if id == nil { flyZoom = nil }; return }
+        flight = Task { @MainActor in
+            let start = Date(), duration = 0.85
+            while !Task.isCancelled {
+                let t = min(1, Date().timeIntervalSince(start) / duration)
+                apply(t)
+                if t >= 1 { break }
+                try? await Task.sleep(for: .milliseconds(8))
+            }
+            if id == nil && !Task.isCancelled { flyZoom = nil }
         }
     }
+    @State private var focusedBefore: UUID?
 
-    /// Coming back from a close-up: start on that system and pull back to the whole galaxy
-    private func zoomOutFromReturn() {
-        guard let id = returningFrom, let i = data.systems.firstIndex(where: { $0.id == id }) else { return }
-        var t = Transaction(); t.disablesAnimations = true
-        let z = flyTarget
-        withTransaction(t) {
-            flyZoom = z
-            pan = Self.centre(on: i, zoom: z)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            withAnimation(.easeInOut(duration: 0.8)) {
-                flyZoom = nil
-                pan = Self.centre(on: i, zoom: baseZoom).applying(0.35)
-            }
-        }
+    /// A system's place: where it was dragged to, or its spot on the spiral
+    static func position(of s: GalaxyData.System, index i: Int) -> CGPoint {
+        if let x = s.x, let y = s.y { return CGPoint(x: x, y: y) }
+        return position(i)
     }
 
     /// Systems alternate between two spiral arms, moving outward
@@ -696,13 +732,18 @@ struct GalaxyBackdrop: View {
 struct SolarSystemView: View {
     let system: GalaxyData.System
     var large = false
+    /// Map tiles: draw the 330×260 layout scaled up to this factor (sharp at any zoom)
+    var paintScale: CGFloat = 1
+    var showName = true
 
     var body: some View {
         TimelineView(.animation(minimumInterval: large ? 1 / 30 : 1 / 20)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             Canvas { ctx, size in
                 if large { StarsBackground.paint(&ctx, size: size) }
-                Self.paint(system, in: &ctx, size: size, time: t, large: large)
+                ctx.scaleBy(x: paintScale, y: paintScale)
+                Self.paint(system, in: &ctx, size: CGSize(width: size.width / paintScale, height: size.height / paintScale),
+                           time: t, large: large, showName: showName)
             }
         }
         .background(large ? Color.black : Color.clear)
@@ -713,13 +754,13 @@ struct SolarSystemView: View {
     /// One planet per orbit, inner orbits are faster
     static func layout(count: Int) -> [Slot] {
         (0..<count).map { i in
-            let radius = 100 + Double(i) * 28   // first orbit clears the (bigger) sun
+            let radius = 100 + Double(i) * 32   // first orbit clears the (bigger) sun
             let speed = 0.35 / sqrt(Double(i + 1)) * (i % 3 == 2 ? -1 : 1)
             return Slot(radius: radius, offset: Double(i) * 2.1, speed: speed)
         }
     }
 
-    static func paint(_ system: GalaxyData.System, in ctx: inout GraphicsContext, size: CGSize, time t: Double, large: Bool) {
+    static func paint(_ system: GalaxyData.System, in ctx: inout GraphicsContext, size: CGSize, time t: Double, large: Bool, showName: Bool = true) {
         let slots = layout(count: system.planets.count)
         let maxR = slots.map(\.radius).max() ?? 60
         let scale = min(large ? 1.6 : 1.0, (min(size.width, size.height * 1.5) / 2 - 20) / (maxR + 30))
@@ -753,7 +794,7 @@ struct SolarSystemView: View {
                          radius: (large ? 46 : 30) * system.sun.scale * max(scale, 0.75), time: t)
         for item in placed where item.2 >= 0 { drawPlanet(item) }
 
-        if !large {
+        if !large && showName {
             ctx.draw(Text(system.name).font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(.white.opacity(0.9)),
                      at: CGPoint(x: center.x, y: size.height - 12))
         }
@@ -931,4 +972,32 @@ extension AnyTransition {
 
 private extension CGSize {
     func applying(_ k: Double) -> CGSize { CGSize(width: width * k, height: height * k) }
+}
+
+/// Stars that go on forever: each 400×400 world cell gets the same random stars every time,
+/// and only the cells on screen are drawn
+struct InfiniteStars: View {
+    /// Screen offset of the world origin
+    let offset: CGSize
+    let zoom: Double
+
+    var body: some View {
+        Canvas { ctx, size in
+            ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: "#020617")))
+            let cell = 400.0 * zoom
+            let x0 = Int(floor(-offset.width / cell)), x1 = Int(floor((size.width - offset.width) / cell))
+            let y0 = Int(floor(-offset.height / cell)), y1 = Int(floor((size.height - offset.height) / cell))
+            guard (x1 - x0) * (y1 - y0) < 900 else { return }
+            for cx in x0...x1 { for cy in y0...y1 {
+                var seed = UInt64(bitPattern: Int64(cx &* 73856093 ^ cy &* 19349663)) | 1
+                func rnd() -> Double { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; return Double(seed % 10_000) / 10_000 }
+                for _ in 0..<14 {
+                    let x = offset.width + (Double(cx) + rnd()) * cell, y = offset.height + (Double(cy) + rnd()) * cell
+                    let r = (rnd() < 0.9 ? 0.8 : 1.6) * max(0.6, min(1.6, zoom * 1.4))
+                    ctx.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
+                             with: .color(.white.opacity(0.25 + rnd() * 0.5)))
+                }
+            } }
+        }
+    }
 }
