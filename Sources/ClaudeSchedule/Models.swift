@@ -196,6 +196,8 @@ struct Planner: Identifiable, Codable, Hashable {
     var notes: [PlannerNote] = [PlannerNote(title: "Brainstorm")]
     /// The folder it's filed in (nil = not in a folder)
     var folderID: UUID?
+    /// The weekly plan table is folded away (only the notes show)
+    var planHidden = false
 
     init(name: String) { self.name = name }
 
@@ -207,6 +209,7 @@ struct Planner: Identifiable, Codable, Hashable {
         entries = try c.decodeIfPresent([ScheduleEntry].self, forKey: .entries) ?? []
         notes = try c.decodeIfPresent([PlannerNote].self, forKey: .notes) ?? []
         folderID = try c.decodeIfPresent(UUID.self, forKey: .folderID)
+        planHidden = try c.decodeIfPresent(Bool.self, forKey: .planHidden) ?? false
     }
 }
 

@@ -158,6 +158,9 @@ function PlannerDetail({ planner }: { planner: PlannerT }) {
       <div className="row">
         <input value={planner.name} onChange={(e) => actions.updatePlanner(planner.id, (p) => { p.name = e.target.value; })}
           style={{ fontSize: 26, fontWeight: 800, background: "none", border: "none", boxShadow: "none", padding: 0, flex: 1, minWidth: 120 }} />
+        <button className="btn" title={planner.planHidden ? "Show the weekly plan table" : "Hide the weekly plan table so the notes move up"}
+          onClick={(e) => { e.stopPropagation(); actions.updatePlanner(planner.id, (p) => { p.planHidden = !p.planHidden; }); }}>
+          {planner.planHidden ? "▦ Show table" : "▦ Hide table"}</button>
         <div className="seg" title="Which week's classes are locked in the plan">
           <button className={offset === 0 ? "on" : ""} onClick={() => setOffset(0)}>This week</button>
           <button className={offset === 1 ? "on" : ""} onClick={() => setOffset(1)}>Next week</button>
@@ -166,6 +169,7 @@ function PlannerDetail({ planner }: { planner: PlannerT }) {
         <button className="btn primary" disabled={!planner.entries.length} onClick={(e) => { e.stopPropagation(); commit(); setApplying(true); }}>⤓ Add to Weekly Schedule…</button>
       </div>
 
+      {!planner.planHidden && <>
       <div className="sched-wrap">
         <div className="sched" style={{ gridTemplateColumns: `100px repeat(${slots.length}, minmax(76px, 1fr))` }}>
           <div />
@@ -220,6 +224,7 @@ function PlannerDetail({ planner }: { planner: PlannerT }) {
         <span className="spacer" />
         <span className="small muted">🔒 Class times from your weekly schedule are locked</span>
       </div>
+      </>}
 
       <Notes planner={planner} />
 

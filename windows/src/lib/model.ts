@@ -85,6 +85,8 @@ export interface Planner {
   notes: PlannerNote[];
   /** The folder it's filed in (missing = not in a folder) */
   folderID?: string;
+  /** The weekly plan table is folded away (only the notes show) */
+  planHidden?: boolean;
 }
 
 /** A folder in the Notes & Brainstorm sidebar (same shape as the Mac app) */

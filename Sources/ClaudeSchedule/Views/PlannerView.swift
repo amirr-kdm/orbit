@@ -189,8 +189,10 @@ private struct PlannerDetail: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                grid
-                toolbar
+                if !planner.planHidden {
+                    grid
+                    toolbar
+                }
                 NotesPanel(plannerID: plannerID)
             }
             .padding(22)
@@ -208,6 +210,14 @@ private struct PlannerDetail: View {
             ))
             .textFieldStyle(.plain)
             .font(.title.weight(.bold))
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) { store.updatePlanner(plannerID) { $0.planHidden.toggle() } }
+            } label: {
+                Label(planner.planHidden ? "Show Table" : "Hide Table",
+                      systemImage: planner.planHidden ? "tablecells" : "tablecells.badge.ellipsis")
+            }
+            .help(planner.planHidden ? "Show the weekly plan table" : "Hide the weekly plan table so the notes move up")
 
             Spacer()
 
