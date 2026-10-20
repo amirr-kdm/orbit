@@ -414,6 +414,9 @@ struct AdminPanel: View {
     @Environment(AccountService.self) private var account
     @State private var tempPassword: (name: String, value: String)?
     @State private var confirmRemove: AccountService.AdminUser?
+    @State private var giftTo: AccountService.AdminUser?
+    @State private var giftAmount = 100
+    @State private var giftDone: String?
 
     var body: some View {
         let pending = account.users.filter { !$0.approved }
@@ -458,25 +461,50 @@ struct AdminPanel: View {
                                 .font(.caption2).foregroundStyle(.tertiary)
                         }
                         Spacer()
-                        if !u.is_admin {
-                            Menu {
+                        Menu {
+                            Button("Give Rockets…") { giftAmount = 100; giftTo = u }
+                            if !u.is_admin {
                                 Button("Reset Password…") {
                                     Task { if let p = await account.resetPassword(u.id) { tempPassword = (u.username ?? u.name, p) } }
                                 }
                                 Divider()
                                 Button("Remove Account…", role: .destructive) { confirmRemove = u }
-                            } label: { Image(systemName: "ellipsis.circle") }
-                            .menuStyle(.borderlessButton).fixedSize()
-                        }
+                            }
+                        } label: { Image(systemName: "ellipsis.circle") }
+                        .menuStyle(.borderlessButton).fixedSize()
                     }
                     .padding(.vertical, 4)
                     Divider()
                 }
+                if let g = giftDone { Text(g).font(.caption).foregroundStyle(.green) }
                 if let m = account.message { Text(m).font(.caption).foregroundStyle(.red) }
             }
             .padding(16)
         }
         .task { await account.loadUsers() }
+        .sheet(item: $giftTo) { u in
+            VStack(alignment: .leading, spacing: 14) {
+                Label("Give rockets to @\(u.username ?? u.name)", systemImage: "paperplane.fill").font(.headline)
+                HStack {
+                    TextField("Amount", value: $giftAmount, format: .number).textFieldStyle(.roundedBorder).frame(width: 120)
+                    Text("🚀")
+                    ForEach([50, 100, 500, 1000], id: \.self) { n in Button("\(n)") { giftAmount = n }.controlSize(.small) }
+                }
+                Text("Use a negative number to take rockets back. They're added the next time their app checks (within a minute).")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { giftTo = nil }.keyboardShortcut(.cancelAction)
+                    Button("Give") {
+                        let amount = giftAmount, name = u.username ?? u.name
+                        giftTo = nil
+                        Task { if await account.giftRockets(u.id, amount: amount) { giftDone = "Sent \(amount) 🚀 to @\(name)." } }
+                    }
+                    .buttonStyle(.borderedProminent).disabled(giftAmount == 0).keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20).frame(width: 380)
+        }
         .alert("New password for @\(tempPassword?.name ?? "")", isPresented: Binding(get: { tempPassword != nil }, set: { if !$0 { tempPassword = nil } })) {
             Button("Copy") {
                 NSPasteboard.general.clearContents()

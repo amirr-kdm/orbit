@@ -57,7 +57,7 @@ function friendly(m: string): string {
 }
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
-  const { data, replaceAll } = useStore();
+  const { data, replaceAll, update } = useStore();
   const friends = useFriends();
   const [state, setState] = useState<AccountState>(supabaseConfigured ? "loading" : "noServer");
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -140,6 +140,20 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     timer.current = window.setTimeout(upload, 4000);
   }, [data, upload]);
 
+  // Add rocket gifts from the owner that this account hasn't counted yet
+  const claimGifts = useCallback(async () => {
+    if (stateRef.current !== "approved" || restoring.current) return;
+    try {
+      const gifts: { id: string; amount: number }[] = await client.get("rocket_gifts?select=id,amount");
+      const known = dataRef.current.claimedGifts ?? [];
+      if (!gifts.some((g) => !known.includes(g.id))) return;
+      update((d) => {
+        const claimed = d.claimedGifts ?? (d.claimedGifts = []);
+        for (const g of gifts) if (!claimed.includes(g.id)) { claimed.push(g.id); d.rocketGrant += g.amount; }
+      });
+    } catch { /* offline — try again later */ }
+  }, [update]);
+
   // ---------- profile / state ----------
 
   const loadProfile = useCallback(async () => {
@@ -157,12 +171,12 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       setProfile(p);
       if (!s.email) { setState("needsUpgrade"); return; }
       localStorage.setItem(approvedKey(s.userID), p.approved ? "1" : "0");
-      if (p.approved) { setState("approved"); stateRef.current = "approved"; await friends.reload(); await syncOnStart(); }
+      if (p.approved) { setState("approved"); stateRef.current = "approved"; await friends.reload(); await syncOnStart(); setTimeout(claimGifts, 1000); }
       else setState("pending");
     } catch {
       setState((cur) => (cur === "loading" ? (localStorage.getItem(approvedKey(s.userID)) === "1" ? "approved" : "pending") : cur));
     }
-  }, [friends, syncOnStart]);
+  }, [friends, syncOnStart, claimGifts]);
 
   useEffect(() => {
     if (!supabaseConfigured) return;
@@ -183,9 +197,9 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   // Retry the backup every minute (after being offline)
   useEffect(() => {
     if (state !== "approved") return;
-    const t = setInterval(() => { if (meta().dirty) upload(); }, 60_000);
+    const t = setInterval(() => { claimGifts(); if (meta().dirty) upload(); }, 60_000);
     return () => clearInterval(t);
-  }, [state, upload]);
+  }, [state, upload, claimGifts]);
 
   // ---------- admin (owner only — the server refuses everyone else) ----------
 

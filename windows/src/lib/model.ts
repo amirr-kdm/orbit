@@ -105,6 +105,8 @@ export interface AppData {
   rocketGrant: number;
   /** Weeks you studied the most in a group, keyed "groupID|yyyy-MM-dd" */
   groupWins: string[];
+  /** Rocket gifts from the owner already added to rocketGrant (gift ids) */
+  claimedGifts?: string[];
 }
 
 export const uid = () =>

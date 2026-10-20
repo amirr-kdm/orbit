@@ -61,6 +61,8 @@ final class AppStore {
     var rocketGrant = 0 { didSet { save() } }
     /// Weeks you studied the most in a group, keyed "groupID|yyyy-MM-dd" (week start); 100 rockets each
     var groupWins: [String] = [] { didSet { save() } }
+    /// Rocket gifts from the owner already added to rocketGrant (gift ids)
+    var claimedGifts: [String] = [] { didSet { save() } }
 
     @ObservationIgnored let fileURL: URL
     @ObservationIgnored private var isLoading = false
@@ -78,6 +80,7 @@ final class AppStore {
         var refundsUsed = 0
         var rocketGrant = 0
         var groupWins: [String] = []
+        var claimedGifts: [String] = []
         var galaxy: [PlacedPlanet] = []
         var avatarPlanet: String?
         var solarSystems: [SolarSystem] = []
@@ -86,8 +89,9 @@ final class AppStore {
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
              galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner],
-             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String]) {
+             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String]) {
             self.groupWins = groupWins
+            self.claimedGifts = claimedGifts
             self.refundsUsed = refundsUsed
             self.rocketGrant = rocketGrant
             self.scheduleSkipped = scheduleSkipped
@@ -119,6 +123,7 @@ final class AppStore {
             refundsUsed = try c.decodeIfPresent(Int.self, forKey: .refundsUsed) ?? 0
             rocketGrant = try c.decodeIfPresent(Int.self, forKey: .rocketGrant) ?? 0
             groupWins = try c.decodeIfPresent([String].self, forKey: .groupWins) ?? []
+            claimedGifts = try c.decodeIfPresent([String].self, forKey: .claimedGifts) ?? []
             galaxy = try c.decodeIfPresent([PlacedPlanet].self, forKey: .galaxy) ?? []
             avatarPlanet = try c.decodeIfPresent(String.self, forKey: .avatarPlanet)
             solarSystems = try c.decodeIfPresent([SolarSystem].self, forKey: .solarSystems) ?? []
@@ -185,6 +190,7 @@ final class AppStore {
             refundsUsed = snap.refundsUsed
             rocketGrant = snap.rocketGrant
             groupWins = snap.groupWins
+            claimedGifts = snap.claimedGifts
             galaxy = snap.galaxy
             avatarPlanet = snap.avatarPlanet
             solarSystems = snap.solarSystems
@@ -225,7 +231,7 @@ final class AppStore {
                             galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
                             planners: planners, scheduleSkipped: scheduleSkipped,
                             purchases: purchases, refundsUsed: refundsUsed,
-                            rocketGrant: rocketGrant, groupWins: groupWins)
+                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts)
         return try? encoder.encode(snap)
     }
 

@@ -103,6 +103,7 @@ final class AccountService {
                 if !wasApproved || loops.isEmpty { startLoops() }
                 await friends.reload()
                 await syncOnStart()
+                await claimGifts()
             } else {
                 Self.setCachedApproval(session.userID, false)
                 state = .pending
@@ -345,6 +346,29 @@ final class AccountService {
         await loadUsers()
     }
 
+    /// Give (or take back, if negative) rockets. The person's app adds them on its next check.
+    func giftRockets(_ id: UUID, amount: Int) async -> Bool {
+        var ok = false
+        await perform {
+            struct Body: Encodable { let uid: String; let amount: Int }
+            _ = try await self.client.rpc("admin_gift_rockets", Body(uid: id.uuidString, amount: amount))
+            ok = true
+        }
+        if ok, id == (await client.userID) { await claimGifts() }
+        return ok
+    }
+
+    /// Add rocket gifts from the owner that this account hasn't counted yet
+    func claimGifts() async {
+        guard state == .approved, !restoring else { return }
+        struct Gift: Decodable { let id: UUID; let amount: Int }
+        guard let gifts = try? await client.select("rocket_gifts?select=id,amount", as: [Gift].self) else { return }
+        let new = gifts.filter { !store.claimedGifts.contains($0.id.uuidString) }
+        guard !new.isEmpty else { return }
+        store.claimedGifts += new.map(\.id.uuidString)
+        store.rocketGrant += new.reduce(0) { $0 + $1.amount }
+    }
+
     /// Sets a new temporary password and returns it, so the owner can pass it on
     func resetPassword(_ id: UUID) async -> String? {
         let temp = "Orbit-" + String(Int.random(in: 100_000...999_999))
@@ -390,6 +414,7 @@ final class AccountService {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
                 guard let self, self.state == .approved else { continue }
+                await self.claimGifts()
                 if self.dirty { await self.upload() }
             }
         })
