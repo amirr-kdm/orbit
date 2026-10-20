@@ -18,7 +18,7 @@ struct PlannerView: View {
                 empty
             }
         }
-        .navigationTitle("Planner")
+        .navigationTitle("Notes & Brainstorm")
         .onAppear { if selection == nil { selection = store.planners.first?.id } }
         .alert("Delete “\(deleting?.name ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
             Button("Delete", role: .destructive) {
@@ -37,7 +37,7 @@ struct PlannerView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Label("Planners", systemImage: "brain.head.profile").font(.headline)
+                Label("Notes & Brainstorm", systemImage: "brain.head.profile").font(.headline)
                 Spacer()
                 Button { renamingFolder = store.addPlannerFolder() } label: { Image(systemName: "folder.badge.plus") }
                     .buttonStyle(.borderless)

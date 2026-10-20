@@ -17,7 +17,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: "Today"
         case .schedule: "Weekly Schedule"
-        case .planner: "Planner"
+        case .planner: "Notes & Brainstorm"
         case .timer: "Timer"
         case .tasks: "Tasks"
         case .calendar: "Calendar"
