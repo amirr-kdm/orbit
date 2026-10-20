@@ -507,6 +507,7 @@ struct FriendGalaxySheet: View {
     let card: FriendCard
     @Environment(\.dismiss) private var dismiss
     @State private var focused: UUID?
+    @State private var last: UUID?
 
     var body: some View {
         let data = card.profile.galaxy ?? GalaxyData(systems: [])
@@ -524,7 +525,7 @@ struct FriendGalaxySheet: View {
                 }
                 Spacer()
                 if system != nil {
-                    Button { withAnimation(.spring(duration: 0.5)) { focused = nil } } label: { Label("Galaxy", systemImage: "chevron.left") }
+                    Button { withAnimation(.easeIn(duration: 0.35)) { focused = nil } } label: { Label("Galaxy", systemImage: "chevron.left") }
                 }
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.cancelAction)
@@ -539,7 +540,7 @@ struct FriendGalaxySheet: View {
                         .overlay(alignment: .topLeading) {
                             Text("\(system.name) · \(system.sun.name)").font(.headline).foregroundStyle(.white).padding(14)
                         }
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                        .transition(.systemZoom)
                 } else if data.systems.allSatisfy({ $0.planets.isEmpty }) {
                     ZStack {
                         StarsBackground()
@@ -547,7 +548,8 @@ struct FriendGalaxySheet: View {
                             .foregroundStyle(.white.opacity(0.8))
                     }
                 } else {
-                    GalaxyMapView(data: data, zoom: 0.5) { id in withAnimation(.spring(duration: 0.5)) { focused = id } }
+                    GalaxyMapView(data: data, zoom: 0.5, returningFrom: last) { id in last = id; withAnimation(.easeOut(duration: 0.45)) { focused = id } }
+                        .transition(.opacity)
                 }
             }
             .frame(width: 900, height: 560)

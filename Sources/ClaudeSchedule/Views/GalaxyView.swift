@@ -27,6 +27,8 @@ struct GalaxyPage: View {
     /// A bought planet opened on the Your Store Planets shelf
     @State private var selectedStore: String?
     @State private var focusedSystem: UUID?
+    /// The system we just left, so the map can zoom back out from it
+    @State private var lastSystem: UUID?
     @State private var targetSystem: UUID?
     @State private var toast: String?
     @State private var zoom = 0.62
@@ -105,10 +107,11 @@ struct GalaxyPage: View {
         return ZStack(alignment: .topLeading) {
             if let focused {
                 SolarSystemView(system: focused, large: true)
-                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    .transition(.systemZoom)
             } else {
-                GalaxyMapView(data: data, zoom: zoom) { id in
-                    withAnimation(.spring(duration: 0.5)) { focusedSystem = id }
+                GalaxyMapView(data: data, zoom: zoom, returningFrom: lastSystem) { id in
+                    lastSystem = id
+                    withAnimation(.easeOut(duration: 0.45)) { focusedSystem = id }
                 }
                 .transition(.opacity)
             }
@@ -118,7 +121,7 @@ struct GalaxyPage: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if let focused {
                         Button {
-                            withAnimation(.spring(duration: 0.5)) { focusedSystem = nil }
+                            withAnimation(.easeIn(duration: 0.35)) { focusedSystem = nil }
                         } label: {
                             Label("Galaxy", systemImage: "chevron.left")
                         }
@@ -494,6 +497,8 @@ struct GalaxyPage: View {
 struct GalaxyMapView: View {
     let data: GalaxyData
     var zoom: Double = 0.62
+    /// When set, the map opens zoomed in on this system and pulls back out
+    var returningFrom: UUID? = nil
     var onSelect: ((UUID) -> Void)?
 
     @State private var pan: CGSize = .zero
@@ -544,27 +549,45 @@ struct GalaxyMapView: View {
         .contentShape(Rectangle())
         .background(Color(hex: "#020617"))
         .environment(\.colorScheme, .dark)
+        .onAppear { zoomOutFromReturn() }
         .onChange(of: zoom) { old, new in
             pan = CGSize(width: pan.width * new / old, height: pan.height * new / old)
         }
     }
 
+    private static let flyTarget = 3.0
+
+    /// Pan that centres system `index` at zoom `z`
+    private static func centre(on index: Int, zoom z: Double) -> CGSize {
+        let p = position(index)
+        return CGSize(width: -(p.x - worldSize.width / 2) * z, height: -(p.y - worldSize.height / 2) * z)
+    }
+
     /// Camera glides to the system and zooms in, then the close-up opens
     private func flyIn(to index: Int, id: UUID) {
-        let target = 2.2
-        let p = Self.position(index)
-        let dx = (p.x - Self.worldSize.width / 2) * target
-        let dy = (p.y - Self.worldSize.height / 2) * target
-        withAnimation(.easeInOut(duration: 0.75)) {
-            flyZoom = target
-            pan = CGSize(width: -dx, height: -dy)
+        withAnimation(.easeIn(duration: 0.6)) {
+            flyZoom = Self.flyTarget
+            pan = Self.centre(on: index, zoom: Self.flyTarget)
         }
         Task {
-            try? await Task.sleep(for: .milliseconds(700))
+            try? await Task.sleep(for: .milliseconds(520))
             onSelect?(id)
-            try? await Task.sleep(for: .milliseconds(400))
-            flyZoom = nil
-            pan = .zero
+        }
+    }
+
+    /// Coming back from a close-up: start on that system and pull back to the whole galaxy
+    private func zoomOutFromReturn() {
+        guard let id = returningFrom, let i = data.systems.firstIndex(where: { $0.id == id }) else { return }
+        var t = Transaction(); t.disablesAnimations = true
+        withTransaction(t) {
+            flyZoom = Self.flyTarget
+            pan = Self.centre(on: i, zoom: Self.flyTarget)
+        }
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.7)) {
+                flyZoom = nil
+                pan = Self.centre(on: i, zoom: zoom).applying(0.35)
+            }
         }
     }
 
@@ -651,7 +674,7 @@ struct SolarSystemView: View {
     /// One planet per orbit, inner orbits are faster
     static func layout(count: Int) -> [Slot] {
         (0..<count).map { i in
-            let radius = 70 + Double(i) * 30
+            let radius = 100 + Double(i) * 28   // first orbit clears the (bigger) sun
             let speed = 0.9 / sqrt(Double(i + 1)) * (i % 3 == 2 ? -1 : 1)
             return Slot(radius: radius, offset: Double(i) * 2.1, speed: speed)
         }
@@ -662,7 +685,7 @@ struct SolarSystemView: View {
         let maxR = slots.map(\.radius).max() ?? 60
         let scale = min(large ? 1.6 : 1.0, (min(size.width, size.height * 1.5) / 2 - 20) / (maxR + 30))
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let planetSize = (large ? 64 : 44) * max(scale, 0.7)
+        let planetSize = (large ? 42 : 30) * max(scale, 0.7)   // planets stay small next to their star
 
         // orbits
         for slot in slots {
@@ -688,7 +711,7 @@ struct SolarSystemView: View {
         }
         for item in placed where item.2 < 0 { drawPlanet(item) }
         SunPainter.paint(system.sun, in: &ctx, center: center,
-                         radius: (large ? 24 : 14) * system.sun.scale * max(scale, 0.75), time: t)
+                         radius: (large ? 46 : 30) * system.sun.scale * max(scale, 0.75), time: t)
         for item in placed where item.2 >= 0 { drawPlanet(item) }
 
         if !large {
@@ -704,13 +727,47 @@ enum SunPainter {
         let colors = sun.colors.map(Color.init(hex:))
         let pulse = 1 + sin(time * 2) * 0.05
 
+        /// A star that reads as a real sun: wide soft corona, slow rays, a limb-darkened disc and drifting granules
         func star(at p: CGPoint, radius: CGFloat) {
-            ctx.fill(Path(ellipseIn: CGRect(x: p.x - radius * 2.2, y: p.y - radius * 2.2, width: radius * 4.4, height: radius * 4.4)),
-                     with: .radialGradient(Gradient(colors: [colors[2].opacity(0.55), colors[2].opacity(0)]),
-                                           center: p, startRadius: radius * 0.8, endRadius: radius * 2.2 * pulse))
-            ctx.fill(Path(ellipseIn: CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)),
-                     with: .radialGradient(Gradient(colors: [colors[0], colors[1], colors[2]]),
-                                           center: CGPoint(x: p.x - radius * 0.2, y: p.y - radius * 0.2), startRadius: 0, endRadius: radius * 1.1))
+            func disc(_ r: CGFloat) -> Path { Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)) }
+            // outer haze and corona
+            ctx.fill(disc(radius * 3.4 * pulse), with: .radialGradient(Gradient(colors: [colors[2].opacity(0.28), colors[2].opacity(0)]),
+                                                                        center: p, startRadius: radius, endRadius: radius * 3.4 * pulse))
+            ctx.fill(disc(radius * 1.8), with: .radialGradient(Gradient(colors: [colors[1].opacity(0.75), colors[2].opacity(0)]),
+                                                                center: p, startRadius: radius * 0.9, endRadius: radius * 1.8))
+            // soft rays turning slowly
+            var rays = ctx
+            rays.opacity = 0.22
+            for k in 0..<12 {
+                let a = Double(k) / 12 * .pi * 2 + time * 0.05
+                let len = radius * (1.9 + 0.35 * sin(time * 0.9 + Double(k) * 1.7))
+                var ray = Path()
+                ray.move(to: CGPoint(x: p.x + cos(a - 0.09) * radius * 0.9, y: p.y + sin(a - 0.09) * radius * 0.9))
+                ray.addLine(to: CGPoint(x: p.x + cos(a) * len, y: p.y + sin(a) * len))
+                ray.addLine(to: CGPoint(x: p.x + cos(a + 0.09) * radius * 0.9, y: p.y + sin(a + 0.09) * radius * 0.9))
+                ray.closeSubpath()
+                rays.fill(ray, with: .linearGradient(Gradient(colors: [colors[0], colors[1].opacity(0)]),
+                                                     startPoint: p, endPoint: CGPoint(x: p.x + cos(a) * len, y: p.y + sin(a) * len)))
+            }
+            // the disc: bright centre, darker at the edge (limb darkening)
+            ctx.fill(disc(radius), with: .radialGradient(Gradient(stops: [
+                .init(color: colors[0], location: 0), .init(color: colors[1], location: 0.62),
+                .init(color: colors[2], location: 1)]),
+                center: p, startRadius: 0, endRadius: radius))
+            // granules drifting across the surface
+            var surface = ctx
+            surface.clip(to: disc(radius))
+            surface.opacity = 0.25
+            for k in 0..<9 {
+                let a = Double(k) * 2.4 + time * 0.12
+                let d = radius * (0.25 + 0.55 * Double((k * 37) % 10) / 10)
+                let g = radius * (0.16 + 0.06 * sin(time + Double(k)))
+                let q = CGPoint(x: p.x + cos(a) * d, y: p.y + sin(a) * d * 0.9)
+                surface.fill(Path(ellipseIn: CGRect(x: q.x - g, y: q.y - g, width: g * 2, height: g * 2)),
+                             with: .radialGradient(Gradient(colors: [k % 3 == 0 ? colors[2] : .white, .clear]), center: q, startRadius: 0, endRadius: g))
+            }
+            // thin bright rim
+            ctx.stroke(disc(radius), with: .color(colors[0].opacity(0.5)), lineWidth: max(1, radius * 0.04))
         }
 
         switch sun {
@@ -822,4 +879,16 @@ struct StarsBackground: View {
             }
         }
     }
+}
+
+extension AnyTransition {
+    /// Opening a solar system: it grows out of the galaxy; closing shrinks it back in
+    static var systemZoom: AnyTransition {
+        .asymmetric(insertion: .scale(scale: 0.15).combined(with: .opacity),
+                    removal: .scale(scale: 0.25).combined(with: .opacity))
+    }
+}
+
+private extension CGSize {
+    func applying(_ k: Double) -> CGSize { CGSize(width: width * k, height: height * k) }
 }

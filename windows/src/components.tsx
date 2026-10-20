@@ -122,7 +122,7 @@ export function Modal({ onClose, children, width }: { onClose: () => void; child
 
 // ---------- Galaxy / solar systems ----------
 
-const slots = (n: number) => Array.from({ length: n }, (_, i) => ({ radius: 70 + i * 30, offset: i * 2.1, speed: (0.9 / Math.sqrt(i + 1)) * (i % 3 === 2 ? -1 : 1) }));
+const slots = (n: number) => Array.from({ length: n }, (_, i) => ({ radius: 100 + i * 28, offset: i * 2.1, speed: (0.9 / Math.sqrt(i + 1)) * (i % 3 === 2 ? -1 : 1) }));
 
 function drawStars(ctx: CanvasRenderingContext2D, w: number, h: number, seed = 7) {
   let s = seed;
@@ -138,7 +138,7 @@ export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["syst
   const sl = slots(sys.planets.length);
   const maxR = sl.length ? sl[sl.length - 1].radius : 60;
   const scale = Math.min(large ? 1.6 : 1, (Math.min(w, h * 1.5) / 2 - 20) / (maxR + 30));
-  const cx = w / 2, cy = h / 2, ps = (large ? 64 : 44) * Math.max(scale, 0.7);
+  const cx = w / 2, cy = h / 2, ps = (large ? 42 : 30) * Math.max(scale, 0.7); // planets stay small next to their star
   ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.lineWidth = 1;
   for (const s of sl) { ctx.beginPath(); ctx.ellipse(cx, cy, s.radius * scale, s.radius * scale * 0.55, 0, 0, Math.PI * 2); ctx.stroke(); }
   const items = sys.planets.map((id, i) => {
@@ -159,7 +159,7 @@ export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["syst
     ctx.drawImage(img, it.x - ps / 2, it.y - ps / 2, ps, ps);
   };
   items.filter((i) => i.z < 0).forEach(draw);
-  paintSun(ctx, sys.sun, cx, cy, (large ? 24 : 14) * (SUNS[sys.sun]?.scale ?? 1) * Math.max(scale, 0.75), t);
+  paintSun(ctx, sys.sun, cx, cy, (large ? 46 : 30) * (SUNS[sys.sun]?.scale ?? 1) * Math.max(scale, 0.75), t);
   items.filter((i) => i.z >= 0).forEach(draw);
   if (!large) { ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.font = "bold 15px 'Segoe UI', sans-serif"; ctx.textAlign = "center"; ctx.fillText(sys.name, cx, h - 8); }
 }
@@ -182,7 +182,11 @@ export function SystemCanvas({ sys, width, height, large }: { sys: GalaxyData["s
 }
 
 /** Spiral galaxy: systems placed along two arms; drag to pan, wheel/slider to zoom, click a system */
-export function GalaxyMap({ data, height = 560, onSelect }: { data: GalaxyData; height?: number; onSelect: (id: string) => void }) {
+export function GalaxyMap({ data, height = 560, onSelect, returningFrom }: { data: GalaxyData; height?: number; onSelect: (id: string) => void; returningFrom?: string | null }) {
+  // Camera "fly": scale the whole map around one system (zoom in before opening it, zoom out when coming back)
+  const box = useRef<HTMLDivElement>(null);
+  const [fly, setFly] = useState<{ k: number; ox: number; oy: number; anim: boolean } | null>(null);
+  const FLY = 4;
   const [zoom, setZoom] = useState(0.62);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
@@ -193,6 +197,25 @@ export function GalaxyMap({ data, height = 560, onSelect }: { data: GalaxyData; 
     const k = Math.floor((i + 1) / 2), arm = i % 2 === 0 ? 0 : Math.PI, a = arm + 0.25 + k * 1.05, r = 300 + k * 190;
     return { x: W / 2 + Math.cos(a) * r * 1.25, y: H / 2 + Math.sin(a) * r * 0.78 };
   };
+  const originOf = (i: number) => {
+    const p = pos(i), el = box.current;
+    return { ox: (el?.clientWidth ?? 0) / 2 + pan.x + (p.x - W / 2) * zoom, oy: (el?.clientHeight ?? 0) / 2 + pan.y + (p.y - H / 2) * zoom };
+  };
+  const flyIn = (i: number, id: string) => {
+    const o = originOf(i);
+    setFly({ k: 1, ...o, anim: false });
+    requestAnimationFrame(() => requestAnimationFrame(() => setFly({ k: FLY, ...o, anim: true })));
+    setTimeout(() => onSelect(id), 520);
+  };
+  useEffect(() => {
+    const i = data.systems.findIndex((s) => s.id === returningFrom); if (i < 0) return;
+    const o = originOf(i);
+    setFly({ k: FLY, ...o, anim: false });
+    requestAnimationFrame(() => requestAnimationFrame(() => setFly({ k: 1, ...o, anim: true })));
+    const t = setTimeout(() => setFly(null), 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const cv = bg.current!; cv.width = W / 2; cv.height = H / 2;
     const ctx = cv.getContext("2d")!; ctx.scale(0.5, 0.5);
@@ -210,22 +233,26 @@ export function GalaxyMap({ data, height = 560, onSelect }: { data: GalaxyData; 
     ctx.globalAlpha = 1; drawStars(ctx, W, H, 11);
   }, []);
   return (
-    <div className="space" style={{ height, cursor: drag.current ? "grabbing" : "grab" }}
+    <div ref={box} className="space" style={{ height, cursor: drag.current ? "grabbing" : "grab" }}
       onWheel={(e) => setZoom((z) => Math.min(1.3, Math.max(0.35, z - e.deltaY * 0.001)))}
       onMouseDown={(e) => { drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }; }}
       onMouseMove={(e) => { const d = drag.current; if (!d) return; if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 4) d.moved = true; setPan({ x: d.px + e.clientX - d.x, y: d.py + e.clientY - d.y }); }}
       onMouseUp={() => { setTimeout(() => (drag.current = null), 0); }} onMouseLeave={() => (drag.current = null)}>
+      <div style={{ position: "absolute", inset: 0, transformOrigin: fly ? `${fly.ox}px ${fly.oy}px` : undefined, transform: fly ? `scale(${fly.k})` : undefined,
+        transition: fly?.anim ? (fly.k > 1 ? "transform .6s cubic-bezier(.55,0,.9,.4), opacity .6s" : "transform .7s cubic-bezier(.1,.6,.3,1), opacity .7s") : undefined,
+        opacity: fly && fly.k > 1 && fly.anim ? 0.35 : 1 }}>
       <div style={{ position: "absolute", left: "50%", top: "50%", width: W * zoom, height: H * zoom, transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))` }}>
         <canvas ref={bg} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
         {data.systems.map((s, i) => {
           const p = pos(i), w = 330 * zoom * 1.1, h = 260 * zoom * 1.1;
           return (
             <div key={s.id} title={`Open ${s.name}`} style={{ position: "absolute", left: p.x * zoom - w / 2, top: p.y * zoom - h / 2, width: w, height: h, cursor: "pointer" }}
-              onClick={() => { if (!drag.current?.moved) onSelect(s.id); }}>
+              onClick={() => { if (!drag.current?.moved && !fly) flyIn(i, s.id); }}>
               <SystemCanvas sys={s} width={w} height={h} large={false} />
             </div>
           );
         })}
+      </div>
       </div>
       <div style={{ position: "absolute", right: 16, bottom: 14, display: "flex", gap: 8, alignItems: "center", background: "rgba(0,0,0,.35)", padding: "6px 12px", borderRadius: 99 }}>
         <span className="small">🔍</span>

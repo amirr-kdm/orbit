@@ -12,6 +12,10 @@ export default function Galaxy() {
   const p = progress(data);
   const gd = galaxyData(data);
   const [focused, setFocused] = useState<string | null>(null);
+  // Zoom out of a system: play the shrink, then show the map, which pulls back from that system
+  const [last, setLast] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const back = () => { if (leaving) return; setLast(focused); setLeaving(true); setTimeout(() => { setFocused(null); setLeaving(false); }, 280); };
   const [selected, setSelected] = useState<string | null>(null);
   const [target, setTarget] = useState<string>();
   const [toast, setToast] = useState<string | null>(null);
@@ -41,12 +45,12 @@ export default function Galaxy() {
 
       <div style={{ position: "relative" }}>
         {sys ? (
-          <div className="space" style={{ height: 600 }}><SystemCanvas sys={sys} width={1200} height={600} large /></div>
-        ) : <GalaxyMap data={gd} height={600} onSelect={setFocused} />}
+          <div className={`space ${leaving ? "zoom-out" : "zoom-in"}`} style={{ height: 600 }}><SystemCanvas sys={sys} width={1200} height={600} large /></div>
+        ) : <GalaxyMap data={gd} height={600} returningFrom={last} onSelect={(id) => { setLast(id); setFocused(id); }} />}
         <div style={{ position: "absolute", top: 16, left: 18, right: 18, display: "flex", alignItems: "flex-start", color: "white", pointerEvents: "none" }}>
           <div style={{ pointerEvents: "auto" }}>
             {sys ? <>
-              <button className="btn small" onClick={() => setFocused(null)}>‹ Galaxy</button>
+              <button className="btn small" onClick={back}>‹ Galaxy</button>
               <h2 style={{ margin: "6px 0 0" }}>{sys.name}</h2><div style={{ opacity: 0.75 }}>{SUNS[sys.sun].name} · {sys.planets.length}/8 planets</div>
             </> : <>
               <div className="small" style={{ fontWeight: 800, letterSpacing: 2, opacity: 0.7 }}>MY GALAXY</div>

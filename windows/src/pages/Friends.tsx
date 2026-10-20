@@ -161,6 +161,8 @@ function Breakdown({ card, onGalaxy }: { card: FriendCard; onGalaxy: () => void 
 function FriendGalaxy({ card, onClose }: { card: FriendCard; onClose: () => void }) {
   const data = card.profile.galaxy ?? { systems: [] };
   const [focus, setFocus] = useState<string | null>(null);
+  const [last, setLast] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const sys = data.systems.find((s) => s.id === focus);
   const count = data.systems.reduce((a, s) => a + s.planets.length, 0);
   return (
@@ -170,13 +172,13 @@ function FriendGalaxy({ card, onClose }: { card: FriendCard; onClose: () => void
         <div><div className="row"><h2 style={{ margin: 0 }}>{card.isMe ? "Your galaxy" : `${card.profile.name}'s galaxy`}</h2><LevelBadge level={card.profile.level ?? 1} /></div>
           <div className="muted">{data.systems.length} solar systems · {count} planets · 🔥 {streak(card)}</div></div>
         <span className="spacer" />
-        {sys && <button className="btn" onClick={() => setFocus(null)}>‹ Galaxy</button>}
+        {sys && <button className="btn" onClick={() => { if (leaving) return; setLast(focus); setLeaving(true); setTimeout(() => { setFocus(null); setLeaving(false); }, 280); }}>‹ Galaxy</button>}
         <button className="btn primary" onClick={onClose}>Done</button>
       </div>
-      {sys ? <div className="space" style={{ height: 520 }}><SystemCanvas sys={sys} width={900} height={520} large />
+      {sys ? <div className={`space ${leaving ? "zoom-out" : "zoom-in"}`} style={{ height: 520 }}><SystemCanvas sys={sys} width={900} height={520} large />
         <div style={{ position: "absolute", top: 12, left: 14, fontWeight: 600 }}>{sys.name} · {SUNS[sys.sun]?.name}</div></div>
         : count === 0 ? <div className="space" style={{ height: 520, display: "grid", placeItems: "center" }}>No planets yet ✨</div>
-        : <GalaxyMap data={data} height={520} onSelect={setFocus} />}
+        : <GalaxyMap data={data} height={520} returningFrom={last} onSelect={(id) => { setLast(id); setFocus(id); }} />}
     </Modal>
   );
 }

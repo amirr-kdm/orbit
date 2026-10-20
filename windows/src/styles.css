@@ -231,3 +231,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .account-chip { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, transparent); border: none; color: var(--text); text-align: left; }
 
 .banner { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--line); font-size: 13px; }
+
+/* Opening / closing a solar system */
+.zoom-in { animation: sys-in .45s cubic-bezier(.1,.6,.3,1); }
+.zoom-out { animation: sys-out .28s ease-in forwards; }
+@keyframes sys-in { from { transform: scale(.15); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes sys-out { to { transform: scale(.25); opacity: 0; } }

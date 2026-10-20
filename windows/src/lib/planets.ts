@@ -633,13 +633,36 @@ export const SUNS: Record<string, { name: string; level: number; colors: [string
 export function paintSun(ctx: Ctx, sun: string, cx: number, cy: number, r: number, t: number) {
   const s = SUNS[sun] ?? SUNS.yellow;
   const pulse = 1 + Math.sin(t * 2) * 0.05;
+  /** A star that reads as a real sun: wide corona, slow rays, a limb-darkened disc and drifting granules */
   const star = (x: number, y: number, rad: number) => {
-    let g = ctx.createRadialGradient(x, y, rad * 0.8, x, y, rad * 2.2 * pulse);
-    g.addColorStop(0, rgba(s.colors[2], 0.55)); g.addColorStop(1, rgba(s.colors[2], 0));
-    ctx.fillStyle = g; ellipse(ctx, x, y, rad * 2.2, rad * 2.2); ctx.fill();
-    g = ctx.createRadialGradient(x - rad * 0.2, y - rad * 0.2, 0, x - rad * 0.2, y - rad * 0.2, rad * 1.1);
-    g.addColorStop(0, s.colors[0]); g.addColorStop(0.5, s.colors[1]); g.addColorStop(1, s.colors[2]);
+    let g = ctx.createRadialGradient(x, y, rad, x, y, rad * 3.4 * pulse);
+    g.addColorStop(0, rgba(s.colors[2], 0.28)); g.addColorStop(1, rgba(s.colors[2], 0));
+    ctx.fillStyle = g; ellipse(ctx, x, y, rad * 3.4, rad * 3.4); ctx.fill();
+    g = ctx.createRadialGradient(x, y, rad * 0.9, x, y, rad * 1.8);
+    g.addColorStop(0, rgba(s.colors[1], 0.75)); g.addColorStop(1, rgba(s.colors[2], 0));
+    ctx.fillStyle = g; ellipse(ctx, x, y, rad * 1.8, rad * 1.8); ctx.fill();
+    ctx.save(); ctx.globalAlpha = 0.22;
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * TAU + t * 0.05, len = rad * (1.9 + 0.35 * Math.sin(t * 0.9 + k * 1.7));
+      ctx.beginPath(); ctx.moveTo(x + Math.cos(a - 0.09) * rad * 0.9, y + Math.sin(a - 0.09) * rad * 0.9);
+      ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); ctx.lineTo(x + Math.cos(a + 0.09) * rad * 0.9, y + Math.sin(a + 0.09) * rad * 0.9); ctx.closePath();
+      const rg = ctx.createLinearGradient(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len);
+      rg.addColorStop(0, s.colors[0]); rg.addColorStop(1, rgba(s.colors[1], 0)); ctx.fillStyle = rg; ctx.fill();
+    }
+    ctx.restore();
+    g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    g.addColorStop(0, s.colors[0]); g.addColorStop(0.62, s.colors[1]); g.addColorStop(1, s.colors[2]);
     ctx.fillStyle = g; ellipse(ctx, x, y, rad, rad); ctx.fill();
+    ctx.save(); ellipse(ctx, x, y, rad, rad); ctx.clip(); ctx.globalAlpha = 0.25;
+    for (let k = 0; k < 9; k++) {
+      const a = k * 2.4 + t * 0.12, d = rad * (0.25 + 0.55 * (((k * 37) % 10) / 10)), gr = rad * (0.16 + 0.06 * Math.sin(t + k));
+      const qx = x + Math.cos(a) * d, qy = y + Math.sin(a) * d * 0.9;
+      const sg = ctx.createRadialGradient(qx, qy, 0, qx, qy, gr);
+      sg.addColorStop(0, k % 3 === 0 ? s.colors[2] : "#FFFFFF"); sg.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = sg; ellipse(ctx, qx, qy, gr, gr); ctx.fill();
+    }
+    ctx.restore();
+    ctx.strokeStyle = rgba(s.colors[0], 0.5); ctx.lineWidth = Math.max(1, rad * 0.04); ellipse(ctx, x, y, rad, rad); ctx.stroke();
   };
   if (sun === "binary") {
     const a = t * 0.8;
