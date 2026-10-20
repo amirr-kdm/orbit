@@ -68,7 +68,7 @@ export default function StorePage() {
           return (
             <div key={p.id} className="store-card" style={{ borderColor: `${RARITY_COLOR[r]}66`, background: `radial-gradient(circle at top, ${RARITY_COLOR[r]}38, #0B1020 70%)` }} onClick={() => setOpened(p)}>
               {owned > 0 && <span className="count" style={{ background: "#22C55E" }}>Owned ×{owned}</span>}
-              <PlanetCanvas planet={p} size={150} animate />
+              <PlanetCanvas planet={p} size={150} />
               <b>{p.name}</b>
               <div className="row" style={{ width: "100%" }}><RarityChip p={p} /><span className="spacer" />
                 <span style={{ opacity: w.balance >= p.price! || owned ? 1 : 0.55 }}><RocketIcon size={15} /> <b>{p.price}</b></span></div>
@@ -149,7 +149,7 @@ export function StoreShelf({ onToast }: { onToast: (t: string) => void }) {
 
       {p && (
         <div className="card row" style={{ alignItems: "flex-start", gap: 18, borderColor: "var(--accent)" }}>
-          <div style={{ background: "#0b0d16", borderRadius: 16, padding: 6 }}><PlanetCanvas planet={p} size={130} animate /></div>
+          <div style={{ background: "#0b0d16", borderRadius: 16, padding: 6 }}><PlanetCanvas planet={p} size={130} /></div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
             <div className="row"><h2 style={{ margin: 0 }}>{p.name}</h2><RarityChip p={p} /></div>
             <div className="muted">{p.blurb}</div>

@@ -6,12 +6,12 @@ import abduction from "../assets/login-abduction.png";
 import cat from "../assets/login-cat.png";
 import satellite from "../assets/login-satellite.png";
 import iconUrl from "../icon.png";
+import { frameLoop } from "../components";
 
 /** Deep space with twinkling stars and soft nebulas */
 function Space({ children }: { children: React.ReactNode }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    let raf = 0;
     const stars = Array.from({ length: 170 }, () => ({ x: Math.random(), y: Math.random(), s: 0.6 + Math.random() * 1.8, sp: 0.6 + Math.random() * 1.6, ph: Math.random() * 6 }));
     const draw = (t: number) => {
       const c = canvas.current;
@@ -25,10 +25,8 @@ function Space({ children }: { children: React.ReactNode }) {
           ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(s.x * w, s.y * h, s.s / 2, 0, Math.PI * 2); ctx.fill();
         }
       }
-      raf = requestAnimationFrame(draw);
     };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    return frameLoop(draw, 24);
   }, []);
   return (
     <div className="space-login">
@@ -160,6 +158,7 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
 /** The owner's admin panel (right side). The server refuses these calls for anyone else. */
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const a = useAccount();
+  const [giftNote, setGiftNote] = useState<string | null>(null);
   const pending = a.users.filter((u) => !u.approved), members = a.users.filter((u) => u.approved);
   const ago = (s?: string | null) => (s ? new Date(s).toLocaleString() : "—");
   return (
@@ -186,12 +185,20 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
             <div className="small muted">{u.email ?? "no email yet"}</div>
             <div className="small" style={{ color: "var(--faint)" }}>Backup: {ago(u.last_backup)} · Studied: {u.last_studied ?? "—"}</div>
           </div>
-          {!u.is_admin && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <button className="btn small" onClick={async () => {
+              const v = prompt(`How many rockets for @${u.username ?? u.name}? (negative takes them back)`, "100");
+              const n = Math.round(Number(v));
+              if (v && n && await a.giftRockets(u.id, n)) setGiftNote(`Sent ${n} 🚀 to @${u.username ?? u.name}.`);
+            }}>🚀 Give rockets</button>
+            {!u.is_admin && <>
             <button className="btn small" onClick={async () => { const p = await a.resetPassword(u.id); if (p) prompt(`New password for @${u.username ?? u.name}. Send it to them privately — they can change it in their profile.`, p); }}>Reset password</button>
             <button className="btn small danger" onClick={() => confirm(`Remove @${u.username ?? u.name}? Their profile, friendships and backup are removed.`) && a.reject(u.id)}>Remove</button>
-          </div>}
+            </>}
+          </div>
         </div>
       ))}
+      {giftNote && <div className="small" style={{ color: "#22C55E" }}>{giftNote}</div>}
       {a.message && <div className="small" style={{ color: "#ef4444" }}>{a.message}</div>}
     </aside>
   );

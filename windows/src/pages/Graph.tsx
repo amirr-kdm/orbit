@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { frameLoop } from "../components";
 import { useNav } from "../App";
 import { addDays, duration, fullDate, monthDay, monthDays, shiftMonth, startOfDay, WEEKDAYS, weekStart } from "../lib/dates";
 import { AppData, RECURRENCE_TITLE } from "../lib/model";
@@ -129,10 +130,7 @@ export default function Graph({ catFilter }: { catFilter: string }) {
 
   // Simulation + drawing loop
   useEffect(() => {
-    let raf = 0;
-    const tick = () => { step(); draw(); raf = requestAnimationFrame(tick); };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return frameLoop(() => { step(); draw(); }, 30);
   });
 
   function step() {

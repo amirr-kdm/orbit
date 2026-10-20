@@ -39,12 +39,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
 
 .app { display: flex; height: 100%; }
-.sidebar { width: 220px; background: var(--sidebar); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); }
+.sidebar { overflow-y: auto; width: 220px; background: var(--sidebar); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; padding: 6px 10px 18px; font-weight: 800; font-size: 18px; }
 .brand img { width: 30px; height: 30px; border-radius: 8px; }
 .nav { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 9px; border: none; background: none; text-align: left; font-size: 14px; color: var(--text); }
 .nav:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 .nav.active { background: var(--accent); color: white; font-weight: 600; }
+.nav-section { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); padding: 10px 12px 2px; }
+.nav-section:first-of-type { padding-top: 2px; }
 .nav .ico { width: 20px; text-align: center; }
 .mini-timer { margin-top: auto; background: var(--card); border-radius: 12px; padding: 10px 12px; cursor: pointer; box-shadow: var(--shadow); }
 .mini-timer b { font-variant-numeric: tabular-nums; font-size: 18px; }
@@ -198,7 +200,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .beam-glow { position: absolute; inset: 0; background: radial-gradient(circle at 50% 55%, rgba(254,243,199,.28), transparent 55%); animation: pulse 2.6s ease-in-out infinite; }
 .login-tag { font-family: ui-monospace, Consolas, monospace; font-weight: 700; opacity: .85; margin-top: 6px; }
 .login-card { width: 400px; display: flex; flex-direction: column; gap: 14px; padding: 28px; border-radius: 28px; background: rgba(255,255,255,.07);
-  backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+  border: 1px solid rgba(255,255,255,.14); box-shadow: 0 12px 30px rgba(0,0,0,.5); }
 .login-title { font-family: ui-monospace, Consolas, monospace; font-weight: 900; font-size: 30px; letter-spacing: 6px; }
 .login-tabs { display: flex; padding: 3px; border-radius: 99px; background: rgba(255,255,255,.08); }
 .login-tabs button { flex: 1; border: none; background: none; color: white; padding: 7px; border-radius: 99px; font-weight: 600; }
@@ -206,6 +208,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .login-field { background: rgba(255,255,255,.07) !important; border: 1px solid rgba(255,255,255,.1) !important; color: white !important; padding: 11px 14px !important; border-radius: 12px !important; }
 .login-button { border: none; border-radius: 99px; padding: 12px; color: white; font-weight: 700; font-size: 15px; background: linear-gradient(90deg, #8B5CF6, #22D3EE); box-shadow: 0 4px 14px rgba(139,92,246,.5); }
 .login-button:disabled { opacity: .6; }
+.login-field::placeholder { color: rgba(255,255,255,.55); }
+.login-tabs button { color: rgba(255,255,255,.75); }
+.login-tabs button.on { color: white; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
+/* Ordinary buttons on the space screens (pending, errors) — the light theme's colours were unreadable here */
+.space-login .btn { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.22); color: white; }
+.space-login .btn:hover { background: rgba(255,255,255,.2); }
+.space-login .btn.primary { background: linear-gradient(90deg, #8B5CF6, #22D3EE); border-color: transparent; }
+.space-login .muted, .space-login .small { color: rgba(255,255,255,.7); }
+.space-login input:not(.login-field) { background: rgba(255,255,255,.08); color: white; border: 1px solid rgba(255,255,255,.15); }
 .login-satellite { position: absolute; top: 6%; left: 5%; width: 230px; height: 230px; border-radius: 50%; object-fit: cover; image-rendering: pixelated;
   box-shadow: 0 0 40px rgba(167,139,250,.6); border: 1px solid rgba(255,255,255,.12); animation: spin 60s linear infinite; opacity: .9; }
 .login-cat { position: absolute; top: 6%; right: 7%; width: 150px; image-rendering: pixelated; animation: drift 6s ease-in-out infinite; }

@@ -30,6 +30,8 @@ interface Account {
   approve: (id: string) => Promise<void>;
   reject: (id: string) => Promise<void>;
   resetPassword: (id: string) => Promise<string | null>;
+  /** Give (or take back, if negative) rockets; their app adds them on its next check */
+  giftRockets: (id: string, amount: number) => Promise<boolean>;
 }
 
 const Ctx = createContext<Account | null>(null);
@@ -312,6 +314,12 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       let ok = false;
       await perform(async () => { await client.rpc("admin_reset_password", { uid: id, new_password: temp }); ok = true; });
       return ok ? temp : null;
+    },
+    giftRockets: async (id, amount) => {
+      let ok = false;
+      await perform(async () => { await client.rpc("admin_gift_rockets", { uid: id, amount }); ok = true; });
+      if (ok && id.toLowerCase() === client.session?.userID.toLowerCase()) await claimGifts();
+      return ok;
     },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { useStore } from "./lib/store";
 import { useTimer } from "./lib/timer";
 import { clock } from "./lib/dates";
@@ -19,18 +19,18 @@ import { AdminPanel, LoginPage, PendingPage, ProfileModal } from "./pages/Accoun
 import { Avatar } from "./components";
 
 export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "settings";
-const TABS: { id: Tab; title: string; icon: string }[] = [
-  { id: "today", title: "Today", icon: "☀️" },
-  { id: "schedule", title: "Weekly Schedule", icon: "🗓️" },
-  { id: "planner", title: "Planner", icon: "📝" },
-  { id: "timer", title: "Timer", icon: "⏱️" },
-  { id: "tasks", title: "Tasks", icon: "✅" },
-  { id: "calendar", title: "Calendar", icon: "📆" },
-  { id: "reports", title: "Reports", icon: "📊" },
-  { id: "galaxy", title: "My Galaxy", icon: "✨" },
-  { id: "store", title: "Store", icon: "🛍️" },
-  { id: "friends", title: "Friends", icon: "👥" },
-  { id: "settings", title: "Settings", icon: "⚙️" },
+const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
+  { id: "today", title: "Today", icon: "☀️", section: "Plan" },
+  { id: "schedule", title: "Weekly Schedule", icon: "🗓️", section: "Plan" },
+  { id: "tasks", title: "Tasks", icon: "✅", section: "Plan" },
+  { id: "calendar", title: "Calendar", icon: "📆", section: "Plan" },
+  { id: "planner", title: "Notes & Brainstorm", icon: "🧠", section: "Plan" },
+  { id: "timer", title: "Timer", icon: "⏱️", section: "Focus" },
+  { id: "reports", title: "Reports", icon: "📊", section: "Focus" },
+  { id: "galaxy", title: "My Galaxy", icon: "✨", section: "Rewards" },
+  { id: "store", title: "Store", icon: "🛍️", section: "Rewards" },
+  { id: "friends", title: "Friends", icon: "👥", section: "Social" },
+  { id: "settings", title: "Settings", icon: "⚙️", section: "App" },
 ];
 
 interface Nav { tab: Tab; go: (t: Tab, focusDay?: Date) => void; focusDay?: Date; clearFocus: () => void }
@@ -74,11 +74,12 @@ export default function App() {
       <div className="app">
         <aside className="sidebar">
           <div className="brand"><img src={iconUrl} alt="" />Orbit</div>
-          {TABS.map((t) => (
-            <button key={t.id} className={`nav ${tab === t.id ? "active" : ""}`} onClick={() => nav.go(t.id)}>
+          {TABS.map((t, i) => (<React.Fragment key={t.id}>
+            {t.section !== TABS[i - 1]?.section && <div className="nav-section">{t.section}</div>}
+            <button className={`nav ${tab === t.id ? "active" : ""}`} onClick={() => nav.go(t.id)}>
               <span className="ico">{t.icon}</span>{t.title}
             </button>
-          ))}
+          </React.Fragment>))}
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
             {timer.active && (
               <div className="mini-timer" onClick={() => nav.go("timer")}>

@@ -83,7 +83,12 @@ export interface Planner {
   /** To-do cells of the planned week (same weekday / slot layout as the schedule) */
   entries: ScheduleEntry[];
   notes: PlannerNote[];
+  /** The folder it's filed in (missing = not in a folder) */
+  folderID?: string;
 }
+
+/** A folder in the Notes & Brainstorm sidebar (same shape as the Mac app) */
+export interface PlannerFolder { id: string; name: string; expanded: boolean }
 
 export interface AppData {
   tasks: TaskItem[];
@@ -107,6 +112,7 @@ export interface AppData {
   groupWins: string[];
   /** Rocket gifts from the owner already added to rocketGrant (gift ids) */
   claimedGifts?: string[];
+  plannerFolders?: PlannerFolder[];
 }
 
 export const uid = () =>

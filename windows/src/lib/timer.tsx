@@ -79,7 +79,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!running) return;
-    const t = setInterval(() => setNow(Date.now()), 250);
+    const t = setInterval(() => setNow(Date.now()), 1000); // whole app re-renders on each tick
     return () => clearInterval(t);
   }, [running]);
 

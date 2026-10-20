@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { CellPalette, MenuItem, Modal, useContextMenu } from "../components";
 import { addDays, monthDay, WEEKDAYS, WEEKDAYS_SHORT, weekStart } from "../lib/dates";
-import { isLight, Planner as PlannerT, Recurrence, RECURRENCE_TITLE, ScheduleEntry } from "../lib/model";
+import { isLight, Planner as PlannerT, PlannerFolder, uid, Recurrence, RECURRENCE_TITLE, ScheduleEntry } from "../lib/model";
 import { ApplyResult, applyPlannerTo, categoryOf, ConflictChoice, fixedAt, parity, plannerConflicts, slotOf, slotTitle, titleOf, useStore } from "../lib/store";
 
 /** Planners: draft weeks with brainstorm notes that can be copied into the weekly schedule */
 export default function Planner() {
-  const { data, actions } = useStore();
+  const { data, actions, update } = useStore();
   const menu = useContextMenu();
   const [sel, setSel] = useState<string | undefined>(data.planners[0]?.id);
   const current = data.planners.find((p) => p.id === sel);
@@ -17,23 +17,91 @@ export default function Planner() {
     if (sel === p.id) setSel(data.planners.find((x) => x.id !== p.id)?.id);
   };
 
+  const folders = data.plannerFolders ?? [];
+  const inFolder = (p: PlannerT) => !!p.folderID && folders.some((f) => f.id === p.folderID);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+
+  const addFolder = () => {
+    const id = uid();
+    update((d) => { (d.plannerFolders ??= []).push({ id, name: `Folder ${(d.plannerFolders?.length ?? 0) + 1}`, expanded: true }); });
+    setRenaming(id);
+  };
+  const setFolder = (id: string, fn: (f: PlannerFolder) => void) => update((d) => { const f = d.plannerFolders?.find((x) => x.id === id); if (f) fn(f); });
+  const deleteFolder = (id: string) => update((d) => {
+    d.planners.forEach((p) => { if (p.folderID === id) delete p.folderID; });
+    d.plannerFolders = (d.plannerFolders ?? []).filter((f) => f.id !== id);
+  });
+  /** Files a planner into a folder (undefined = none), placed before `before` if given */
+  const move = (id: string, folder: string | undefined, before?: string) => update((d) => {
+    const i = d.planners.findIndex((p) => p.id === id); if (i < 0 || id === before) return;
+    const [p] = d.planners.splice(i, 1);
+    if (folder) p.folderID = folder; else delete p.folderID;
+    const j = before ? d.planners.findIndex((x) => x.id === before) : -1;
+    if (j >= 0) d.planners.splice(j, 0, p); else d.planners.push(p);
+  });
+  const drop = (e: React.DragEvent, folder: string | undefined, before?: string) => {
+    e.preventDefault(); e.stopPropagation(); setOver(null);
+    const id = e.dataTransfer.getData("text/planner"); if (id) move(id, folder, before);
+  };
+  const allow = (key: string) => (e: React.DragEvent) => { if (e.dataTransfer.types.includes("text/planner")) { e.preventDefault(); setOver(key); } };
+
+  const row = (p: PlannerT, indent: boolean) => (
+    <button key={p.id} className={`nav ${p.id === sel ? "active" : ""}`} draggable
+      style={{ flexDirection: "column", alignItems: "flex-start", gap: 0, marginLeft: indent ? 16 : 0, outline: over === p.id ? "2px solid var(--accent)" : undefined }}
+      onClick={() => setSel(p.id)}
+      onDragStart={(e) => { e.dataTransfer.setData("text/planner", p.id); e.dataTransfer.effectAllowed = "move"; }}
+      onDragOver={allow(p.id)} onDragLeave={() => setOver(null)} onDrop={(e) => drop(e, p.folderID, p.id)}
+      onContextMenu={(e) => menu.open(e, [
+        { label: "Duplicate", onClick: () => setSel(actions.duplicatePlanner(p.id)) },
+        ...(folders.length ? [{ separator: true }, { label: "No folder", onClick: () => move(p.id, undefined) },
+          ...folders.map((f) => ({ label: `Move to “${f.name}”`, onClick: () => move(p.id, f.id) }))] : []),
+        { separator: true }, { label: "Delete…", onClick: () => remove(p) }] as MenuItem[])}>
+      <span>{p.name}</span><span className="small" style={{ opacity: 0.7 }}>{p.entries.length} to-dos · {p.notes.length} notes</span>
+    </button>
+  );
+
   return (
     <div style={{ display: "flex", minHeight: "100%" }}>
-      <div style={{ width: 210, borderRight: "1px solid var(--line)", padding: "18px 10px", display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
-        <div className="row" style={{ padding: "0 6px 8px" }}><b>Planners</b><span className="spacer" />
+      <div style={{ width: 220, borderRight: "1px solid var(--line)", padding: "18px 10px", display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+        <div className="row" style={{ padding: "0 6px 8px" }}><b>🧠 Notes & Brainstorm</b><span className="spacer" />
+          <button className="icon-btn" title="New folder" onClick={addFolder}>📁</button>
           <button className="icon-btn" title="New planner" onClick={() => setSel(actions.addPlanner())}>＋</button></div>
-        {data.planners.map((p) => (
-          <button key={p.id} className={`nav ${p.id === sel ? "active" : ""}`} style={{ flexDirection: "column", alignItems: "flex-start", gap: 0 }}
-            onClick={() => setSel(p.id)}
-            onContextMenu={(e) => menu.open(e, [{ label: "Duplicate", onClick: () => setSel(actions.duplicatePlanner(p.id)) }, { separator: true }, { label: "Delete…", onClick: () => remove(p) }] as MenuItem[])}>
-            <span>{p.name}</span><span className="small" style={{ opacity: 0.7 }}>{p.entries.length} to-dos · {p.notes.length} notes</span>
-          </button>
-        ))}
+        {folders.map((f) => {
+          const inside = data.planners.filter((p) => p.folderID === f.id);
+          return (
+            <div key={f.id}>
+              <div className="nav" style={{ fontWeight: 600, background: over === f.id ? "color-mix(in srgb, var(--accent) 25%, transparent)" : undefined }}
+                onClick={() => setFolder(f.id, (x) => { x.expanded = !x.expanded; })}
+                onDragOver={allow(f.id)} onDragLeave={() => setOver(null)}
+                onDrop={(e) => { drop(e, f.id); if (!f.expanded) setFolder(f.id, (x) => { x.expanded = true; }); }}
+                onContextMenu={(e) => menu.open(e, [
+                  { label: "New planner here", onClick: () => { const id = actions.addPlanner(); move(id, f.id); setSel(id); } },
+                  { label: "Rename…", onClick: () => setRenaming(f.id) },
+                  { separator: true }, { label: "Delete folder", onClick: () => deleteFolder(f.id) }] as MenuItem[])}>
+                <span style={{ display: "inline-block", transform: f.expanded ? "rotate(90deg)" : undefined, fontSize: 10 }}>▶</span>
+                <span>{f.expanded ? "📂" : "📁"}</span>
+                {renaming === f.id
+                  ? <input autoFocus defaultValue={f.name} onClick={(e) => e.stopPropagation()} style={{ flex: 1, minWidth: 0 }}
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v) setFolder(f.id, (x) => { x.name = v; }); setRenaming(null); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setRenaming(null); }} />
+                  : <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>}
+                <span className="small muted">{inside.length}</span>
+              </div>
+              {f.expanded && inside.map((p) => row(p, true))}
+              {f.expanded && !inside.length && <div className="small muted" style={{ padding: "2px 0 6px 40px" }}>Drag planners here</div>}
+            </div>
+          );
+        })}
+        {data.planners.filter((p) => !inFolder(p)).map((p) => row(p, false))}
+        {/* Drop here to take a planner out of its folder */}
+        <div style={{ flex: 1, minHeight: 60, borderRadius: 9, background: over === "root" ? "color-mix(in srgb, var(--accent) 12%, transparent)" : undefined }}
+          onDragOver={allow("root")} onDragLeave={() => setOver(null)} onDrop={(e) => drop(e, undefined)} />
       </div>
       {current ? <PlannerDetail key={current.id} planner={current} /> : (
         <div style={{ flex: 1, display: "grid", placeItems: "center" }}>
           <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "var(--accent)", display: "grid", placeItems: "center", fontSize: 38 }}>📝</div>
+            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "var(--accent)", display: "grid", placeItems: "center", fontSize: 38 }}>🧠</div>
             <h2 style={{ margin: 0 }}>Plan a week, brainstorm, then add it to your schedule</h2>
             <div className="muted" style={{ maxWidth: 420 }}>Each planner has its own weekly plan and notes. Class times from your weekly schedule are locked.</div>
             <button className="btn primary" onClick={() => setSel(actions.addPlanner())}>New planner</button>

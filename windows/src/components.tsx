@@ -1,4 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
+
+/** An animation loop capped at `fps` that pauses while the window is hidden or minimised.
+ *  Uncapped loops kept slow laptops at full CPU/GPU. Returns a stop function. */
+export function frameLoop(cb: (t: number) => void, fps = 30) {
+  let raf = 0, last = -1e9;
+  const f = (t: number) => {
+    raf = requestAnimationFrame(f);
+    if (document.hidden || t - last < 1000 / fps - 2) return;
+    last = t; cb(t);
+  };
+  raf = requestAnimationFrame(f);
+  return () => cancelAnimationFrame(raf);
+}
 import { PlanetDef, paintPlanet, planetByID, paintSun, SUNS } from "./lib/planets";
 import { GalaxyData } from "./lib/friends";
 import { useStore } from "./lib/store";
@@ -10,14 +23,13 @@ export function PlanetCanvas({ planet, size = 64, animate = false, locked = fals
     const cv = ref.current!; const dpr = window.devicePixelRatio || 1;
     cv.width = size * dpr; cv.height = size * dpr;
     const ctx = cv.getContext("2d")!;
-    let raf = 0;
     const draw = () => {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size, size);
       paintPlanet(ctx, planet, size, animate ? performance.now() / 8000 : 0.1);
-      if (animate) raf = requestAnimationFrame(draw);
     };
     draw();
-    return () => cancelAnimationFrame(raf);
+    // Store pages show dozens of planets at once: keep each one's animation light
+    return animate ? frameLoop(draw, 15) : undefined;
   }, [planet, size, animate]);
   return (
     <div style={{ position: "relative", width: size, height: size, opacity: locked ? 0.4 : 1, filter: locked ? "grayscale(1)" : undefined }}>
@@ -158,15 +170,13 @@ export function SystemCanvas({ sys, width, height, large }: { sys: GalaxyData["s
     const cv = ref.current!; const dpr = window.devicePixelRatio || 1;
     cv.width = width * dpr; cv.height = height * dpr;
     const ctx = cv.getContext("2d")!; const cache = new Map<string, HTMLCanvasElement>();
-    let raf = 0;
-    const loop = () => {
+    const paint = () => {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
       if (large) drawStars(ctx, width, height);
       paintSystem(ctx, sys, width, height, performance.now() / 1000, large, cache);
-      raf = requestAnimationFrame(loop);
     };
-    loop();
-    return () => cancelAnimationFrame(raf);
+    paint();
+    return frameLoop(paint, large ? 30 : 15);
   }, [sys, width, height, large]);
   return <canvas ref={ref} style={{ width, height, display: "block" }} />;
 }
