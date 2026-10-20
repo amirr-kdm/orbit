@@ -111,7 +111,7 @@ struct GalaxyPage: View {
             } else {
                 GalaxyMapView(data: data, zoom: zoom, returningFrom: lastSystem) { id in
                     lastSystem = id
-                    withAnimation(.easeOut(duration: 0.45)) { focusedSystem = id }
+                    withAnimation(.easeInOut(duration: 0.4)) { focusedSystem = id }
                 }
                 .transition(.opacity)
             }
@@ -121,7 +121,7 @@ struct GalaxyPage: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if let focused {
                         Button {
-                            withAnimation(.easeIn(duration: 0.35)) { focusedSystem = nil }
+                            withAnimation(.easeInOut(duration: 0.4)) { focusedSystem = nil }
                         } label: {
                             Label("Galaxy", systemImage: "chevron.left")
                         }
@@ -504,12 +504,19 @@ struct GalaxyMapView: View {
     @State private var pan: CGSize = .zero
     @State private var flyZoom: Double?
     @GestureState private var dragging: CGSize = .zero
+    /// Trackpad pinch on top of the slider's zoom
+    @State private var userScale = 1.0
+    @State private var hovering = false
+    @State private var monitor: Any?
+    @State private var viewSize = CGSize(width: 900, height: 600)
+
+    private var baseZoom: Double { min(1.8, max(0.25, zoom * userScale)) }
 
     static let worldSize = CGSize(width: 2600, height: 1700)
 
     var body: some View {
         GeometryReader { geo in
-            let zoom = flyZoom ?? self.zoom
+            let zoom = flyZoom ?? baseZoom
             let w = Self.worldSize.width * zoom, h = Self.worldSize.height * zoom
             let offset = CGSize(width: pan.width + dragging.width, height: pan.height + dragging.height)
             ZStack {
@@ -549,13 +556,42 @@ struct GalaxyMapView: View {
         .contentShape(Rectangle())
         .background(Color(hex: "#020617"))
         .environment(\.colorScheme, .dark)
-        .onAppear { zoomOutFromReturn() }
+        .background(GeometryReader { g in Color.clear.onAppear { viewSize = g.size }.onChange(of: g.size) { _, s in viewSize = s } })
+        .onHover { hovering = $0 }
+        .onAppear { zoomOutFromReturn(); startTrackpad() }
+        .onDisappear { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
         .onChange(of: zoom) { old, new in
             pan = CGSize(width: pan.width * new / old, height: pan.height * new / old)
         }
     }
 
-    private static let flyTarget = 3.0
+    /// Trackpad: pinch to zoom, two fingers to move around (a mouse wheel zooms)
+    private func startTrackpad() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .magnify]) { e in
+            guard hovering, flyZoom == nil else { return e }
+            if e.type == .magnify {
+                rescale(by: 1 + e.magnification)
+            } else if e.hasPreciseScrollingDeltas {
+                let w = Self.worldSize.width * baseZoom, h = Self.worldSize.height * baseZoom
+                pan.width = max(-w / 2, min(w / 2, pan.width + e.scrollingDeltaX))
+                pan.height = max(-h / 2, min(h / 2, pan.height + e.scrollingDeltaY))
+            } else {
+                rescale(by: 1 + e.scrollingDeltaY * 0.03)
+            }
+            return nil
+        }
+    }
+
+    private func rescale(by k: Double) {
+        let before = baseZoom
+        userScale = min(1.8 / max(zoom, 0.01), max(0.25 / max(zoom, 0.01), userScale * k))
+        let ratio = baseZoom / before
+        pan = CGSize(width: pan.width * ratio, height: pan.height * ratio)
+    }
+
+    /// Zoom at which one solar system fills the view — the close-up opens from exactly there
+    private var flyTarget: Double { max(1.5, min(viewSize.width / (330 * 1.1), viewSize.height / (260 * 1.1)) * 0.95) }
 
     /// Pan that centres system `index` at zoom `z`
     private static func centre(on index: Int, zoom z: Double) -> CGSize {
@@ -565,12 +601,14 @@ struct GalaxyMapView: View {
 
     /// Camera glides to the system and zooms in, then the close-up opens
     private func flyIn(to index: Int, id: UUID) {
-        withAnimation(.easeIn(duration: 0.6)) {
-            flyZoom = Self.flyTarget
-            pan = Self.centre(on: index, zoom: Self.flyTarget)
+        let z = flyTarget
+        withAnimation(.easeInOut(duration: 0.7)) {
+            flyZoom = z
+            pan = Self.centre(on: index, zoom: z)
         }
+        // Hand over while the camera is still settling, so it reads as one continuous zoom
         Task {
-            try? await Task.sleep(for: .milliseconds(520))
+            try? await Task.sleep(for: .milliseconds(560))
             onSelect?(id)
         }
     }
@@ -579,14 +617,15 @@ struct GalaxyMapView: View {
     private func zoomOutFromReturn() {
         guard let id = returningFrom, let i = data.systems.firstIndex(where: { $0.id == id }) else { return }
         var t = Transaction(); t.disablesAnimations = true
+        let z = flyTarget
         withTransaction(t) {
-            flyZoom = Self.flyTarget
-            pan = Self.centre(on: i, zoom: Self.flyTarget)
+            flyZoom = z
+            pan = Self.centre(on: i, zoom: z)
         }
-        DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.7)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            withAnimation(.easeInOut(duration: 0.8)) {
                 flyZoom = nil
-                pan = Self.centre(on: i, zoom: zoom).applying(0.35)
+                pan = Self.centre(on: i, zoom: baseZoom).applying(0.35)
             }
         }
     }
@@ -675,7 +714,7 @@ struct SolarSystemView: View {
     static func layout(count: Int) -> [Slot] {
         (0..<count).map { i in
             let radius = 100 + Double(i) * 28   // first orbit clears the (bigger) sun
-            let speed = 0.9 / sqrt(Double(i + 1)) * (i % 3 == 2 ? -1 : 1)
+            let speed = 0.35 / sqrt(Double(i + 1)) * (i % 3 == 2 ? -1 : 1)
             return Slot(radius: radius, offset: Double(i) * 2.1, speed: speed)
         }
     }
@@ -884,8 +923,9 @@ struct StarsBackground: View {
 extension AnyTransition {
     /// Opening a solar system: it grows out of the galaxy; closing shrinks it back in
     static var systemZoom: AnyTransition {
-        .asymmetric(insertion: .scale(scale: 0.15).combined(with: .opacity),
-                    removal: .scale(scale: 0.25).combined(with: .opacity))
+        // The map has already zoomed right into the system, so a soft cross-fade finishes the move
+        .asymmetric(insertion: .scale(scale: 0.9).combined(with: .opacity),
+                    removal: .scale(scale: 0.9).combined(with: .opacity))
     }
 }
 

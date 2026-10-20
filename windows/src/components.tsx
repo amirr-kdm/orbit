@@ -122,7 +122,7 @@ export function Modal({ onClose, children, width }: { onClose: () => void; child
 
 // ---------- Galaxy / solar systems ----------
 
-const slots = (n: number) => Array.from({ length: n }, (_, i) => ({ radius: 100 + i * 28, offset: i * 2.1, speed: (0.9 / Math.sqrt(i + 1)) * (i % 3 === 2 ? -1 : 1) }));
+const slots = (n: number) => Array.from({ length: n }, (_, i) => ({ radius: 100 + i * 28, offset: i * 2.1, speed: (0.35 / Math.sqrt(i + 1)) * (i % 3 === 2 ? -1 : 1) }));
 
 function drawStars(ctx: CanvasRenderingContext2D, w: number, h: number, seed = 7) {
   let s = seed;
