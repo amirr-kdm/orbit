@@ -201,9 +201,9 @@ export function progress(d: AppData, now = new Date()): Progress {
 
 // ---------- Rockets (store currency) ----------
 
-export const STARTING_ROCKETS = 200, ROCKETS_PER_HOUR = 10, GROUP_WIN_ROCKETS = 100, REFUND_TICKETS = 3;
-export const BONUS_TIERS: [string, number][] = [["10h", 50], ["15h", 70], ["20h", 100], ["25h", 120], ["30h", 150], ["30h+", 200]];
-export const weeklyBonus = (h: number) => (h > 30 ? 200 : h >= 30 ? 150 : h >= 25 ? 120 : h >= 20 ? 100 : h >= 15 ? 70 : h >= 10 ? 50 : 0);
+export const STARTING_ROCKETS = 200, ROCKETS_PER_HOUR = 25, GROUP_WIN_ROCKETS = 100, REFUND_TICKETS = 3;
+export const BONUS_TIERS: [string, number][] = [["10h", 100], ["15h", 140], ["20h", 200], ["25h", 240], ["30h", 300], ["30h+", 400]];
+export const weeklyBonus = (h: number) => (h > 30 ? 400 : h >= 30 ? 300 : h >= 25 ? 240 : h >= 20 ? 200 : h >= 15 ? 140 : h >= 10 ? 100 : 0);
 
 /** Finished weeks (Sat → Fri) since you started, with their bonus */
 export function weekBonuses(d: AppData, now = new Date()): { start: Date; hours: number; rockets: number }[] {

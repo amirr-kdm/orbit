@@ -17,29 +17,29 @@ struct WeekBonus: Identifiable {
 }
 
 /// Rockets 🚀 — the store currency.
-/// Earned: 10 per hour studied, plus a bonus when a week ends (after Friday).
+/// Earned: 25 per hour studied, plus a bonus when a week ends (after Friday).
 /// The balance is always worked out from your study history, minus what you spent.
 extension AppStore {
-    static let rocketsPerHour = 10
+    static let rocketsPerHour = 25
     /// Everyone starts with this many rockets
     static let startingRockets = 200
 
     /// Bonus for a finished week's study hours
     static func weeklyBonus(hours: Double) -> Int {
         switch hours {
-        case let h where h > 30: 200
-        case 30...: 150
-        case 25...: 120
-        case 20...: 100
-        case 15...: 70
-        case 10...: 50
+        case let h where h > 30: 400
+        case 30...: 300
+        case 25...: 240
+        case 20...: 200
+        case 15...: 140
+        case 10...: 100
         default: 0
         }
     }
 
     /// Bonus tiers, for showing the rules
     static let bonusTiers: [(hours: String, rockets: Int)] = [
-        ("10h", 50), ("15h", 70), ("20h", 100), ("25h", 120), ("30h", 150), ("30h+", 200),
+        ("10h", 100), ("15h", 140), ("20h", 200), ("25h", 240), ("30h", 300), ("30h+", 400),
     ]
 
     /// Every finished week since you started, with its bonus

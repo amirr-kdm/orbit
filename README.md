@@ -68,7 +68,7 @@ Mac and Windows share the same server, so friends on both platforms can study to
 | | |
 |---|---|
 | ⭐ **Levels** | Start at level 1, **+1 level per 3 hours** studied (max 50). Each level unlocks a planet. |
-| 🚀 **Rockets** | 200 to start · **10 per study hour** · weekly bonus from 10 hours up (50 → 200) · **100** for topping a group's weekly board. |
+| 🚀 **Rockets** | 200 to start · **25 per study hour** · weekly bonus from 10 hours up (100 → 400) · **100** for topping a group's weekly board. |
 | 🪐 **Store planets** | 100–1000 rockets by rarity (Common, Rare, Epic, Legendary). 3 refund tickets for everyone. |
 
 <details>
