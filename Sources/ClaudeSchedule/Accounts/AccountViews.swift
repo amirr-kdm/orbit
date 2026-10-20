@@ -396,6 +396,7 @@ struct AccountChip: View {
                         Text(account.syncError == nil ? "Synced" : "Offline").font(.caption2).foregroundStyle(.secondary)
                     }
                     Spacer()
+                    StreakChip()
                     Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
                 }
                 .padding(8)
@@ -404,6 +405,44 @@ struct AccountChip: View {
             .buttonStyle(.plain)
             .padding(.horizontal, 10).padding(.bottom, 10)
             .sheet(isPresented: $showing) { ProfileSheet() }
+        }
+    }
+}
+
+/// Streak days next to the account; hover to see the freezes left this month
+private struct StreakChip: View {
+    @Environment(AppStore.self) private var store
+    @State private var hover = false
+
+    var body: some View {
+        let info = store.streakInfo
+        HStack(spacing: 2) {
+            StreakIcon(size: 16)
+            Text("\(info.days)").font(.callout.weight(.bold).monospacedDigit())
+        }
+        .padding(.horizontal, 6).padding(.vertical, 3)
+        .background(Capsule().fill(Color.yellow.opacity(hover ? 0.25 : 0.12)))
+        .onHover { hover = $0 }
+        .popover(isPresented: $hover, arrowEdge: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    StreakIcon(size: 22)
+                    Text("\(info.days)-day streak").font(.headline)
+                }
+                HStack(spacing: 4) {
+                    ForEach(0..<StreakInfo.freezesPerMonth, id: \.self) { i in
+                        Image(systemName: "snowflake").foregroundStyle(i < info.freezesLeft ? Color.cyan : Color.secondary.opacity(0.35))
+                    }
+                    Text("\(info.freezesLeft) of \(StreakInfo.freezesPerMonth) freezes left this month").font(.callout)
+                }
+                Text("Miss a day and a freeze is used automatically, so your streak survives. You get 3 new ones every month.")
+                    .font(.caption).foregroundStyle(.secondary).frame(width: 240, alignment: .leading)
+                if !info.frozen.isEmpty {
+                    Text("Frozen: " + info.frozen.prefix(5).map { Fmt.date($0, "MMM d", .persian) }.joined(separator: ", "))
+                        .font(.caption).foregroundStyle(.cyan)
+                }
+            }
+            .padding(14)
         }
     }
 }

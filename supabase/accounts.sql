@@ -18,7 +18,8 @@ update public.profiles set is_admin = true, username = 'Amirreza' where name = '
 -- Users may only write their own harmless fields; approval and admin can't be set from the app
 revoke insert, update on public.profiles from authenticated;
 grant insert (id, name, username) on public.profiles to authenticated;
-grant update (name, username, level, avatar, galaxy, rockets) on public.profiles to authenticated;
+alter table public.profiles add column if not exists streak int;  -- null until their app reports it
+grant update (name, username, level, avatar, galaxy, rockets, streak) on public.profiles to authenticated;
 
 create or replace function public.is_admin()
 returns boolean language sql stable security definer set search_path = public as $$

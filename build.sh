@@ -34,6 +34,7 @@ cp "$BIN" "$APP/Contents/MacOS/Orbit"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/rocket.png "$APP/Contents/Resources/rocket.png"
+cp Resources/streak.png "$APP/Contents/Resources/streak.png"
 cp Resources/art/*.png "$APP/Contents/Resources/"
 # Art you may not redistribute stays out of release builds (Resources/art-local is git-ignored)
 if [ "${1:-}" != "release" ] && ls Resources/art-local/*.png >/dev/null 2>&1; then

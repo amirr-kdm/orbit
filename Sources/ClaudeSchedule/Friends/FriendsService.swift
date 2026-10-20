@@ -11,6 +11,8 @@ struct FriendProfile: Codable, Identifiable, Hashable {
     var galaxy: GalaxyData?
     /// Rocket balance (store currency)
     var rockets: Int?
+    /// Their streak as their own app counts it (with freezes)
+    var streak: Int?
 }
 
 struct SubjectStat: Codable, Hashable {
@@ -54,8 +56,13 @@ struct FriendCard: Identifiable, Hashable {
             .reduce(0) { $0 + minutes(on: $1) }
     }
 
-    /// Days in a row with study time, ending today (or yesterday if today is still empty)
+    /// Days in a row with study, as their app reports it (freezes included); older apps: counted here
     var streak: Int {
+        if let s = profile.streak { return s }
+        return StreakInfo.compute { minutes(on: $0) > 0 }.days
+    }
+
+    private var plainStreak: Int {
         var day = Date()
         if minutes(on: day) == 0 { day = Cal.persian.date(byAdding: .day, value: -1, to: day)! }
         var n = 0
@@ -119,6 +126,7 @@ final class FriendsService {
         let avatar: String?
         let galaxy: GalaxyData
         let rockets: Int
+        let streak: Int
     }
 
     init(store: AppStore) {
@@ -349,6 +357,7 @@ final class FriendsService {
         me.avatar = store.avatarPlanet
         me.galaxy = store.galaxyData
         me.rockets = store.rocketBalance
+        me.streak = store.streakInfo.days
         let days = (0..<35).compactMap { Cal.persian.date(byAdding: .day, value: -$0, to: Date()) }
         let stats = Dictionary(days.map { (Cal.dayKey($0), localStat(for: $0, userID: me.id)) }, uniquingKeysWith: { a, _ in a })
         let live = LiveStatus(user_id: me.id, studying: liveTitle(timer), started_at: timer.sessionStart, updated_at: Date())
@@ -361,7 +370,7 @@ final class FriendsService {
         let rows = (0..<7).compactMap { Cal.persian.date(byAdding: .day, value: -$0, to: Date()) }
             .map { localStat(for: $0, userID: me.id) }
         let extras = ProfileExtras(level: store.galaxyProgress().level, avatar: store.avatarPlanet, galaxy: store.galaxyData,
-                                   rockets: store.rocketBalance)
+                                   rockets: store.rocketBalance, streak: store.streakInfo.days)
         if extras != lastExtrasSent {
             await run {
                 try await self.client.update("profiles?id=eq.\(me.id.uuidString)", extras)

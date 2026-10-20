@@ -10,6 +10,8 @@ struct LevelPassView: View {
     /// Where the ship is drawn, in levels (1.0 = level 1, 1.5 = halfway to level 2)
     @State private var shipAt: Double = 1
     @State private var justClaimed: Int?
+    /// Level whose planet is being previewed
+    @State private var preview: Int?
     /// How far the user moved the view away from the ship
     @State private var look: CGFloat = 0
     /// The level the view is centred on
@@ -172,8 +174,11 @@ struct LevelPassView: View {
                 .overlay(Circle().strokeBorder(Color.white.opacity(reached ? 0.6 : 0.15), lineWidth: 1.5))
             // reward card
             Button {
-                guard canTake else { return }
-                withAnimation(.spring(duration: 0.4)) { store.claim(level: lv); justClaimed = lv }
+                if canTake {
+                    withAnimation(.spring(duration: 0.4)) { store.claim(level: lv); justClaimed = lv }
+                } else if planet != nil {
+                    preview = lv   // locked (or taken) planet: show a preview
+                }
             } label: {
                 VStack(spacing: 6) {
                     if let planet {
@@ -200,8 +205,36 @@ struct LevelPassView: View {
                 .opacity(reached || planet != nil ? 1 : 0.55)
             }
             .buttonStyle(.plain)
-            .disabled(!canTake)
+            .disabled(!canTake && planet == nil)
+            .popover(isPresented: Binding(get: { preview == lv }, set: { if !$0 { preview = nil } }), arrowEdge: .bottom) {
+                if let planet { PlanetPreview(planet: planet, level: lv, reached: reached, claimed: claimed) }
+            }
             .help(planet.map { "Level \(lv): 25 rockets + \($0.name)" } ?? "Level \(lv): 25 rockets")
         }
+    }
+}
+
+/// A big, moving look at a Level Pass planet
+private struct PlanetPreview: View {
+    let planet: PlanetDef
+    let level: Int
+    let reached: Bool
+    let claimed: Bool
+
+    var body: some View {
+        VStack(spacing: 10) {
+            TimelineView(.animation(minimumInterval: 1 / 12)) { tl in
+                PlanetView(planet: planet, size: 200, phase: tl.date.timeIntervalSinceReferenceDate / 8)
+            }
+            .frame(width: 220, height: 220)
+            Text(planet.name).font(.title3.weight(.bold))
+            Text(planet.blurb).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(width: 240)
+            Label(claimed ? "Yours ✓" : reached ? "Ready to claim" : "Unlocks at level \(level)",
+                  systemImage: claimed ? "checkmark.seal.fill" : reached ? "gift.fill" : "lock.fill")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(claimed ? .green : reached ? .orange : .secondary)
+        }
+        .padding(18)
+        .environment(\.colorScheme, .dark)
     }
 }

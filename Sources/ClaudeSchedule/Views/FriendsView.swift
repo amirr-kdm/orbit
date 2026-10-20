@@ -373,7 +373,7 @@ struct LeaderboardRow: View {
                         Circle().fill(.green).frame(width: 7, height: 7).help("Studying now")
                     }
                     Spacer()
-                    if card.streak > 0 { Text("🔥 \(card.streak)").font(.callout).help("Day streak") }
+                    if card.streak > 0 { StreakBadge(days: card.streak).help("Day streak") }
                     if let rockets = card.profile.rockets {
                         HStack(spacing: 3) {
                             RocketIcon(size: 15)
@@ -430,7 +430,7 @@ struct FriendDetailCard: View {
                         Label("Studying \(now)", systemImage: "circle.fill")
                             .font(.caption).foregroundStyle(.green).labelStyle(CompactLabelStyle())
                     } else {
-                        Text(card.streak > 0 ? "🔥 \(card.streak)-day streak" : "No streak yet")
+                        Label { Text(card.streak > 0 ? "\(card.streak)-day streak" : "No streak yet") } icon: { StreakIcon(size: 13) }
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -533,7 +533,7 @@ struct FriendGalaxySheet: View {
                         Text(card.isMe ? "Your galaxy" : "\(card.profile.name)'s galaxy").font(.title2.weight(.bold))
                         LevelBadge(level: card.profile.level ?? 1)
                     }
-                    Text("\(data.systems.count) solar system\(data.systems.count == 1 ? "" : "s") · \(data.systems.reduce(0) { $0 + $1.planets.count }) planets · 🔥 \(card.streak)")
+                    Text("\(data.systems.count) solar system\(data.systems.count == 1 ? "" : "s") · \(data.systems.reduce(0) { $0 + $1.planets.count }) planets · ⚡️ \(card.streak)")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
