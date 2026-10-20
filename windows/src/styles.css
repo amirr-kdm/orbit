@@ -39,7 +39,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
 
 .app { display: flex; height: 100%; }
-.sidebar { overflow-y: auto; width: 220px; background: var(--sidebar); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); }
+.sidebar { overflow-y: auto; flex-shrink: 0; width: 220px; background: var(--sidebar); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 10px; padding: 6px 10px 18px; font-weight: 800; font-size: 18px; }
 .brand img { width: 30px; height: 30px; border-radius: 8px; }
 .nav { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 9px; border: none; background: none; text-align: left; font-size: 14px; color: var(--text); }
@@ -51,7 +51,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .mini-timer { margin-top: auto; background: var(--card); border-radius: 12px; padding: 10px 12px; cursor: pointer; box-shadow: var(--shadow); }
 .mini-timer b { font-variant-numeric: tabular-nums; font-size: 18px; }
 
-.main { flex: 1; overflow: auto; }
+.main { flex: 1; min-width: 0; overflow: auto; }
 .page { padding: 24px 28px; max-width: 1500px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 .page-title { font-size: 28px; font-weight: 800; margin: 0; }
 .subtitle { color: var(--muted); }
