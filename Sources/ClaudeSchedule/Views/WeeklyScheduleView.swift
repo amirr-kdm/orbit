@@ -62,7 +62,9 @@ struct WeeklyScheduleView: View {
             .padding(.horizontal, 26)
             .padding(.vertical, 20)
         }
-        .frame(minWidth: 0, maxWidth: .infinity)
+        // Never ask for more room than the window has (that pushed the sidebar's account chip around)
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        .clipped()
     }
 
     // MARK: Header
