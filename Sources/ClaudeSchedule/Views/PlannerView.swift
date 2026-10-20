@@ -5,6 +5,8 @@ struct PlannerView: View {
     @Environment(AppStore.self) private var store
     @State private var selection: UUID?
     @State private var deleting: Planner?
+    @State private var renamingFolder: UUID?
+    @State private var dropTarget: UUID?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -35,37 +37,114 @@ struct PlannerView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Planners").font(.headline)
+                Label("Planners", systemImage: "brain.head.profile").font(.headline)
                 Spacer()
+                Button { renamingFolder = store.addPlannerFolder() } label: { Image(systemName: "folder.badge.plus") }
+                    .buttonStyle(.borderless)
+                    .help("New folder")
                 Button { selection = store.addPlanner() } label: { Image(systemName: "plus") }
                     .buttonStyle(.borderless)
                     .help("New planner")
             }
             .padding(12)
-            List(selection: $selection) {
-                ForEach(store.planners) { p in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(p.name).lineLimit(1)
-                        Text("\(p.entries.count) to-dos · \(p.notes.count) notes")
-                            .font(.caption).foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(store.plannerFolders) { folder in
+                        folderRow(folder)
+                        if folder.expanded {
+                            let inside = store.planners.filter { $0.folderID == folder.id }
+                            ForEach(inside) { plannerRow($0).padding(.leading, 18) }
+                            if inside.isEmpty {
+                                Text("Drag planners here").font(.caption).foregroundStyle(.tertiary)
+                                    .padding(.leading, 30).padding(.vertical, 4)
+                            }
+                        }
                     }
-                    .padding(.vertical, 2)
-                    .tag(p.id)
-                    .contextMenu {
-                        Button("Duplicate") { selection = store.duplicatePlanner(p.id) }
-                        Divider()
-                        Button("Delete…", role: .destructive) { deleting = p }
-                    }
+                    ForEach(store.planners.filter { p in !store.plannerFolders.contains { $0.id == p.folderID } }) { plannerRow($0) }
+                    // Drop here to take a planner out of its folder
+                    Color.clear.frame(height: 60).contentShape(Rectangle())
+                        .dropDestination(for: String.self) { items, _ in
+                            for s in items { if let id = UUID(uuidString: s) { store.movePlanner(id, to: nil) } }
+                            return true
+                        }
+                }
+                .padding(.horizontal, 8)
+            }
+        }
+        .frame(width: 220)
+    }
+
+    private func folderRow(_ folder: PlannerFolder) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                .rotationEffect(.degrees(folder.expanded ? 90 : 0))
+            Image(systemName: folder.expanded ? "folder.fill" : "folder").foregroundStyle(.tint)
+            if renamingFolder == folder.id {
+                TextField("Folder name", text: Binding(get: { folder.name }, set: { store.renamePlannerFolder(folder.id, to: $0) }))
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { renamingFolder = nil }
+            } else {
+                Text(folder.name).fontWeight(.medium).lineLimit(1)
+            }
+            Spacer()
+            Text("\(store.planners.filter { $0.folderID == folder.id }.count)").font(.caption).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 7).fill(dropTarget == folder.id ? Color.accentColor.opacity(0.25) : .clear))
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.15)) { store.togglePlannerFolder(folder.id) } }
+        .dropDestination(for: String.self) { items, _ in
+            for s in items { if let id = UUID(uuidString: s) { store.movePlanner(id, to: folder.id) } }
+            if !folder.expanded { store.togglePlannerFolder(folder.id) }
+            return true
+        } isTargeted: { dropTarget = $0 ? folder.id : (dropTarget == folder.id ? nil : dropTarget) }
+        .contextMenu {
+            Button("New Planner Here") {
+                let id = store.addPlanner(); store.movePlanner(id, to: folder.id); selection = id
+            }
+            Button("Rename…") { renamingFolder = folder.id }
+            Divider()
+            Button("Delete Folder", role: .destructive) { store.deletePlannerFolder(folder.id) }
+        }
+    }
+
+    private func plannerRow(_ p: Planner) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(p.name).lineLimit(1)
+            Text("\(p.entries.count) to-dos · \(p.notes.count) notes")
+                .font(.caption).foregroundStyle(selection == p.id ? .white.opacity(0.8) : .secondary)
+        }
+        .foregroundStyle(selection == p.id ? .white : .primary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 7).fill(selection == p.id ? Color.accentColor : .clear))
+        .contentShape(Rectangle())
+        .onTapGesture { selection = p.id }
+        .draggable(p.id.uuidString) {
+            Label(p.name, systemImage: "doc.text").padding(6).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+        }
+        // Drop onto another planner to put it just above (and in the same folder)
+        .dropDestination(for: String.self) { items, _ in
+            for s in items { if let id = UUID(uuidString: s) { store.movePlanner(id, to: p.folderID, before: p.id) } }
+            return true
+        }
+        .contextMenu {
+            Button("Duplicate") { selection = store.duplicatePlanner(p.id) }
+            if !store.plannerFolders.isEmpty {
+                Menu("Move to Folder") {
+                    Button("No Folder") { store.movePlanner(p.id, to: nil) }
+                    Divider()
+                    ForEach(store.plannerFolders) { f in Button(f.name) { store.movePlanner(p.id, to: f.id) } }
                 }
             }
-            .listStyle(.sidebar)
+            Divider()
+            Button("Delete…", role: .destructive) { deleting = p }
         }
-        .frame(width: 210)
     }
 
     private var empty: some View {
         VStack(spacing: 14) {
-            Image(systemName: "square.and.pencil.circle.fill")
+            Image(systemName: "brain.head.profile")
                 .font(.system(size: 56))
                 .foregroundStyle(.tint)
             Text("Plan a week, brainstorm, then add it to your schedule").font(.title3.weight(.semibold))

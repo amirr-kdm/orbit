@@ -4,6 +4,15 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case today, schedule, planner, timer, tasks, calendar, reports, galaxy, store, friends, settings
 
     var id: String { rawValue }
+
+    /// Sidebar groups, in order: plan the week → do the work → progress & rewards → people → app
+    static let sections: [(title: String, items: [SidebarItem])] = [
+        ("Plan", [.today, .schedule, .tasks, .calendar, .planner]),
+        ("Focus", [.timer, .reports]),
+        ("Rewards", [.galaxy, .store]),
+        ("Social", [.friends]),
+        ("App", [.settings]),
+    ]
     var title: String {
         switch self {
         case .today: "Today"
@@ -23,7 +32,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: "checklist"
         case .schedule: "tablecells"
-        case .planner: "square.and.pencil"
+        case .planner: "brain.head.profile"
         case .timer: "timer"
         case .tasks: "tray.full"
         case .calendar: "calendar"
@@ -47,8 +56,14 @@ struct ContentView: View {
     var body: some View {
         @Bindable var router = router
         NavigationSplitView {
-            List(SidebarItem.allCases, selection: $router.selection) { item in
-                Label(item.title, systemImage: item.icon).tag(item)
+            List(selection: $router.selection) {
+                ForEach(SidebarItem.sections, id: \.title) { section in
+                    Section(section.title) {
+                        ForEach(section.items) { item in
+                            Label(item.title, systemImage: item.icon).tag(item)
+                        }
+                    }
+                }
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 210)
             .safeAreaInset(edge: .bottom) {

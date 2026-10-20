@@ -62,6 +62,7 @@ struct WeeklyScheduleView: View {
             .padding(.horizontal, 26)
             .padding(.vertical, 20)
         }
+        .frame(minWidth: 0, maxWidth: .infinity)
     }
 
     // MARK: Header
@@ -81,7 +82,7 @@ struct WeeklyScheduleView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
-            weekStats
+            ViewThatFits(in: .horizontal) { weekStats; Color.clear.frame(width: 0, height: 0) }
             nowCard(now: now, today: today, currentSlot: currentSlot, slots: slots)
         }
     }
@@ -352,7 +353,8 @@ struct WeeklyScheduleView: View {
 
     private var toolbar: some View {
         @Bindable var store = store
-        return HStack(spacing: 14) {
+        // Scrolls sideways when the window is narrow, so it never squeezes the sidebar
+        return ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 14) {
             HStack(spacing: 12) {
                 CellPaletteBar(selection: editing != nil ? editColor : (selectedEntry?.colorHex ?? paletteColor),
                                onPick: applyColor)
@@ -454,15 +456,16 @@ struct WeeklyScheduleView: View {
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.07)))
             .shadow(color: .black.opacity(0.1), radius: 10, y: 4)
 
-            Spacer(minLength: 0)
-
             Text("Click a cell to type · ⏎ saves · ⇧⏎ new line · esc cancels")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
-                .layoutPriority(-1)
+                .fixedSize()
                 .help("Right-click a cell to change its type or colour, clear it, or study it now")
         }
+        .padding(.vertical, 12).padding(.horizontal, 4)
+        }
+        .padding(.vertical, -12)
     }
 
     private var divider: some View {

@@ -194,6 +194,8 @@ struct Planner: Identifiable, Codable, Hashable {
     /// To-do cells of the planned week (same weekday / time-slot layout as the weekly schedule)
     var entries: [ScheduleEntry] = []
     var notes: [PlannerNote] = [PlannerNote(title: "Brainstorm")]
+    /// The folder it's filed in (nil = not in a folder)
+    var folderID: UUID?
 
     init(name: String) { self.name = name }
 
@@ -204,7 +206,15 @@ struct Planner: Identifiable, Codable, Hashable {
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         entries = try c.decodeIfPresent([ScheduleEntry].self, forKey: .entries) ?? []
         notes = try c.decodeIfPresent([PlannerNote].self, forKey: .notes) ?? []
+        folderID = try c.decodeIfPresent(UUID.self, forKey: .folderID)
     }
+}
+
+/// A folder in the Planner sidebar
+struct PlannerFolder: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var name: String
+    var expanded = true
 }
 
 // MARK: - Decoding tolerant of missing keys

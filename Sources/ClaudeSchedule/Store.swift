@@ -53,6 +53,7 @@ final class AppStore {
     var avatarPlanet: String? { didSet { save() } }
     var solarSystems: [SolarSystem] = [] { didSet { save() } }
     var planners: [Planner] = [] { didSet { save() } }
+    var plannerFolders: [PlannerFolder] = [] { didSet { save() } }
     /// Store planets bought with rockets
     var purchases: [Purchase] = [] { didSet { save() } }
     /// Refund tickets used (everyone gets 3)
@@ -85,11 +86,13 @@ final class AppStore {
         var avatarPlanet: String?
         var solarSystems: [SolarSystem] = []
         var planners: [Planner] = []
+        var plannerFolders: [PlannerFolder] = []
 
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
              galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner],
-             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String]) {
+             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String], plannerFolders: [PlannerFolder]) {
+            self.plannerFolders = plannerFolders
             self.groupWins = groupWins
             self.claimedGifts = claimedGifts
             self.refundsUsed = refundsUsed
@@ -128,6 +131,7 @@ final class AppStore {
             avatarPlanet = try c.decodeIfPresent(String.self, forKey: .avatarPlanet)
             solarSystems = try c.decodeIfPresent([SolarSystem].self, forKey: .solarSystems) ?? []
             planners = try c.decodeIfPresent([Planner].self, forKey: .planners) ?? []
+            plannerFolders = try c.decodeIfPresent([PlannerFolder].self, forKey: .plannerFolders) ?? []
         }
     }
 
@@ -195,6 +199,7 @@ final class AppStore {
             avatarPlanet = snap.avatarPlanet
             solarSystems = snap.solarSystems
             planners = snap.planners
+            plannerFolders = snap.plannerFolders
         }
     }
 
@@ -231,7 +236,7 @@ final class AppStore {
                             galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
                             planners: planners, scheduleSkipped: scheduleSkipped,
                             purchases: purchases, refundsUsed: refundsUsed,
-                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts)
+                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts, plannerFolders: plannerFolders)
         return try? encoder.encode(snap)
     }
 

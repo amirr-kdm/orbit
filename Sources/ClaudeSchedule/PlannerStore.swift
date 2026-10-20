@@ -40,6 +40,41 @@ extension AppStore {
         change(&planners[i])
     }
 
+    // MARK: Folders
+
+    @discardableResult
+    func addPlannerFolder() -> UUID {
+        let f = PlannerFolder(name: "Folder \(plannerFolders.count + 1)")
+        plannerFolders.append(f)
+        return f.id
+    }
+
+    func renamePlannerFolder(_ id: UUID, to name: String) {
+        let n = name.trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty, let i = plannerFolders.firstIndex(where: { $0.id == id }) else { return }
+        plannerFolders[i].name = n
+    }
+
+    func togglePlannerFolder(_ id: UUID) {
+        guard let i = plannerFolders.firstIndex(where: { $0.id == id }) else { return }
+        plannerFolders[i].expanded.toggle()
+    }
+
+    /// Deletes the folder only; its planners move out of it
+    func deletePlannerFolder(_ id: UUID) {
+        for i in planners.indices where planners[i].folderID == id { planners[i].folderID = nil }
+        plannerFolders.removeAll { $0.id == id }
+    }
+
+    /// Files a planner into a folder (nil = no folder), placed before `before` if given
+    func movePlanner(_ id: UUID, to folder: UUID?, before: UUID? = nil) {
+        guard let i = planners.firstIndex(where: { $0.id == id }), id != before else { return }
+        var p = planners.remove(at: i)
+        p.folderID = folder
+        if let before, let j = planners.firstIndex(where: { $0.id == before }) { planners.insert(p, at: j) }
+        else { planners.append(p) }
+    }
+
     func deletePlanner(_ id: UUID) {
         planners.removeAll { $0.id == id }
     }
@@ -50,6 +85,7 @@ extension AppStore {
         copy.id = UUID()
         copy.name += " copy"
         copy.createdAt = Date()
+        if let f = copy.folderID, !plannerFolders.contains(where: { $0.id == f }) { copy.folderID = nil }
         copy.entries = copy.entries.map { var e = $0; e.id = UUID(); return e }
         copy.notes = copy.notes.map { var n = $0; n.id = UUID(); return n }
         planners.append(copy)

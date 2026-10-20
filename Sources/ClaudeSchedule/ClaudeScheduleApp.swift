@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct ClaudeScheduleApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store: AppStore
     @State private var timer: TimerEngine
     @State private var friends: FriendsService
@@ -35,8 +36,9 @@ struct ClaudeScheduleApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Orbit", id: "main") {
+        Window("Orbit", id: "main") {
             RootView()
+                .background(WindowOpener())
                 .frame(minWidth: 1080, minHeight: 660)
                 .environment(account)
                 .environment(store)
@@ -80,11 +82,42 @@ struct MenuBarContent: View {
         Text("Studied today: \(Fmt.duration(store.studyTime(on: Date())))")
         Divider()
         Button("Open Orbit") {
-            openWindow(id: "main")
+            AppDelegate.openMain = AppDelegate.openMain ?? { openWindow(id: "main") }
+            AppDelegate.showMain()
             router.selection = .timer
             NSApp.activate(ignoringOtherApps: true)
         }
         Button("Quit") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
+    }
+}
+
+/// Brings the main window back after it was closed with the red button
+/// (the app keeps running for the menu bar timer).
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    @MainActor static var openMain: (() -> Void)?
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { MainActor.assumeIsolated { Self.showMain() } }
+        return true
+    }
+
+    @MainActor static func showMain() {
+        if let w = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix("main") == true && $0.canBecomeMain }) {
+            w.makeKeyAndOrderFront(nil)
+        } else {
+            openMain?()
+        }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+/// Keeps a way to reopen the main window from outside SwiftUI
+private struct WindowOpener: View {
+    @Environment(\.openWindow) private var openWindow
+    var body: some View {
+        Color.clear.onAppear { AppDelegate.openMain = { openWindow(id: "main") } }
     }
 }
