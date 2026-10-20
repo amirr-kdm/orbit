@@ -14,6 +14,10 @@ import meteor from "./assets/meteor.png";
 registerPicture("ufo", ufo);
 registerPicture("satellite", satellite);
 registerPicture("meteor", meteor);
+// Every other store picture in assets/ (s4_… and animated frames s4_name_0, _1, …)
+for (const [path, url] of Object.entries(import.meta.glob("./assets/s4_*.png", { eager: true, import: "default" }))) {
+  registerPicture(path.split("/").pop()!.replace(".png", ""), url as string);
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

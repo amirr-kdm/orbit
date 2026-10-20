@@ -611,7 +611,9 @@ function paintPicture(ctx: Ctx, p: PlanetDef, c: number, r: number, phase: numbe
     ctx.beginPath(); ctx.moveTo(c - r * 0.35, c + r * 0.25 + bob); ctx.lineTo(c + r * 0.35, c + r * 0.25 + bob); ctx.lineTo(c + r * 0.7, c + r * 1.3); ctx.lineTo(c - r * 0.7, c + r * 1.3); ctx.closePath();
     ctx.fillStyle = b; ctx.fill();
   }
-  const img = PICTURES[p.image!];
+  // Animated pictures (from a GIF) are registered as name_0, name_1, … and play at ~8 frames a second
+  let n = 0; while (PICTURES[`${p.image}_${n}`]) n++;
+  const img = n ? PICTURES[`${p.image}_${Math.floor(performance.now() / 125) % n}`] : PICTURES[p.image!];
   if (img?.complete && img.naturalWidth) {
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, c - side / 2, c - side / 2 + bob, side, side); ctx.restore();
   }

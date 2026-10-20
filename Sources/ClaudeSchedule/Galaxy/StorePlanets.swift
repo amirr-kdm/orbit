@@ -181,6 +181,14 @@ extension PlanetCatalog {
                   colors: ["#FDE68A", "#F59E0B", "#1E3A8A"], accent: "#FCD34D", glow: true, price: 960, image: "gaia"),
         PlanetDef(id: "s_aliens", name: "Alien Visitors", level: 1, blurb: "Two little green friends dropped by in their pixel saucer.",
                   colors: ["#BEF264", "#4ADE80", "#14532D"], accent: "#86EFAC", glow: true, price: 990, image: "ufo"),
+        PlanetDef(id: "s4_spacecat", name: "Cosmo Cat", level: 1, blurb: "A Siamese astronaut floating calmly between the stars.",
+                  colors: ["#BAE6FD", "#38BDF8", "#0C4A6E"], accent: "#7DD3FC", glow: true, price: 1000, image: "s4_spacecat"),
+        PlanetDef(id: "s4_ufocat", name: "Kitty Cruiser", level: 1, blurb: "A cat at the controls of its own saucer. It moves!",
+                  colors: ["#E9D5FF", "#A855F7", "#3B0764"], accent: "#D8B4FE", glow: true, price: 1000, image: "s4_ufocat"),
+        PlanetDef(id: "s4_claudecoder", name: "Claude at Work", level: 1, blurb: "Busy typing code somewhere out in space.",
+                  colors: ["#FED7AA", "#F97316", "#7C2D12"], accent: "#FDBA74", glow: true, price: 1000, image: "s4_claudecoder"),
+        PlanetDef(id: "s4_claudechute", name: "Claude Drop", level: 1, blurb: "Parachuting in to help with your homework.",
+                  colors: ["#FED7AA", "#F97316", "#1E3A8A"], accent: "#93C5FD", glow: true, price: 1000, image: "s4_claudechute"),
         PlanetDef(id: "s2_hub", name: "Galactic Hub", level: 1, blurb: "The busiest port in space: ships come and go all day.",
                   colors: ["#E0E7FF", "#6366F1", "#1E1B4B"], pattern: .bands, accent: "#C7D2FE",
                   ring: .init(color: "#A5B4FC", tilt: 14, width: 0.1, double: true), glow: true,
@@ -410,9 +418,22 @@ extension PlanetPainter {
 
     static func bundleImage(_ name: String) -> NSImage? {
         if let img = imageCache[name] { return img }
-        guard let url = Bundle.main.url(forResource: name, withExtension: "png"), let img = NSImage(contentsOf: url) else { return nil }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "png"), let img = NSImage(contentsOf: url) else {
+            return frames(name).first   // animated pictures are stored as name_0.png, name_1.png, …
+        }
         imageCache[name] = img
         return img
+    }
+
+    private static var frameCache: [String: [NSImage]] = [:]
+
+    /// Frames of an animated picture (from a GIF), or [] for a still one
+    static func frames(_ name: String) -> [NSImage] {
+        if let f = frameCache[name] { return f }
+        var out: [NSImage] = []
+        while let url = Bundle.main.url(forResource: "\(name)_\(out.count)", withExtension: "png"), let img = NSImage(contentsOf: url) { out.append(img) }
+        frameCache[name] = out
+        return out
     }
 
     /// A picture item (like the pixel UFO): glow, a soft shadow and a gentle bob
@@ -424,6 +445,9 @@ extension PlanetPainter {
         let bob = sin(phase * .pi * 2) * r * 0.08
         let side = r * 3.3
         let rect = CGRect(x: c.x - side / 2, y: c.y - side / 2 + bob, width: side, height: side)
+        let frames = p.image.map(Self.frames) ?? []
+        // Animated pictures play at about 8 frames a second
+        let img = frames.isEmpty ? img : frames[Int(Date().timeIntervalSinceReferenceDate * 8) % frames.count]
         guard p.image == "ufo" else {
             ctx.draw(Image(nsImage: img).interpolation(.none), in: rect)
             return
