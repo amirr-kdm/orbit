@@ -7,6 +7,7 @@ struct ClaudeScheduleApp: App {
     @State private var timer: TimerEngine
     @State private var friends: FriendsService
     @State private var account: AccountService
+    @State private var challenges: ChallengeService
     @State private var router = Router()
     @State private var updates = UpdateChecker()
 
@@ -33,7 +34,11 @@ struct ClaudeScheduleApp: App {
         _timer = State(initialValue: TimerEngine(store: store))
         let friends = FriendsService(store: store)
         _friends = State(initialValue: friends)
-        _account = State(initialValue: AccountService(store: store, friends: friends))
+        let account = AccountService(store: store, friends: friends)
+        _account = State(initialValue: account)
+        let challenges = ChallengeService(store: store)
+        challenges.onRocketsMoved = { [weak account] in await account?.claimGifts() }
+        _challenges = State(initialValue: challenges)
     }
 
     var body: some Scene {
@@ -47,6 +52,7 @@ struct ClaudeScheduleApp: App {
                 .environment(router)
                 .environment(friends)
                 .environment(updates)
+                .environment(challenges)
                 .task { updates.start() }
         }
         .defaultSize(width: 1320, height: 820)

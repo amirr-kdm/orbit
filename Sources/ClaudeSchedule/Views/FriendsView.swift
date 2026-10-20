@@ -15,6 +15,7 @@ struct FriendsView: View {
     @State private var renaming = false
     @State private var confirmDelete = false
     @State private var viewingGalaxy: FriendCard?
+    @State private var promising: FriendCard?
     @State private var expandedRow: UUID?
     /// 0 = friends, 1 = groups
     @AppStorage("friendsTab") private var tab = 0
@@ -121,6 +122,7 @@ struct FriendsView: View {
                 }
 
                 if !friends.incoming.isEmpty { FriendRequestsCard() }
+                PromisesCard()
 
                 Picker("", selection: $tab) {
                     Text("Friends (\(friends.friends.count))").tag(0)
@@ -169,8 +171,10 @@ struct FriendsView: View {
                 if !friends.friends.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 14)], spacing: 14) {
                         ForEach(friends.friends) { f in
-                            FriendDetailCard(card: f, accent: accent) { viewingGalaxy = f }
+                            FriendDetailCard(card: f, accent: accent, onOpenGalaxy: { viewingGalaxy = f }, onPromise: { promising = f })
                                 .contextMenu {
+                                    Button("Make a Promise…") { promising = f }
+                                    Divider()
                                     Button("Remove Friend", role: .destructive) { confirmRemove = f }
                                 }
                         }
@@ -222,6 +226,7 @@ struct FriendsView: View {
         }
         .sheet(isPresented: $renaming) { RenameSheet(current: friends.me?.name ?? "") }
         .sheet(item: $viewingGalaxy) { FriendGalaxySheet(card: $0) }
+        .sheet(item: $promising) { PromiseSheet(friend: $0) }
     }
 
     private var myCodeCard: some View {
@@ -395,6 +400,7 @@ struct FriendDetailCard: View {
     let card: FriendCard
     let accent: Color
     var onOpenGalaxy: (() -> Void)?
+    var onPromise: (() -> Void)? = nil
 
     private struct Bar: Identifiable {
         let id: Int
@@ -426,6 +432,11 @@ struct FriendDetailCard: View {
                     }
                 }
                 Spacer()
+                if let onPromise {
+                    Button(action: onPromise) { Label("Promise", systemImage: "hand.raised.fingers.spread") }
+                        .controlSize(.small)
+                        .help("Promise \(card.profile.name) you'll study — with rockets at stake")
+                }
                 if let onOpenGalaxy {
                     Button(action: onOpenGalaxy) { Label("Galaxy", systemImage: "sparkles") }
                         .controlSize(.small)

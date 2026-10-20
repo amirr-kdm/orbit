@@ -361,22 +361,23 @@ final class AccountService {
     /// Add rocket gifts from the owner that this account hasn't counted yet
     func claimGifts() async {
         guard state == .approved, !restoring else { return }
-        struct Gift: Decodable { let id: UUID; let amount: Int }
-        guard let gifts = try? await client.select("rocket_gifts?select=id,amount", as: [Gift].self) else { return }
+        struct Gift: Decodable { let id: UUID; let amount: Int; let reason: String? }
+        guard let gifts = try? await client.select("rocket_gifts?select=id,amount,reason", as: [Gift].self) else { return }
         let new = gifts.filter { !store.claimedGifts.contains($0.id.uuidString) }
         guard !new.isEmpty else { return }
         store.claimedGifts += new.map(\.id.uuidString)
-        let total = new.reduce(0) { $0 + $1.amount }
-        store.rocketGrant += total
-        if total > 0 {
-            giftNotice = total
-            Notifier.post(id: "gift-\(new[0].id)", title: "You got \(total) 🚀 rockets!",
-                          body: "A gift from the Orbit admin. Spend them in the Store.")
+        store.rocketGrant += new.reduce(0) { $0 + $1.amount }
+        // Tell about rockets received (paying a fee is your own action, so it stays quiet)
+        for g in new where g.amount > 0 {
+            let text = g.reason.map { "\($0) (+\(g.amount) 🚀)" } ?? "You got \(g.amount) rockets from the Orbit admin! 🚀"
+            giftNotice = text
+            Notifier.post(id: "gift-\(g.id)", title: g.reason == nil ? "You got \(g.amount) 🚀 rockets!" : "+\(g.amount) 🚀 rockets",
+                          body: g.reason ?? "A gift from the Orbit admin. Spend them in the Store.")
         }
     }
 
     /// Rockets just received as a gift (shown as a banner until dismissed)
-    var giftNotice: Int?
+    var giftNotice: String?
 
     /// Sets a new temporary password and returns it, so the owner can pass it on
     func resetPassword(_ id: UUID) async -> String? {

@@ -52,6 +52,7 @@ struct ContentView: View {
     @Environment(FriendsService.self) private var friends
     @Environment(AccountService.self) private var account
     @Environment(UpdateChecker.self) private var updates
+    @Environment(ChallengeService.self) private var challenges
     @State private var showAdmin = false
 
     var body: some View {
@@ -109,6 +110,7 @@ struct ContentView: View {
             while !Task.isCancelled {
                 await friends.syncNow()
                 await friends.pushLive(timer: timer, force: timer.isRunning)
+                await challenges.tick()
                 try? await Task.sleep(for: .seconds(60))
             }
         }
@@ -136,7 +138,7 @@ struct ContentView: View {
     /// Rocket gifts and new versions
     @ViewBuilder private var banners: some View {
         if let n = account.giftNotice {
-            banner(icon: "gift.fill", tint: .orange, text: "You got \(n) rockets from the Orbit admin! 🚀",
+            banner(icon: "gift.fill", tint: .orange, text: n,
                    action: ("Open Store", { router.selection = .store; account.giftNotice = nil })) { account.giftNotice = nil }
         }
         if let v = updates.available, !updates.dismissed {
