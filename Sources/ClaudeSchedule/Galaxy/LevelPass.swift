@@ -12,12 +12,14 @@ struct LevelPassView: View {
     @State private var justClaimed: Int?
     /// How far the user moved the view away from the ship
     @State private var look: CGFloat = 0
+    /// The level the view is centred on
+    @State private var cameraAt: Double = 1
     @GestureState private var dragging: CGFloat = 0
     @State private var hovering = false
     @State private var monitor: Any?
 
     private func clampLook(_ x: CGFloat) -> CGFloat {
-        let ship = Self.spacing * CGFloat(shipAt - 1)
+        let ship = Self.spacing * CGFloat(cameraAt - 1)
         return min(ship + 300, max(ship - Self.spacing * CGFloat(Self.maxLevel - 1) - 300, x))
     }
 
@@ -31,7 +33,9 @@ struct LevelPassView: View {
         min(Double(maxLevel), 1 + hours / GalaxyProgress.hoursPerLevel)
     }
 
-    static func shipImage(level: Int) -> String { level <= 20 ? "pass_ship1" : level <= 40 ? "pass_ship2" : "pass_ship3" }
+    /// Which of the three ships you fly (your choice, kept on this Mac)
+    @AppStorage("passShip") private var ship = 1
+    static func shipImage(_ n: Int) -> String { "pass_ship\(min(3, max(1, n)))" }
 
     var body: some View {
         let p = progress
@@ -41,7 +45,7 @@ struct LevelPassView: View {
             // The camera follows the ship; drag, scroll wheel or trackpad to look along the line
             GeometryReader { geo in
                 track(p)
-                    .offset(x: geo.size.width / 2 - Self.spacing * CGFloat(shipAt - 1) + look + dragging)
+                    .offset(x: geo.size.width / 2 - Self.spacing * CGFloat(cameraAt - 1) + look + dragging)
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
                     .contentShape(Rectangle())
                     .gesture(DragGesture(minimumDistance: 4)
@@ -53,9 +57,14 @@ struct LevelPassView: View {
             .onHover { hovering = $0 }
             .onAppear {
                 let target = Self.position(hours: p.totalHours)
-                shipAt = fromHours.map(Self.position(hours:)) ?? target
-                // Fly forward to where you are now
-                withAnimation(.spring(duration: 1.6, bounce: 0.15).delay(0.35)) { shipAt = target }
+                let start = fromHours.map(Self.position(hours:)) ?? target
+                shipAt = start
+                // The view holds between start and finish (so you see the ship fly), then settles on the ship
+                cameraAt = abs(target - start) <= 5 ? (start + target) / 2 : start
+                withAnimation(.easeInOut(duration: 2.4).delay(0.9)) { shipAt = target }
+                if abs(target - start) > 5 {
+                    withAnimation(.easeInOut(duration: 2.4).delay(1.1)) { cameraAt = target }
+                }
                 monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { e in
                     guard hovering else { return e }
                     let d = abs(e.scrollingDeltaX) > abs(e.scrollingDeltaY) ? e.scrollingDeltaX : e.scrollingDeltaY
@@ -84,6 +93,22 @@ struct LevelPassView: View {
                 Text("Every 3 hours of study is a level. Click a reward to take it.").font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            // pick your ship
+            HStack(spacing: 4) {
+                ForEach(1...3, id: \.self) { n in
+                    Button { withAnimation(.spring(duration: 0.3)) { ship = n } } label: {
+                        Group {
+                            if let img = PlanetPainter.bundleImage(Self.shipImage(n)) { Image(nsImage: img).resizable() } else { Text("🛸") }
+                        }
+                        .frame(width: 34, height: 34)
+                        .padding(3)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(ship == n ? Color.orange.opacity(0.25) : Color.white.opacity(0.05)))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(ship == n ? Color.orange : .clear, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Fly ship \(n)")
+                }
+            }
             HStack(spacing: 6) {
                 RocketIcon(size: 18)
                 Text(store.rocketBalance.formatted()).font(.title3.weight(.bold).monospacedDigit())
@@ -120,9 +145,8 @@ struct LevelPassView: View {
             TimelineView(.animation(minimumInterval: 1 / 30)) { tl in
                 let bob = sin(tl.date.timeIntervalSinceReferenceDate * 2.2) * 4
                 VStack(spacing: 2) {
-                    if let img = PlanetPainter.bundleImage(Self.shipImage(level: Int(shipAt))) {
-                        Image(nsImage: img).resizable().interpolation(.high).frame(width: 64, height: 64)
-                            .shadow(color: .cyan.opacity(0.6), radius: 10)
+                    if let img = PlanetPainter.bundleImage(Self.shipImage(ship)) {
+                        Image(nsImage: img).resizable().interpolation(.high).frame(width: 78, height: 78)
                     } else {
                         Text("🛸").font(.system(size: 44))
                     }
@@ -130,7 +154,7 @@ struct LevelPassView: View {
                         .background(Capsule().fill(.orange))
                     Image(systemName: "arrowtriangle.down.fill").font(.system(size: 9)).foregroundStyle(.orange)
                 }
-                .offset(x: shipX - 32, y: 14 + bob)
+                .offset(x: shipX - 39, y: 4 + bob)
             }
         }
         .frame(width: width, height: 320, alignment: .topLeading)

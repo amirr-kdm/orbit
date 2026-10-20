@@ -80,6 +80,13 @@ struct ContentView: View {
                 page
             }
         }
+        // Developer tool: CS_TEST_PASS=2 opens the Level Pass as if 2 hours were just studied
+        .onAppear {
+            if let h = ProcessInfo.processInfo.environment["CS_TEST_PASS"].flatMap(Double.init) {
+                let total = store.sessions.reduce(0) { $0 + $1.duration } / 3600
+                store.passMoment = PassMoment(fromHours: max(0, total - h), toHours: total)
+            }
+        }
         // After a study session: the ship flies along the Level Pass
         .sheet(item: Binding(get: { store.passMoment }, set: { store.passMoment = $0 })) { m in
             LevelPassView(fromHours: m.fromHours)
