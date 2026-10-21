@@ -147,10 +147,13 @@ end;
 $$;
 revoke all on function public.pay_boss(uuid) from public, anon, authenticated;
 
--- Fire bullets; returns the monster's health left
-create or replace function public.fire_boss(b uuid, shots int)
+-- Fire: `shots` bullets used, `hits` of them landed (aiming happens in the app; a miss still costs a bullet).
+-- Returns the monster's health left.
+alter table public.boss_fighters add column if not exists spent int not null default 0;
+drop function if exists public.fire_boss(uuid, int);
+create or replace function public.fire_boss(b uuid, shots int, hits int)
 returns int language plpgsql security definer set search_path = public as $$
-declare me uuid := auth.uid(); x bosses; mine boss_fighters; dealt int; left_hp int;
+declare me uuid := auth.uid(); x bosses; mine boss_fighters; used int; dealt int; left_hp int;
 begin
   select * into x from bosses where id = b for update;
   if x.id is null or not public.fights_boss(b) then raise exception 'Join the fight first'; end if;
@@ -158,9 +161,10 @@ begin
   if now() > x.deadline then update bosses set status = 'escaped' where id = b; raise exception 'Too late — the monster escaped'; end if;
   select * into mine from boss_fighters where boss_id = b and user_id = me for update;
   left_hp := x.hp - (select coalesce(sum(damage), 0) from boss_fighters where boss_id = b);
-  dealt := greatest(0, least(shots, mine.minutes - mine.damage, left_hp));
-  if dealt = 0 then return left_hp; end if;
-  update boss_fighters set damage = damage + dealt where boss_id = b and user_id = me;
+  used := greatest(0, least(shots, mine.minutes - mine.spent));
+  dealt := greatest(0, least(hits, used, left_hp));
+  if used = 0 then return left_hp; end if;
+  update boss_fighters set spent = spent + used, damage = damage + dealt where boss_id = b and user_id = me;
   left_hp := left_hp - dealt;
   if left_hp <= 0 then
     update bosses set status = 'defeated' where id = b;
@@ -178,13 +182,24 @@ returns void language sql security definer set search_path = public as $$
 $$;
 
 revoke all on function public.create_boss(text, int, timestamptz), public.invite_boss(uuid, uuid), public.invite_boss_group(uuid, uuid),
-  public.answer_boss_invite(uuid, boolean), public.report_boss(uuid, int), public.fire_boss(uuid, int), public.expire_boss(uuid) from public, anon;
+  public.answer_boss_invite(uuid, boolean), public.report_boss(uuid, int), public.fire_boss(uuid, int, int), public.expire_boss(uuid) from public, anon;
 grant execute on function public.create_boss(text, int, timestamptz), public.invite_boss(uuid, uuid), public.invite_boss_group(uuid, uuid),
-  public.answer_boss_invite(uuid, boolean), public.report_boss(uuid, int), public.fire_boss(uuid, int), public.expire_boss(uuid),
+  public.answer_boss_invite(uuid, boolean), public.report_boss(uuid, int), public.fire_boss(uuid, int, int), public.expire_boss(uuid),
   public.fights_boss(uuid), public.can_see_boss(uuid) to authenticated;
+
+-- The one who summoned a monster can delete it (no rockets are involved until it's beaten)
+create or replace function public.delete_boss(b uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from bosses where id = b and creator = auth.uid()) then raise exception 'Only the one who summoned it can delete it'; end if;
+  delete from bosses where id = b;
+end;
+$$;
+revoke all on function public.delete_boss(uuid) from public, anon;
+grant execute on function public.delete_boss(uuid) to authenticated;
 
 -- To remove the experiment:
 -- drop function if exists public.create_boss(text, int, timestamptz), public.invite_boss(uuid, uuid), public.invite_boss_group(uuid, uuid),
---   public.answer_boss_invite(uuid, boolean), public.report_boss(uuid, int), public.fire_boss(uuid, int), public.expire_boss(uuid),
---   public.pay_boss(uuid), public.boss_pool(int), public.boss_level(int), public.fights_boss(uuid), public.can_see_boss(uuid);
+--   public.answer_boss_invite(uuid, boolean), public.report_boss(uuid, int), public.fire_boss(uuid, int, int), public.expire_boss(uuid),
+--   public.pay_boss(uuid), public.delete_boss(uuid), public.boss_pool(int), public.boss_level(int), public.fights_boss(uuid), public.can_see_boss(uuid);
 -- drop table if exists public.boss_invites, public.boss_fighters, public.bosses;

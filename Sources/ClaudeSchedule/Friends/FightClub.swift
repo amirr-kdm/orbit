@@ -30,6 +30,9 @@ struct BossFighter: Decodable, Hashable {
     let user_id: UUID
     let minutes: Int
     let damage: Int
+    /// bullets used, hit or miss
+    var spent: Int? = nil
+    var used: Int { spent ?? damage }
 }
 
 @MainActor @Observable
@@ -130,6 +133,11 @@ final class FightClubService {
         await perform { _ = try await self.client.rpc("invite_boss_group", Body(b: b.id.uuidString, g: group.uuidString)) }
     }
 
+    /// Only the one who summoned it
+    func delete(_ b: Boss) async {
+        await perform { _ = try await self.client.rpc("delete_boss", ["b": b.id.uuidString]) }
+    }
+
     func answer(_ b: UUID, accept: Bool) async {
         struct Body: Encodable { let b: String; let accept: Bool }
         await perform { _ = try await self.client.rpc("answer_boss_invite", Body(b: b.uuidString, accept: accept)) }
@@ -155,15 +163,22 @@ final class FightClubService {
         }
     }
 
-    /// Fire bullets; returns the damage actually done
-    func fire(_ b: Boss, shots: Int) async -> Int {
+    /// Bullets left for me
+    func ammo(_ b: Boss, me: UUID?) -> Int {
+        let f = self.me(b, me)
+        return max(0, max(earned(b), f?.minutes ?? 0) - (f?.used ?? 0))
+    }
+
+    /// Send a burst: `shots` bullets used, `hits` of them landed. Returns the damage the server counted.
+    @discardableResult
+    func fire(_ b: Boss, shots: Int, hits: Int) async -> Int {
         struct Report: Encodable { let b: String; let mins: Int }
-        struct Fire: Encodable { let b: String; let shots: Int }
+        struct Fire: Encodable { let b: String; let shots: Int; let hits: Int }
         let before = healthLeft(b)
         do {
             // make sure the server knows about my latest study first
             _ = try await client.rpc("report_boss", Report(b: b.id.uuidString, mins: earned(b)))
-            _ = try await client.rpc("fire_boss", Fire(b: b.id.uuidString, shots: shots))
+            _ = try await client.rpc("fire_boss", Fire(b: b.id.uuidString, shots: shots, hits: hits))
             error = nil
             await load()
             let after = bosses.first { $0.id == b.id }.map(healthLeft) ?? before
@@ -188,6 +203,7 @@ struct FightClubCard: View {
     @Environment(FriendsService.self) private var friends
     @State private var creating = false
     @State private var battle: Boss?
+    @State private var deleting: Boss?
 
     var body: some View {
         let me = friends.me?.id
@@ -228,8 +244,14 @@ struct FightClubCard: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    if b.creator == me { Button("Delete Monster…", role: .destructive) { deleting = b } }
+                }
             }
         }
+        .confirmationDialog("Delete “\(deleting?.title ?? "")”?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
+            Button("Delete", role: .destructive) { if let d = deleting { Task { await fc.delete(d) } } }
+        } message: { Text("It disappears for everyone fighting it. Bullets already fired are lost and nobody gets a prize.") }
         .sheet(isPresented: $creating) { NewBossSheet { id in creating = false; Task { await fc.load(); battle = fc.bosses.first { $0.id == id } } } }
         .sheet(item: $battle) { BattleView(bossID: $0.id) }
     }
@@ -343,37 +365,71 @@ struct NewBossSheet: View {
     }
 }
 
-/// The fight: the monster up top, your ship below, bullets fly up
+/// The fight: a living monster drifts and dodges up top; move your jet with the mouse (or ← →)
+/// and click or press Space to fire. Only bullets that hit do damage — misses still cost a bullet.
 struct BattleView: View {
     let bossID: UUID
     @Environment(FightClubService.self) private var fc
     @Environment(FriendsService.self) private var friends
     @Environment(\.dismiss) private var dismiss
-    @State private var shots: [Shot] = []
-    @State private var hits: [Hit] = []
-    @State private var shake = false
-    @State private var firing = false
+    @State private var shipX: CGFloat = 0.5          // 0…1 across the arena
+    @State private var bullets: [Bullet] = []
+    @State private var pendingShots = 0
+    @State private var pendingHits = 0
+    @State private var arenaSize = CGSize(width: 760, height: 420)
+    @State private var flushing = false
+    @FocusState private var focused: Bool
+    @State private var confirmDelete = false
+    private let start = Date()
 
-    struct Shot: Identifiable { let id = UUID(); let x: CGFloat; let delay: Double }
-    struct Hit: Identifiable { let id = UUID(); let text: String; let x: CGFloat }
+    struct Bullet: Identifiable { let id = UUID(); let x: CGFloat; let t0: Double; let hit: Bool }
+    static let flight = 0.55   // seconds from ship to monster height
 
     var body: some View {
         if let b = fc.bosses.first(where: { $0.id == bossID }) {
-            let mine = fc.me(b, friends.me?.id)
-            let ammo = max(0, max(fc.earned(b), mine?.minutes ?? 0) - (mine?.damage ?? 0))
-            let left = fc.healthLeft(b)
+            let ammo = max(0, fc.ammo(b, me: friends.me?.id) - pendingShots)
+            let left = max(0, fc.healthLeft(b) - pendingHits)
             VStack(spacing: 0) {
                 header(b, left: left)
-                arena(b, left: left)
-                controls(b, ammo: ammo, left: left)
+                arena(b, left: left, ammo: ammo)
+                footer(b, ammo: ammo)
             }
-            .frame(width: 760, height: 640)
+            .frame(width: 760, height: 660)
             .background(Color(hex: "#070B1A"))
             .environment(\.colorScheme, .dark)
+            .focusable()
+            .focused($focused)
+            .focusEffectDisabled()
+            .onAppear { focused = true }
+            .onKeyPress(.leftArrow) { shipX = max(0.04, shipX - 0.04); return .handled }
+            .onKeyPress(.rightArrow) { shipX = min(0.96, shipX + 0.04); return .handled }
+            .onKeyPress(.space) { shoot(b, ammo: ammo, left: left); return .handled }
+            .task { while !Task.isCancelled { try? await Task.sleep(for: .seconds(1.2)); await flush(b) } }
+            .onDisappear { Task { await flush(b) } }
         } else {
             Text("Loading…").frame(width: 300, height: 200).task { await fc.load() }
         }
     }
+
+    // MARK: The monster's life
+
+    private var now: Double { Date().timeIntervalSince(start) }
+
+    /// How lively it is: faster when bigger and when it's hurt
+    private func pace(_ b: Boss, _ left: Int) -> Double {
+        0.55 + 0.12 * Double(b.monster) + 0.9 * (1 - Double(left) / Double(max(1, b.hp)))
+    }
+
+    /// Where the monster's centre is (0…1 across) at time t — a wandering, dodging path
+    private func monsterX(_ b: Boss, _ left: Int, at t: Double) -> CGFloat {
+        let p = pace(b, left)
+        let wander = sin(t * p) * 0.7 + sin(t * p * 2.3 + 1.1) * 0.25 + sin(t * p * 0.37 + 2) * 0.2
+        return 0.5 + CGFloat(wander) * 0.33
+    }
+
+    private func monsterSize(_ b: Boss) -> CGFloat { min(arenaSize.height * 0.5, 120 + CGFloat(b.monster) * 18) }
+
+    // MARK: Views
 
     private func header(_ b: Boss, left: Int) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -384,8 +440,15 @@ struct BattleView: View {
                 Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Escapes \(b.deadline.formatted(.relative(presentation: .named)))")
                     .font(.callout).foregroundStyle(.secondary)
                 if b.isAlive { InviteMenu(boss: b) }
+                if b.creator == friends.me?.id {
+                    Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
+                        .help("Delete this monster")
+                }
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
+            .confirmationDialog("Delete “\(b.title)”?", isPresented: $confirmDelete) {
+                Button("Delete", role: .destructive) { Task { await fc.delete(b); dismiss() } }
+            } message: { Text("It disappears for everyone fighting it. Bullets already fired are lost and nobody gets a prize.") }
             HStack(spacing: 8) {
                 Image(systemName: "heart.fill").foregroundStyle(.red)
                 ProgressView(value: Double(left), total: Double(b.hp)).tint(.red)
@@ -395,48 +458,87 @@ struct BattleView: View {
         .padding(16)
     }
 
-    private func arena(_ b: Boss, left: Int) -> some View {
+    private func arena(_ b: Boss, left: Int, ammo: Int) -> some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
-            let size = min(h * 0.62, 150 + CGFloat(b.monster) * 30)
-            ZStack {
-                StarsBackground()
-                // the monster
-                if let img = monsterImage(b.monster) {
-                    Image(nsImage: img).resizable().scaledToFit()
-                        .frame(width: size, height: size)
-                        .saturation(b.status == "defeated" ? 0 : 1)
-                        .opacity(b.status == "defeated" ? 0.35 : 1)
-                        .rotationEffect(.degrees(b.status == "defeated" ? 18 : 0))
-                        .offset(x: shake ? 9 : 0)
-                        .colorMultiply(shake ? Color(red: 1, green: 0.55, blue: 0.55) : .white)
-                        .position(x: w / 2, y: size / 2 + 14)
-                }
-                // damage numbers
-                ForEach(hits) { hit in
-                    Text(hit.text).font(.system(size: 26, weight: .heavy, design: .rounded)).foregroundStyle(.yellow)
-                        .shadow(color: .red, radius: 6)
-                        .position(x: w / 2 + hit.x, y: size * 0.4)
-                        .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity)))
-                }
-                // bullets
-                ForEach(shots) { s in
-                    BulletView(from: CGPoint(x: w / 2 + s.x, y: h - 90), to: CGPoint(x: w / 2 + s.x * 0.3, y: size * 0.55), delay: s.delay)
-                }
-                // my ship
-                if let ship = PlanetPainter.bundleImage("fighter") {
-                    Image(nsImage: ship).resizable().scaledToFit().frame(width: 110, height: 110)
-                        .position(x: w / 2, y: h - 60)
-                        .offset(y: firing ? 4 : 0)
+            let size = monsterSize(b)
+            let monsterY = size / 2 + 16
+            let shipY = h - 56
+            TimelineView(.animation) { tl in
+                let t = tl.date.timeIntervalSince(start)
+                let mx = monsterX(b, left, at: t) * w
+                let p = pace(b, left)
+                // alive: breathing, swaying, a little hop; flinches when hit
+                let breath = 1 + 0.045 * sin(t * 3.1 * p)
+                let sway = 5 * sin(t * 1.7 * p)
+                let hop = abs(sin(t * 2.2 * p)) * -7
+                let hitNow = bullets.contains { $0.hit && (0...0.18).contains(t - ($0.t0 + Self.flight)) }
+                ZStack {
+                    StarsBackground()
+                    if let img = monsterImage(b.monster) {
+                        Image(nsImage: img).resizable().scaledToFit()
+                            .frame(width: size, height: size)
+                            .scaleEffect(x: 2 - breath, y: breath, anchor: .bottom)
+                            .rotationEffect(.degrees(b.isAlive ? sway : 18))
+                            .colorMultiply(hitNow ? Color(red: 1, green: 0.45, blue: 0.45) : .white)
+                            .offset(x: hitNow ? CGFloat.random(in: -6...6) : 0)
+                            .saturation(b.status == "defeated" ? 0 : 1)
+                            .opacity(b.status == "defeated" ? 0.35 : 1)
+                            .position(x: b.isAlive ? mx : w / 2, y: monsterY + (b.isAlive ? hop : 0))
+                    }
+                    // bullets and hits
+                    Canvas { ctx, _ in
+                        for bl in bullets {
+                            let k = (t - bl.t0) / Self.flight
+                            if k < 0 { continue }
+                            if bl.hit && k >= 1 {
+                                // a hit: burst + "-1" floating up
+                                let e = (t - bl.t0 - Self.flight) / 0.5
+                                guard e < 1 else { continue }
+                                let hx = monsterX(b, left, at: bl.t0 + Self.flight) * w
+                                let r = 8 + 18 * e
+                                ctx.fill(Path(ellipseIn: CGRect(x: hx - r, y: monsterY - r, width: r * 2, height: r * 2)),
+                                         with: .color(.orange.opacity(0.7 * (1 - e))))
+                                ctx.draw(Text("-1").font(.system(size: 18, weight: .heavy, design: .rounded)).foregroundColor(.yellow.opacity(1 - e)),
+                                         at: CGPoint(x: hx + 18, y: monsterY - 20 - 30 * e))
+                                continue
+                            }
+                            // flying (misses keep going off the top)
+                            let y = shipY - 30 - (shipY - monsterY) * k
+                            if y < -20 { continue }
+                            let x = bl.x * w
+                            ctx.fill(Path(roundedRect: CGRect(x: x - 2.5, y: y - 9, width: 5, height: 18), cornerRadius: 2.5),
+                                     with: .linearGradient(Gradient(colors: [.yellow, .orange]), startPoint: CGPoint(x: x, y: y - 9), endPoint: CGPoint(x: x, y: y + 9)))
+                        }
+                    }
+                    .allowsHitTesting(false)
+                    // the jet
+                    if let ship = PlanetPainter.bundleImage("fighter") {
+                        Image(nsImage: ship).resizable().scaledToFit().frame(width: 96, height: 96)
+                            .rotationEffect(.degrees(Double((shipX - 0.5) * 10)))
+                            .position(x: shipX * w, y: shipY)
+                    }
+                    if b.isAlive && ammo == 0 {
+                        Text("Out of bullets — study to reload 📚").font(.callout.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 6).background(Capsule().fill(.black.opacity(0.6)))
+                            .position(x: w / 2, y: h / 2)
+                    }
                 }
             }
-            .clipped()
+            .contentShape(Rectangle())
+            .onContinuousHover { phase in
+                if case .active(let pt) = phase { shipX = min(0.96, max(0.04, pt.x / w)) }
+            }
+            .onTapGesture { shoot(b, ammo: ammo, left: left) }
+            .onAppear { arenaSize = geo.size }
+            .onChange(of: geo.size) { _, s in arenaSize = s }
         }
+        .clipped()
     }
 
-    private func controls(_ b: Boss, ammo: Int, left: Int) -> some View {
+    private func footer(_ b: Boss, ammo: Int) -> some View {
         let people = fc.fighters(of: b).filter { $0.damage > 0 }.sorted { $0.damage > $1.damage }
-        let total = max(1, fc.damageDone(b))
+        let total = max(1, fc.damageDone(b) + pendingHits)
         return HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
@@ -444,35 +546,28 @@ struct BattleView: View {
                     Text("\(ammo) bullets").font(.headline.monospacedDigit())
                     Text("· 1 per minute studied since it appeared").font(.caption).foregroundStyle(.secondary)
                 }
-                // magazine
                 HStack(spacing: 2) {
                     ForEach(0..<30, id: \.self) { i in
                         Capsule().fill(i < min(30, ammo) ? Color.yellow : Color.white.opacity(0.1)).frame(width: 5, height: 16)
                     }
                     if ammo > 30 { Text("+\(ammo - 30)").font(.caption2).foregroundStyle(.secondary) }
                 }
-                if b.isAlive {
-                    HStack {
-                        ForEach([1, 10, 60], id: \.self) { n in
-                            Button("Fire \(n)") { fire(b, n) }.disabled(ammo < 1 || firing)
-                        }
-                        Button("Fire all (\(min(ammo, left)))") { fire(b, min(ammo, left)) }
-                            .buttonStyle(.borderedProminent).tint(.red).disabled(ammo < 1 || firing)
-                    }
-                    .controlSize(.large)
-                }
+                Text(b.isAlive ? "Move with the mouse or ← →  ·  click or Space to fire  ·  only hits count" : "This fight is over.")
+                    .font(.caption).foregroundStyle(.secondary)
                 if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
             }
             Spacer()
             VStack(alignment: .leading, spacing: 4) {
                 Text("Damage · prize \(b.pool) 🚀").font(.caption.weight(.bold)).foregroundStyle(.secondary)
-                if people.isEmpty { Text("No hits yet").font(.caption).foregroundStyle(.tertiary) }
+                if people.isEmpty && pendingHits == 0 { Text("No hits yet").font(.caption).foregroundStyle(.tertiary) }
                 ForEach(people.prefix(5), id: \.user_id) { f in
-                    let name = f.user_id == friends.me?.id ? "You" : (friends.people[f.user_id]?.profile.name ?? "Member")
+                    let isMe = f.user_id == friends.me?.id
+                    let name = isMe ? "You" : (friends.people[f.user_id]?.profile.name ?? "Member")
+                    let dmg = f.damage + (isMe ? pendingHits : 0)
                     HStack {
                         Text(name).lineLimit(1)
                         Spacer()
-                        Text("\(f.damage) · ~\(b.pool * f.damage / total) 🚀").monospacedDigit().foregroundStyle(.secondary)
+                        Text("\(dmg) · ~\(b.pool * dmg / total) 🚀").monospacedDigit().foregroundStyle(.secondary)
                     }
                     .font(.caption).frame(width: 220)
                 }
@@ -481,42 +576,30 @@ struct BattleView: View {
         .padding(16)
     }
 
-    private func fire(_ b: Boss, _ n: Int) {
-        firing = true
-        // a volley: up to 12 bullets on screen whatever the count
-        let count = min(12, max(1, n))
-        withAnimation(.none) { shots = (0..<count).map { i in Shot(x: CGFloat.random(in: -30...30), delay: Double(i) * 0.07) } }
-        Task {
-            let dealt = await fc.fire(b, shots: n)
-            try? await Task.sleep(for: .milliseconds(450))
-            if dealt > 0 {
-                withAnimation(.spring(duration: 0.15)) { shake = true }
-                withAnimation(.spring(duration: 0.4)) { hits.append(Hit(text: "-\(dealt)", x: CGFloat.random(in: -60...60))) }
-                try? await Task.sleep(for: .milliseconds(160))
-                withAnimation(.spring(duration: 0.3)) { shake = false }
-            }
-            try? await Task.sleep(for: .milliseconds(700))
-            withAnimation { hits.removeAll(); shots.removeAll() }
-            firing = false
-        }
+    // MARK: Shooting
+
+    private func shoot(_ b: Boss, ammo: Int, left: Int) {
+        guard b.isAlive, ammo > 0, left > 0 else { return }
+        let t = now
+        let w = arenaSize.width
+        // where the monster will be when the bullet gets there
+        let target = monsterX(b, left, at: t + Self.flight) * w
+        let hit = abs(shipX * w - target) < monsterSize(b) * 0.32
+        bullets.append(Bullet(x: shipX, t0: t, hit: hit))
+        pendingShots += 1
+        if hit { pendingHits += 1 }
+        // forget old bullets
+        bullets.removeAll { now - $0.t0 > 2.5 }
     }
-}
 
-/// One bullet flying from the ship to the monster
-private struct BulletView: View {
-    let from: CGPoint
-    let to: CGPoint
-    let delay: Double
-    @State private var gone = false
-
-    var body: some View {
-        Capsule()
-            .fill(LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom))
-            .frame(width: 5, height: 18)
-            .shadow(color: .orange, radius: 6)
-            .position(gone ? to : from)
-            .opacity(gone ? 0 : 1)
-            .onAppear { withAnimation(.easeIn(duration: 0.45).delay(delay)) { gone = true } }
+    /// Send what was fired since the last flush
+    private func flush(_ b: Boss) async {
+        guard !flushing, pendingShots > 0 else { return }
+        flushing = true
+        let shots = pendingShots, hits = pendingHits
+        pendingShots = 0; pendingHits = 0
+        await fc.fire(b, shots: shots, hits: hits)
+        flushing = false
     }
 }
 
