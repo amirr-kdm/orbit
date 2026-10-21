@@ -144,7 +144,7 @@ struct LevelPassView: View {
             }
 
             // the ship hovers above where you are
-            TimelineView(.animation(minimumInterval: 1 / 30)) { tl in
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: AppActivity.paused)) { tl in
                 let bob = sin(tl.date.timeIntervalSinceReferenceDate * 2.2) * 4
                 VStack(spacing: 2) {
                     if let img = PlanetPainter.bundleImage(Self.shipImage(ship)) {
@@ -182,7 +182,7 @@ struct LevelPassView: View {
             } label: {
                 VStack(spacing: 6) {
                     if let planet {
-                        TimelineView(.animation(minimumInterval: 1 / 8)) { _ in
+                        TimelineView(.animation(minimumInterval: 1 / 8, paused: AppActivity.paused)) { _ in
                             PlanetView(planet: planet, size: 70, phase: 0.2)
                         }
                     }
@@ -223,7 +223,7 @@ private struct PlanetPreview: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            TimelineView(.animation(minimumInterval: 1 / 12)) { tl in
+            TimelineView(.animation(minimumInterval: 1 / 12, paused: AppActivity.paused)) { tl in
                 PlanetView(planet: planet, size: 200, phase: tl.date.timeIntervalSinceReferenceDate / 8)
             }
             .frame(width: 220, height: 220)

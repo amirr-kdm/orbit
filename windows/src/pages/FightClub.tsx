@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar, Modal } from "../components";
+import { Avatar, frameLoop, Modal } from "../components";
 import { dayNum, monthNum, yearNum } from "../lib/dates";
 import { Boss, bossLevel, bossPool, useFightClub } from "../lib/fightclub";
 import { useFriends } from "../lib/friends";
@@ -309,9 +309,9 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
 
   // draw loop
   useEffect(() => {
-    let raf = 0;
-    const draw = (now: number) => {
-      raf = requestAnimationFrame(draw);
+    // capped at 60 fps (fast monitors would draw 144+), paused in the background
+    const stop = frameLoop((now) => draw(now), 60);
+    function draw(now: number) {
       const c = cv.current; if (!c || !b) return;
       const s = state.current, ctx = c.getContext("2d")!, dpr = devicePixelRatio || 1;
       if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
@@ -350,9 +350,8 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
       s.bullets = s.bullets.filter((x) => now - x.t0 < 2500);
       // the jet
       if (shipEl.current.complete) { ctx.save(); ctx.translate(s.shipX * W, shipY); ctx.rotate(((s.shipX - 0.5) * 10 * Math.PI) / 180); ctx.drawImage(shipEl.current, -48, -48, 96, 96); ctx.restore(); }
-    };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    }
+    return stop;
   });
 
   if (!b) return null;

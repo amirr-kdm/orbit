@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import streakUrl from "./assets/streak.png";
 
-/** An animation loop capped at `fps` that pauses while the window is hidden or minimised.
+/** An animation loop capped at `fps` that pauses while the window is hidden, minimised or in the background.
  *  Uncapped loops kept slow laptops at full CPU/GPU. Returns a stop function. */
 export function frameLoop(cb: (t: number) => void, fps = 30) {
   let raf = 0, last = -1e9;
   const f = (t: number) => {
     raf = requestAnimationFrame(f);
-    if (document.hidden || t - last < 1000 / fps - 2) return;
+    if (document.hidden || !document.hasFocus() || t - last < 1000 / fps - 2) return;
     last = t; cb(t);
   };
   raf = requestAnimationFrame(f);

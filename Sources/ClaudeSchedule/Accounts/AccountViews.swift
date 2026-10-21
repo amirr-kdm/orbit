@@ -28,7 +28,7 @@ struct SpaceBackdrop<Content: View>: View {
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             RadialGradient(colors: [Color(hex: "#7C3AED").opacity(0.35), .clear], center: .init(x: 0.18, y: 0.25), startRadius: 10, endRadius: 520)
             RadialGradient(colors: [Color(hex: "#22D3EE").opacity(0.18), .clear], center: .init(x: 0.85, y: 0.85), startRadius: 10, endRadius: 480)
-            TimelineView(.animation(minimumInterval: 1 / 20)) { t in
+            TimelineView(.animation(minimumInterval: 1 / 20, paused: AppActivity.paused)) { t in
                 Canvas { ctx, size in
                     var rng = SeededRandom(seed: "login-stars")
                     let time = t.date.timeIntervalSinceReferenceDate
@@ -75,7 +75,7 @@ struct LoginView: View {
     var body: some View {
         SpaceBackdrop {
             GeometryReader { geo in
-                TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: AppActivity.paused)) { t in
                     let time = t.date.timeIntervalSince(start)
                     ZStack {
                         // Satellite drifting through its nebula (top left)
@@ -262,7 +262,7 @@ struct PendingView: View {
 
     var body: some View {
         SpaceBackdrop {
-            TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: AppActivity.paused)) { t in
                 let time = t.date.timeIntervalSince(start)
                 VStack(spacing: 22) {
                     Art(name: "login-cat")

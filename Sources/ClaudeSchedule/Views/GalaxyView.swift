@@ -65,7 +65,7 @@ struct GalaxyPage: View {
             ZStack {
                 Circle().fill(Color.black.opacity(0.85)).frame(width: 96, height: 96)
                 if let avatar = PlanetCatalog.planet(store.avatarPlanet) {
-                    TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+                    TimelineView(.animation(minimumInterval: 1 / 15, paused: AppActivity.paused)) { t in
                         PlanetView(planet: avatar, size: 96, phase: t.date.timeIntervalSinceReferenceDate / 10)
                     }
                 } else {
@@ -300,7 +300,7 @@ struct GalaxyPage: View {
         return HStack(alignment: .top, spacing: 18) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.88))
-                TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: AppActivity.paused)) { t in
                     PlanetView(planet: planet, size: 130, phase: t.date.timeIntervalSinceReferenceDate / 8)
                 }
             }
@@ -430,7 +430,7 @@ struct GalaxyPage: View {
         return HStack(spacing: 18) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.88))
-                TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: AppActivity.paused)) { t in
                     PlanetView(planet: planet, size: 130,
                                phase: t.date.timeIntervalSinceReferenceDate / 8,
                                locked: !unlocked)
@@ -557,7 +557,12 @@ struct GalaxyMapView: View {
                 ForEach(Array(data.systems.enumerated()), id: \.element.id) { i, system in
                     let base = Self.position(of: system, index: i)
                     let isOpen = focused == system.id
-                    MapSystemTile(system: system, zoom: zoom, showName: focused == nil, canMove: focused == nil && onMove != nil,
+                    // where the tile sits on screen: only animate the ones you can see
+                    let sx = base.x * zoom - w / 2 + geo.size.width / 2 + offset.width
+                    let sy = base.y * zoom - h / 2 + geo.size.height / 2 + offset.height
+                    let half = CGSize(width: 165 * zoom * GalaxyMapView.tileScale, height: 130 * zoom * GalaxyMapView.tileScale)
+                    let onScreen = sx + half.width > 0 && sx - half.width < geo.size.width && sy + half.height > 0 && sy - half.height < geo.size.height
+                    MapSystemTile(system: system, zoom: zoom, still: !onScreen || !(focused == nil || isOpen), showName: focused == nil, canMove: focused == nil && onMove != nil,
                                   onTap: { if focused == nil { onSelect?(system.id) } },
                                   onDrop: { t in onMove?(system.id, CGPoint(x: base.x + t.width / zoom, y: base.y + t.height / zoom)) })
                         .opacity(focused == nil || isOpen ? 1 : 0)
@@ -746,9 +751,11 @@ struct SolarSystemView: View {
     /// Map tiles: draw the 330×260 layout scaled up to this factor (sharp at any zoom)
     var paintScale: CGFloat = 1
     var showName = true
+    /// Off-screen or hidden: draw once, don't animate
+    var still = false
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: large ? 1 / 30 : 1 / 20)) { timeline in
+        TimelineView(.animation(minimumInterval: large ? 1 / 24 : 1 / 12, paused: still || AppActivity.paused)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             Canvas { ctx, size in
                 if large { StarsBackground.paint(&ctx, size: size) }
@@ -1021,6 +1028,7 @@ struct InfiniteStars: View {
 private struct MapSystemTile: View {
     let system: GalaxyData.System
     let zoom: Double
+    var still = false
     let showName: Bool
     let canMove: Bool
     let onTap: () -> Void
@@ -1029,7 +1037,7 @@ private struct MapSystemTile: View {
 
     var body: some View {
         // Painted at the real on-screen size, so it stays sharp when zoomed in
-        SolarSystemView(system: system, large: false, paintScale: zoom * GalaxyMapView.tileScale, showName: showName)
+        SolarSystemView(system: system, large: false, paintScale: zoom * GalaxyMapView.tileScale, showName: showName, still: still)
             .frame(width: 330 * zoom * GalaxyMapView.tileScale, height: 260 * zoom * GalaxyMapView.tileScale)
             .contentShape(Ellipse())
             .offset(drag)

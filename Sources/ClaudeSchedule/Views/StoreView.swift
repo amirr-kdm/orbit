@@ -99,7 +99,7 @@ private struct StoreCard: View {
         let affordable = store.rocketBalance >= planet.price
         VStack(spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                TimelineView(.animation(minimumInterval: 1 / 30, paused: !hovering)) { t in
+                TimelineView(.animation(minimumInterval: 1 / 30, paused: !hovering || AppActivity.paused)) { t in
                     PlanetView(planet: planet, size: 150, phase: t.date.timeIntervalSinceReferenceDate / 12)
                 }
                 .frame(maxWidth: .infinity)
@@ -154,7 +154,7 @@ private struct StoreDetail: View {
         let owned = store.ownedCount(planet.id)
         let unplaced = store.unplacedCount(planet.id)
         HStack(alignment: .top, spacing: 24) {
-            TimelineView(.animation(minimumInterval: 1 / 30)) { t in
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: AppActivity.paused)) { t in
                 PlanetView(planet: planet, size: 260, phase: t.date.timeIntervalSinceReferenceDate / 10)
             }
             .frame(width: 280, height: 280)
