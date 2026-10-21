@@ -53,6 +53,7 @@ Mac and Windows share the same server, so friends on both platforms can study to
 | 🛍 **Store** | Earn 🚀 rockets by studying and buy 40+ hand-made planets. |
 | 👥 **Friends & groups** | Friend codes, live *studying now*, weekly leaderboards, groups with a weekly prize. |
 | 🏆 **Challenges & promises** | Group challenges with an entry fee (all finish → fees doubled), and promises to a friend with rockets at stake. |
+| 💥 **Fight Club** | Summon a space monster for a study goal, alone or with friends and groups. Every minute you study is a bullet — fly your ship, fire, and share the rockets when it falls before the deadline. |
 | ⚡ **Streaks** | Days in a row with study — with 3 automatic streak freezes every month. |
 
 ---

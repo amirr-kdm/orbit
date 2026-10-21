@@ -7,6 +7,7 @@ import { FriendsProvider } from "./lib/friends";
 import { TimerProvider } from "./lib/timer";
 import { AccountProvider } from "./lib/account";
 import { ChallengesProvider } from "./lib/challenges";
+import { FightClubProvider } from "./lib/fightclub";
 import { registerPicture } from "./lib/planets";
 import ufo from "./assets/ufo.png";
 import satellite from "./assets/satellite.png";
@@ -25,11 +26,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <StoreProvider>
       <FriendsProvider>
         <AccountProvider>
-          <ChallengesProvider>
+          <ChallengesProvider><FightClubProvider>
             <TimerProvider>
               <App />
             </TimerProvider>
-          </ChallengesProvider>
+          </FightClubProvider></ChallengesProvider>
         </AccountProvider>
       </FriendsProvider>
     </StoreProvider>

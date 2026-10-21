@@ -13,6 +13,7 @@ import Reports from "./pages/Reports";
 import Galaxy from "./pages/Galaxy";
 import StorePage from "./pages/Store";
 import Friends from "./pages/Friends";
+import FightClubPage from "./pages/FightClub";
 import Settings from "./pages/Settings";
 import iconUrl from "./icon.png";
 import { useAccount } from "./lib/account";
@@ -22,7 +23,7 @@ import { FREEZES_PER_MONTH } from "./lib/streak";
 import { AdminPanel, LoginPage, PendingPage, ProfileModal } from "./pages/Account";
 import { Avatar, StreakIcon } from "./components";
 
-export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "settings";
+export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "fightClub" | "settings";
 const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
   { id: "today", title: "Today", icon: "☀️", section: "Plan" },
   { id: "schedule", title: "Weekly Schedule", icon: "🗓️", section: "Plan" },
@@ -34,6 +35,7 @@ const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
   { id: "galaxy", title: "My Galaxy", icon: "✨", section: "Rewards" },
   { id: "store", title: "Store", icon: "🛍️", section: "Rewards" },
   { id: "friends", title: "Friends", icon: "👥", section: "Social" },
+  { id: "fightClub", title: "Fight Club", icon: "💥", section: "Social" },
   { id: "settings", title: "Settings", icon: "⚙️", section: "App" },
 ];
 
@@ -68,7 +70,7 @@ export default function App() {
   useEffect(() => { document.title = timer.active ? `⏱ ${clock(timer.display)} · Orbit` : "Orbit"; }, [timer.active, timer.display]);
 
   const nav: Nav = { tab, go: (t, d) => { setTab(t); setFocusDay(d); }, focusDay, clearFocus: () => setFocusDay(undefined) };
-  const Page = { today: Today, schedule: Schedule, planner: PlannerPage, timer: TimerPage, tasks: Tasks, calendar: Calendar, reports: Reports, galaxy: Galaxy, store: StorePage, friends: Friends, settings: Settings }[tab];
+  const Page = { today: Today, schedule: Schedule, planner: PlannerPage, timer: TimerPage, tasks: Tasks, calendar: Calendar, reports: Reports, galaxy: Galaxy, store: StorePage, friends: Friends, fightClub: FightClubPage, settings: Settings }[tab];
 
   // Accounts: log in, upgrade an old profile, or wait for the owner's approval
   if (account.state === "loading") return <div className="space-login" />;
