@@ -344,9 +344,16 @@ struct NewBossSheet: View {
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     TextField("Goal, e.g. Finish chapter 5", text: $title).textFieldStyle(.roundedBorder)
-                    Stepper("It takes \(hm(Int(hours * 60))) of study", value: $hours, in: 0.5...100, step: 0.5)
+                    // the arrows stay put: the changing number has a fixed-width slot before them
+                    HStack(spacing: 6) {
+                        Text("It takes")
+                        Text(hm(Int(hours * 60))).monospacedDigit().fontWeight(.semibold).frame(width: 74, alignment: .trailing)
+                        Stepper("", value: $hours, in: 0.5...100, step: 0.5).labelsHidden()
+                        Text("of study")
+                    }
                     DatePicker("Deadline", selection: $deadline, in: Date().addingTimeInterval(1800)..., displayedComponents: [.date, .hourAndMinute])
                     Text("Monster level \(level) · \(hm(Int(hours * 60))) of health · prize \(pool) 🚀 shared by damage").font(.callout.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Text("You can fight alone, or invite friends or a whole group from the battle screen. Each minute studied after it appears is one bullet. If the deadline passes first, it escapes and nobody wins.")
