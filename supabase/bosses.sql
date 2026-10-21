@@ -57,9 +57,9 @@ create or replace function public.boss_level(hp int) returns int language sql im
   select case when hp <= 300 then 1 when hp <= 600 then 2 when hp <= 1200 then 3 when hp <= 2400 then 4 else 5 end
 $$;
 
--- Reward pool: 30 rockets per hour of the goal, +15% per monster level above 1
+-- Reward pool: 45 rockets per hour of the goal, +15% per monster level above 1
 create or replace function public.boss_pool(hp int) returns int language sql immutable as $$
-  select floor(hp / 60.0 * 30 * (1 + 0.15 * (public.boss_level(hp) - 1)))::int
+  select floor(hp / 60.0 * 45 * (1 + 0.15 * (public.boss_level(hp) - 1)))::int
 $$;
 
 -- Summon a monster on your own (invite others afterwards)

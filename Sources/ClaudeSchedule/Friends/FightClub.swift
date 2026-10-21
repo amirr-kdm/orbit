@@ -14,8 +14,8 @@ struct Boss: Decodable, Identifiable, Hashable {
     let status: String
     let created_at: Date
 
-    /// Same as the server: 30 rockets per hour of the goal, +15% per monster level above 1
-    var pool: Int { Int((Double(hp) / 60 * 30 * (1 + 0.15 * Double(monster - 1))).rounded(.down)) }
+    /// Same as the server: 45 rockets per hour of the goal, +15% per monster level above 1
+    var pool: Int { Int((Double(hp) / 60 * 45 * (1 + 0.15 * Double(monster - 1))).rounded(.down)) }
     var isAlive: Bool { status == "alive" }
 }
 
@@ -331,7 +331,7 @@ struct NewBossSheet: View {
     @State private var deadline = Date().addingTimeInterval(3 * 86400)
 
     private var level: Int { let m = hours * 60; return m <= 300 ? 1 : m <= 600 ? 2 : m <= 1200 ? 3 : m <= 2400 ? 4 : 5 }
-    private var pool: Int { Int(hours * 30 * (1 + 0.15 * Double(level - 1))) }
+    private var pool: Int { Int(hours * 45 * (1 + 0.15 * Double(level - 1))) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
