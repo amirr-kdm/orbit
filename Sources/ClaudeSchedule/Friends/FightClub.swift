@@ -384,53 +384,89 @@ struct InviteSheet: View {
     }
 }
 
-/// Pick a deadline day (Persian calendar) and time — the next two weeks as cards
+/// Pick a deadline: year → month → day in the Persian calendar, then a time (presets or custom)
 private struct PersianDuePicker: View {
     @Binding var date: Date
+    @State private var customTime = false
 
-    private var days: [Date] {
-        let today = Cal.persian.startOfDay(for: Date())
-        return (0..<14).compactMap { Cal.persian.date(byAdding: .day, value: $0, to: today) }
-    }
+    private static let months = ["Farvardin", "Ordibehesht", "Khordad", "Tir", "Mordad", "Shahrivar",
+                                 "Mehr", "Aban", "Azar", "Dey", "Bahman", "Esfand"]
     private static let times: [(String, Int, Int)] = [("Noon", 12, 0), ("6 PM", 18, 0), ("9 PM", 21, 0), ("Midnight", 23, 59)]
 
+    private var cal: Calendar { Cal.persian }
+    private var parts: DateComponents { cal.dateComponents([.year, .month, .day, .hour, .minute], from: date) }
+    private var thisYear: Int { cal.component(.year, from: Date()) }
+    private func daysIn(year: Int, month: Int) -> Int {
+        guard let d = cal.date(from: DateComponents(year: year, month: month, day: 1)) else { return 30 }
+        return cal.range(of: .day, in: .month, for: d)?.count ?? 30
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(days, id: \.self) { d in
-                        let on = Cal.persian.isDate(d, inSameDayAs: date)
-                        Button { set(day: d) } label: {
-                            VStack(spacing: 2) {
-                                Text(Fmt.date(d, "EEE", .persian)).font(.caption2).foregroundStyle(on ? .white : .secondary)
-                                Text(Fmt.date(d, "d", .persian)).font(.headline.monospacedDigit())
-                                Text(Fmt.date(d, "MMM", .persian)).font(.caption2).foregroundStyle(on ? .white : .secondary)
-                            }
-                            .frame(width: 46, height: 58)
-                            .background(RoundedRectangle(cornerRadius: 9).fill(on ? Color.red : Color.primary.opacity(0.07)))
-                            .foregroundStyle(on ? .white : .primary)
-                        }
-                        .buttonStyle(.plain)
-                    }
+        let p = parts
+        let y = p.year ?? thisYear, m = p.month ?? 1, d = p.day ?? 1
+        let hour = p.hour ?? 23, minute = p.minute ?? 59
+        let preset = Self.times.first { $0.1 == hour && $0.2 == minute }
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Today is \(Fmt.date(Date(), "EEEE d MMMM y", .persian))", systemImage: "calendar")
+                .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Picker("Year", selection: Binding(get: { y }, set: { set(year: $0, month: m, day: d) })) {
+                    ForEach(thisYear...(thisYear + 1), id: \.self) { Text(String($0)).tag($0) }
                 }
+                .frame(width: 110)
+                Picker("Month", selection: Binding(get: { m }, set: { set(year: y, month: $0, day: d) })) {
+                    ForEach(1...12, id: \.self) { Text("\($0) · \(Self.months[$0 - 1])").tag($0) }
+                }
+                .frame(width: 190)
+                Picker("Day", selection: Binding(get: { d }, set: { set(year: y, month: m, day: $0) })) {
+                    ForEach(1...daysIn(year: y, month: m), id: \.self) { Text(String($0)).tag($0) }
+                }
+                .frame(width: 90)
             }
+            .labelsHidden()
             HStack(spacing: 6) {
                 ForEach(Self.times, id: \.0) { t in
-                    let on = Calendar.current.component(.hour, from: date) == t.1 && Calendar.current.component(.minute, from: date) == t.2
-                    Button(t.0) { set(hour: t.1, minute: t.2) }.buttonStyle(.bordered).tint(on ? .red : nil)
+                    let on = !customTime && preset?.0 == t.0
+                    timeButton(t.0, on: on) { customTime = false; set(hour: t.1, minute: t.2) }
                 }
+                timeButton("Custom", on: customTime || preset == nil) { customTime = true }
+            }
+            if customTime || preset == nil {
+                HStack(spacing: 6) {
+                    Text("Time")
+                    Picker("Hour", selection: Binding(get: { hour }, set: { set(hour: $0, minute: minute) })) {
+                        ForEach(0..<24, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                    }
+                    .frame(width: 70)
+                    Text(":")
+                    Picker("Minute", selection: Binding(get: { minute }, set: { set(hour: hour, minute: $0) })) {
+                        ForEach(Array(stride(from: 0, through: 55, by: 5)) + (minute % 5 == 0 ? [] : [minute]), id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                    }
+                    .frame(width: 70)
+                }
+                .labelsHidden()
             }
         }
     }
 
-    private func set(day: Date) {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-        date = Calendar.current.date(bySettingHour: c.hour ?? 23, minute: c.minute ?? 59, second: 0, of: day) ?? day
-        if date < Date().addingTimeInterval(1800) { date = Date().addingTimeInterval(3600) }
+    /// The chosen option is filled red; the others stay plain
+    @ViewBuilder
+    private func timeButton(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
+        if on {
+            Button(title, action: action).buttonStyle(.borderedProminent).tint(.red)
+        } else {
+            Button(title, action: action).buttonStyle(.bordered)
+        }
+    }
+
+    private func set(year: Int, month: Int, day: Int) {
+        let p = parts
+        let dd = min(day, daysIn(year: year, month: month))
+        if let n = cal.date(from: DateComponents(year: year, month: month, day: dd, hour: p.hour ?? 23, minute: p.minute ?? 59)) { date = n }
     }
     private func set(hour: Int, minute: Int) {
-        date = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
-        if date < Date().addingTimeInterval(1800) { date = date.addingTimeInterval(86400) }
+        let p = parts
+        if let n = cal.date(from: DateComponents(year: p.year, month: p.month, day: p.day, hour: hour, minute: minute)) { date = n }
     }
 }
 
@@ -501,6 +537,9 @@ struct NewBossSheet: View {
                         if due == .custom { PersianDuePicker(date: $customDate) }
                         Text("Escapes \(Fmt.date(deadline, "EEEE d MMMM · HH:mm", .persian)) · \(deadline.formatted(.relative(presentation: .named)))")
                             .font(.caption).foregroundStyle(.secondary)
+                        if deadline < Date().addingTimeInterval(1800) {
+                            Text("That's too soon — pick a time at least 30 minutes from now.").font(.caption).foregroundStyle(.red)
+                        }
                     }
                 }
             }
@@ -524,7 +563,8 @@ struct NewBossSheet: View {
                         }
                     }
                 }
-                .buttonStyle(.borderedProminent).tint(.red).keyboardShortcut(.defaultAction).disabled(fc.busy)
+                .buttonStyle(.borderedProminent).tint(.red).keyboardShortcut(.defaultAction)
+                .disabled(fc.busy || deadline < Date().addingTimeInterval(1800))
             }
         }
         .padding(20).frame(width: 600)
