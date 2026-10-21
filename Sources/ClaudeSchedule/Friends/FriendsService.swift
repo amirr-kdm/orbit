@@ -410,7 +410,7 @@ final class FriendsService {
         var subjects: [String: SubjectStat] = [:]
         for s in sessions {
             let subj = store.subject(of: s)
-            subjects[subj.name, default: SubjectStat(name: subj.name, minutes: 0, color: s.colorHex.isEmpty ? "#8E8E93" : s.colorHex)]
+            subjects[subj.name, default: SubjectStat(name: subj.name, minutes: 0, color: store.subjectHex(of: s))]
                 .minutes += Int(s.duration / 60)
         }
         return DailyStat(user_id: userID,

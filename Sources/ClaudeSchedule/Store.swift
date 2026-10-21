@@ -680,6 +680,12 @@ final class AppStore {
     }
 
     /// Name + colour a session is grouped under in reports
+    /// Hex of the colour a session shows (follows the category-colour setting, like `subject(of:)`)
+    func subjectHex(of s: StudySession) -> String {
+        if settings.categoryColors, let c = category(s.categoryID), entry(s.scheduleEntryID)?.kind != .fixed { return c.colorHex }
+        return s.colorHex.isEmpty ? "#8E8E93" : s.colorHex
+    }
+
     func subject(of s: StudySession) -> (name: String, color: Color) {
         // With "to-dos use their category's colour" on, study of a to-do or task shows its category's colour too
         // (fixed classes keep their own)
