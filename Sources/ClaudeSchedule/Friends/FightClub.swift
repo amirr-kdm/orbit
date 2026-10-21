@@ -102,7 +102,7 @@ final class FightClubService {
         for b in bosses where b.isAlive {
             if Date() > b.deadline {
                 _ = try? await client.rpc("expire_boss", ["b": b.id.uuidString])
-            } else {
+            } else if store.accountReady {
                 struct Body: Encodable { let b: String; let mins: Int }
                 _ = try? await client.rpc("report_boss", Body(b: b.id.uuidString, mins: earned(b)))
             }
@@ -193,7 +193,7 @@ final class FightClubService {
         let before = healthLeft(b)
         do {
             // make sure the server knows about my latest study first
-            _ = try await client.rpc("report_boss", Report(b: b.id.uuidString, mins: earned(b)))
+            if store.accountReady { _ = try await client.rpc("report_boss", Report(b: b.id.uuidString, mins: earned(b))) }
             _ = try await client.rpc("fire_boss", Fire(b: b.id.uuidString, shots: shots, hits: hits))
             error = nil
             await load()

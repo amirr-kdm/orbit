@@ -1,7 +1,7 @@
 // Fight Club — same rules as the Mac app; the server runs them (supabase/bosses.sql)
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { notify, useAccount } from "./account";
-import { sharedClient as client } from "./friends";
+import { accountData, sharedClient as client } from "./friends";
 import { studyTime, useStore } from "./store";
 
 export interface Boss { id: string; creator: string; title: string; hp: number; deadline: string; monster: number; status: "alive" | "defeated" | "escaped"; created_at: string }
@@ -73,7 +73,7 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
     for (const b of got.list.filter((x) => x.status === "alive")) {
       try {
         if (Date.now() > new Date(b.deadline).getTime()) await client.rpc("expire_boss", { b: b.id });
-        else if ((got.by[b.id] ?? []).some((f) => f.user_id === mine)) await client.rpc("report_boss", { b: b.id, mins: earned(b) });
+        else if (accountData.ready && (got.by[b.id] ?? []).some((f) => f.user_id === mine)) await client.rpc("report_boss", { b: b.id, mins: earned(b) });
       } catch { /* later */ }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,7 +116,7 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
     fire: async (b, shots, hits) => {
       const before = healthLeft(b);
       try {
-        await client.rpc("report_boss", { b: b.id, mins: earned(b) });
+        if (accountData.ready) await client.rpc("report_boss", { b: b.id, mins: earned(b) });
         const left = await client.rpc("fire_boss", { b: b.id, shots, hits });
         setError(null);
         if (before > 0 && left === 0) await account.claimGifts();

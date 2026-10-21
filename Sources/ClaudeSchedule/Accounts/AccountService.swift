@@ -78,6 +78,7 @@ final class AccountService {
         email = session.email
         // Approved before on this Mac: open straight away (works offline too)
         if !session.isAnonymous, Self.cachedApproval(session.userID) { state = .approved }
+        store.accountReady = syncedAccount == session.userID.uuidString
         await loadProfile()
     }
 
@@ -101,8 +102,10 @@ final class AccountService {
                 let wasApproved = state == .approved
                 state = .approved
                 if !wasApproved || loops.isEmpty { startLoops() }
-                await friends.reload()
+                // Bring this account's data down first, so nothing from another account is sent under its name
                 await syncOnStart()
+                store.accountReady = syncedAccount == session.userID.uuidString
+                await friends.reload()
                 await claimGifts()
             } else {
                 Self.setCachedApproval(session.userID, false)
@@ -112,6 +115,7 @@ final class AccountService {
         } catch {
             // Offline: keep whatever we had; a pending user stays on the waiting screen
             if state == .loading { state = Self.cachedApproval(session.userID) ? .approved : .pending }
+            store.accountReady = syncedAccount == session.userID.uuidString
             if state == .approved && loops.isEmpty { startLoops() }
         }
     }
@@ -168,6 +172,7 @@ final class AccountService {
 
     private func signOutLocally() async {
         stopLoops()
+        store.accountReady = false
         await friends.signOut()
         profile = nil
         email = nil
@@ -258,7 +263,13 @@ final class AccountService {
             let rows = try await client.select("user_data?user_id=eq.\(uid.uuidString)&select=updated_at", as: [Row].self)
             let account = uid.uuidString
             guard let server = rows.first?.updated_at else {
-                // Nothing on the server yet: this Mac's data becomes the backup
+                // Nothing on the server yet: this Mac's data becomes the backup —
+                // unless it belongs to another account; then this one starts empty (theirs is kept aside)
+                if let other = syncedAccount, other != account {
+                    restoring = true
+                    store.restore(from: Data("{}".utf8), keepingBackupNamed: "data-other-account-\(Int(Date().timeIntervalSince1970)).json")
+                    restoring = false
+                }
                 syncedAccount = account
                 await upload()
                 return
@@ -267,7 +278,7 @@ final class AccountService {
             if syncedAccount != account {
                 // New install or a different account on this Mac: use the server copy, keep ours aside
                 try await download(uid, backup: "data-before-login-\(Int(Date().timeIntervalSince1970)).json")
-            } else if server > (syncedAt ?? .distantPast) {
+            } else if Self.differs(server, syncedAt) {
                 if dirty && local > server { await upload() } else { try await download(uid, backup: dirty ? "data-replaced-\(Int(Date().timeIntervalSince1970)).json" : nil) }
             } else if dirty {
                 await upload()
@@ -286,16 +297,16 @@ final class AccountService {
         let data = try JSONSerialization.data(withJSONObject: obj)
         restoring = true
         defer { restoring = false }
-        if store.restore(from: data, keepingBackupNamed: backup) {
-            if let s = row["updated_at"] as? String, let d = Self.parseDate(s) { syncedAt = d } else { syncedAt = Date() }
-            dirty = false
-            lastSync = Date()
-        }
+        guard store.restore(from: data, keepingBackupNamed: backup) else { throw Self.fail("Couldn't read the backup from the server.") }
+        if let s = row["updated_at"] as? String, let d = Self.parseDate(s) { syncedAt = d } else { syncedAt = Date() }
+        dirty = false
+        lastSync = Date()
     }
 
     /// Send the whole data file up (last change wins)
     func upload() async {
-        guard state == .approved, let uid = await client.userID, let data = store.exportData() else { return }
+        guard state == .approved, let uid = await client.userID, syncedAccount == uid.uuidString,
+              let data = store.exportData() else { return }
         syncing = true
         defer { syncing = false }
         let now = Date()
@@ -316,6 +327,18 @@ final class AccountService {
             syncError = (error as? SupabaseClient.APIError)?.message ?? "Offline — your changes are saved on this Mac and will sync later."
         }
     }
+
+    /// Another device (the Windows app, another Mac) saved a newer copy: bring it down
+    private func pullIfChanged() async {
+        guard let uid = await client.userID, syncedAccount == uid.uuidString else { return }
+        struct Row: Decodable { let updated_at: Date }
+        guard let server = try? await client.select("user_data?user_id=eq.\(uid.uuidString)&select=updated_at", as: [Row].self).first?.updated_at,
+              Self.differs(server, syncedAt), !dirty else { return }
+        do { try await download(uid, backup: nil); syncError = nil } catch {}
+    }
+
+    /// Times saved by different devices: more than a second apart counts as a change
+    private static func differs(_ a: Date, _ b: Date?) -> Bool { b.map { abs(a.timeIntervalSince($0)) > 1 } ?? true }
 
     private func flushUpload() async {
         uploadTask?.cancel()
@@ -360,7 +383,7 @@ final class AccountService {
 
     /// Add rocket gifts from the owner that this account hasn't counted yet
     func claimGifts() async {
-        guard state == .approved, !restoring else { return }
+        guard state == .approved, !restoring, store.accountReady else { return }
         struct Gift: Decodable { let id: UUID; let amount: Int; let reason: String? }
         guard let gifts = try? await client.select("rocket_gifts?select=id,amount,reason", as: [Gift].self) else { return }
         let new = gifts.filter { !store.claimedGifts.contains($0.id.uuidString) }
@@ -424,8 +447,9 @@ final class AccountService {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
                 guard let self, self.state == .approved else { continue }
+                if !self.store.accountReady { await self.syncOnStart(); self.store.accountReady = self.syncedAccount == (await self.client.userID)?.uuidString }
+                else if self.dirty { await self.upload() } else { await self.pullIfChanged() }
                 await self.claimGifts()
-                if self.dirty { await self.upload() }
             }
         })
         // Owner: watch for new sign-ups

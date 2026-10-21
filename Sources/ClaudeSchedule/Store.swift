@@ -215,6 +215,9 @@ final class AppStore {
 
     /// Called after every successful save (the cloud backup listens to this)
     @ObservationIgnored var onSaved: (() -> Void)?
+    /// True once the data on this device is known to belong to the signed-in account.
+    /// Until then nothing built from it (rockets, stats, study minutes) is sent to the server.
+    @ObservationIgnored var accountReady = false
 
     /// The folder holding data.json
     var dataFolder: URL { fileURL.deletingLastPathComponent() }

@@ -324,7 +324,7 @@ final class FriendsService {
             }
             self.people = Dictionary(cards.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             self.friends = cards.filter { friendIDs.contains($0.id) }.sorted { $0.weekMinutes > $1.weekMinutes }
-            self.awardGroupWins(me: uid)
+            if self.store.accountReady { self.awardGroupWins(me: uid) }
             self.lastSync = Date()
         }
     }
@@ -366,7 +366,7 @@ final class FriendsService {
 
     /// Upload the last 7 days of my summary (only rows that changed)
     func syncNow() async {
-        guard let me else { return }
+        guard let me, store.accountReady else { return }
         let rows = (0..<7).compactMap { Cal.persian.date(byAdding: .day, value: -$0, to: Date()) }
             .map { localStat(for: $0, userID: me.id) }
         let extras = ProfileExtras(level: store.galaxyProgress().level, avatar: store.avatarPlanet, galaxy: store.galaxyData,
@@ -387,7 +387,7 @@ final class FriendsService {
 
     /// Tell friends what I'm studying right now (nil = idle). Only sends when it changes.
     func pushLive(timer: TimerEngine, force: Bool = false) async {
-        guard let me else { return }
+        guard let me, store.accountReady else { return }
         let title = liveTitle(timer)
         if !force, let last = lastLiveSent, last == title { return }
         lastLiveSent = .some(title)

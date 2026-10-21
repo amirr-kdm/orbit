@@ -1,7 +1,7 @@
 // Group challenges and promises to a friend — same rules as the Mac app; payouts run on the server (supabase/challenges.sql)
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAccount } from "./account";
-import { sharedClient as client } from "./friends";
+import { accountData, sharedClient as client } from "./friends";
 import { studyTime, useStore, wallet } from "./store";
 
 export interface Challenge {
@@ -54,7 +54,7 @@ export function ChallengesProvider({ children }: { children: React.ReactNode }) 
     for (const c of got.l) {
       const start = new Date(c.starts_at).getTime(), end = new Date(c.ends_at).getTime();
       const mine = (got.by[c.id] ?? []).some((m) => m.user_id.toLowerCase() === me);
-      if (c.status === "open" && mine && now >= start && now <= end + GRACE) {
+      if (c.status === "open" && mine && accountData.ready && now >= start && now <= end + GRACE) {
         const minutes = Math.floor(studyTime(dataRef.current, new Date(start), new Date(Math.min(now, end))) / 60);
         try { await client.rpc("report_challenge", { c: c.id, minutes }); } catch { /* offline */ }
       }

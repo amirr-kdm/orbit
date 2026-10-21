@@ -2,7 +2,8 @@
 // Same server and rules as the Mac app. The app keeps working offline on the local copy.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppData } from "./model";
-import { sharedClient as client, supabaseConfigured, useFriends } from "./friends";
+import { accountData, sharedClient as client, supabaseConfigured, useFriends } from "./friends";
+import { defaultData } from "./model";
 import { useStore } from "./store";
 
 export type AccountState = "noServer" | "loading" | "signedOut" | "needsUpgrade" | "pending" | "approved";
@@ -43,6 +44,8 @@ const SYNC_KEY = "orbit-sync-v1";
 interface SyncMeta { account?: string; at?: string; dirty?: boolean }
 const meta = (): SyncMeta => { try { return JSON.parse(localStorage.getItem(SYNC_KEY) ?? "{}"); } catch { return {}; } };
 const setMeta = (m: SyncMeta) => { try { localStorage.setItem(SYNC_KEY, JSON.stringify({ ...meta(), ...m })); } catch { /* ignore */ } };
+/** Times saved by different devices: more than a second apart counts as a change (clocks differ between devices) */
+const differs = (server: number, at?: string) => !at || Math.abs(server - new Date(at).getTime()) > 1000;
 const approvedKey = (id: string) => `orbit-approved-${id}`;
 
 export function validate(email: string, username: string, password: string): string | null {
@@ -91,7 +94,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const upload = useCallback(async () => {
     const s = client.session;
-    if (stateRef.current !== "approved" || !s) return;
+    // Only ever upload this account's own data
+    if (stateRef.current !== "approved" || !s || meta().account !== s.userID) return;
     setSyncing(true);
     const now = new Date().toISOString();
     const body = `{"user_id":"${s.userID.toLowerCase()}","updated_at":"${now}","device":"Windows","data":${JSON.stringify(dataRef.current)}}`;
@@ -125,16 +129,24 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     try {
       const rows: { updated_at: string }[] = await client.get(`user_data?user_id=eq.${s.userID.toLowerCase()}&select=updated_at`);
       const m = meta();
-      if (!rows.length) { setMeta({ account: s.userID }); await upload(); return; }
+      if (!rows.length) {
+        // Nothing on the server yet: this data becomes the backup — unless it belongs to another account; then start empty
+        if (m.account && m.account !== s.userID) {
+          try { localStorage.setItem(`orbit-data-other-account-${Date.now()}`, JSON.stringify(dataRef.current)); } catch { /* ignore */ }
+          restoring.current = true; replaceAll(defaultData()); setTimeout(() => { restoring.current = false; }, 500);
+        }
+        setMeta({ account: s.userID }); accountData.ready = true; await upload(); return;
+      }
       const server = new Date(rows[0].updated_at).getTime();
       if (m.account !== s.userID) await download(s.userID);
-      else if (server > new Date(m.at ?? 0).getTime()) { if (m.dirty) await upload(); else await download(s.userID); }
+      else if (differs(server, m.at)) { if (m.dirty) await upload(); else await download(s.userID); }
       else if (m.dirty) await upload();
+      accountData.ready = meta().account === s.userID;
       setSyncError(null);
     } catch (e: any) {
       setSyncError("Offline — your changes are saved here and will sync later.");
     } finally { setSyncing(false); }
-  }, [upload, download]);
+  }, [upload, download, replaceAll]);
 
   // Local changes: mark dirty and upload a few seconds later
   const first = useRef(true);
@@ -149,7 +161,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 
   // Add rocket gifts from the owner that this account hasn't counted yet
   const claimGifts = useCallback(async () => {
-    if (stateRef.current !== "approved" || restoring.current) return;
+    if (stateRef.current !== "approved" || restoring.current || !accountData.ready) return;
     try {
       const gifts: { id: string; amount: number; reason?: string | null }[] = await client.get("rocket_gifts?select=id,amount,reason");
       const known = dataRef.current.claimedGifts ?? [];
@@ -183,9 +195,13 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       setProfile(p);
       if (!s.email) { setState("needsUpgrade"); return; }
       localStorage.setItem(approvedKey(s.userID), p.approved ? "1" : "0");
-      if (p.approved) { setState("approved"); stateRef.current = "approved"; await friends.reload(); await syncOnStart(); setTimeout(claimGifts, 1000); }
+      if (p.approved) { setState("approved"); stateRef.current = "approved"; 
+        // Bring this account's data down first, so nothing from another account is sent under its name
+        await syncOnStart(); accountData.ready = meta().account === s.userID; await friends.reload(); setTimeout(claimGifts, 1000);
+      }
       else setState("pending");
     } catch {
+      accountData.ready = meta().account === s.userID;
       setState((cur) => (cur === "loading" ? (localStorage.getItem(approvedKey(s.userID)) === "1" ? "approved" : "pending") : cur));
     }
   }, [friends, syncOnStart, claimGifts]);
@@ -195,6 +211,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     const s = client.session;
     if (!s) { setState("signedOut"); return; }
     if (s.email && localStorage.getItem(approvedKey(s.userID)) === "1") setState("approved");
+    accountData.ready = meta().account === s.userID;
     loadProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -209,9 +226,21 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   // Retry the backup every minute (after being offline)
   useEffect(() => {
     if (state !== "approved") return;
-    const t = setInterval(() => { claimGifts(); if (meta().dirty) upload(); }, 60_000);
+    const t = setInterval(async () => {
+      const s = client.session;
+      if (!accountData.ready) { await syncOnStart(); }
+      else if (meta().dirty) await upload();
+      else if (s) {
+        // Another device (the Mac app, another PC) saved a newer copy: bring it down
+        try {
+          const rows: { updated_at: string }[] = await client.get(`user_data?user_id=eq.${s.userID.toLowerCase()}&select=updated_at`);
+          if (rows[0] && differs(new Date(rows[0].updated_at).getTime(), meta().at) && !meta().dirty) await download(s.userID);
+        } catch { /* offline */ }
+      }
+      claimGifts();
+    }, 60_000);
     return () => clearInterval(t);
-  }, [state, upload, claimGifts]);
+  }, [state, upload, claimGifts, syncOnStart, download]);
 
   // ---------- admin (owner only — the server refuses everyone else) ----------
 
@@ -276,6 +305,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     signOut: async () => {
       window.clearTimeout(timer.current);
       if (meta().dirty) await upload();
+      accountData.ready = false;
       client.signOut(); friends.clearLocal();
       setProfile(null); setEmail(null); setUsers([]); setState("signedOut");
     },

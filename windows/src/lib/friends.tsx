@@ -8,6 +8,10 @@ import { weekStart } from "./dates";
 
 const URL_ = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "";
 const KEY_ = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) ?? "";
+/** True once the data on this device is known to belong to the signed-in account (set by the account code).
+ *  Until then nothing built from it (rockets, stats, study minutes) is sent to the server. */
+export const accountData = { ready: false };
+
 export const supabaseConfigured = !!URL_ && !!KEY_ && !URL_.includes("YOUR-PROJECT");
 
 export interface Session { accessToken: string; refreshToken: string; expiresAt: number; userID: string; /** null for old anonymous profiles */ email?: string | null }
@@ -235,7 +239,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
       const last = addDays(weekStart(new Date()), -7);
       const days = Array.from({ length: 7 }, (_, i) => addDays(last, i));
       const myLastWeek = Math.floor(sessionsIn(dataRef.current, last, addDays(last, 7)).reduce((a, s) => a + s.duration, 0) / 60);
-      if (myLastWeek > 0) {
+      if (myLastWeek > 0 && accountData.ready) {
         const keys: string[] = [], won: string[] = [];
         for (const g of groupList) {
           if (g.members.length < 2) continue;
@@ -254,7 +258,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   }, [client, run, actions]);
 
   const sync = useCallback(async () => {
-    if (!supabaseConfigured || !client.session || !me) return;
+    if (!supabaseConfigured || !client.session || !me || !accountData.ready) return;
     const d = dataRef.current;
     const uid = client.session.userID;
     const rows = Array.from({ length: 7 }, (_, i) => localStat(d, addDays(new Date(), -i), uid));
@@ -270,7 +274,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
   }, [client, me, run]);
 
   const pushLive = useCallback(async (force = false) => {
-    if (!supabaseConfigured || !client.session || !me) return;
+    if (!supabaseConfigured || !client.session || !me || !accountData.ready) return;
     const { title, startedAt, sent } = live.current;
     if (!force && sent === title) return;
     live.current.sent = title;
