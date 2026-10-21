@@ -8,6 +8,7 @@ struct ClaudeScheduleApp: App {
     @State private var friends: FriendsService
     @State private var account: AccountService
     @State private var challenges: ChallengeService
+    @State private var fightClub: FightClubService
     @State private var router = Router()
     @State private var updates = UpdateChecker()
 
@@ -39,6 +40,10 @@ struct ClaudeScheduleApp: App {
         let challenges = ChallengeService(store: store)
         challenges.onRocketsMoved = { [weak account] in await account?.claimGifts() }
         _challenges = State(initialValue: challenges)
+        let fightClub = FightClubService(store: store)
+        fightClub.onRocketsMoved = { [weak account] in await account?.claimGifts() }
+        fightClub.testGroupID = { [weak friends] in friends?.groups.first?.id }
+        _fightClub = State(initialValue: fightClub)
     }
 
     var body: some Scene {
@@ -53,6 +58,7 @@ struct ClaudeScheduleApp: App {
                 .environment(friends)
                 .environment(updates)
                 .environment(challenges)
+                .environment(fightClub)
                 .task { updates.start() }
         }
         .defaultSize(width: 1320, height: 820)

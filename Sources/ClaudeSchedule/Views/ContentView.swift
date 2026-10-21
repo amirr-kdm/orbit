@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case today, schedule, planner, timer, tasks, calendar, reports, galaxy, store, friends, settings
+    case today, schedule, planner, timer, tasks, calendar, reports, galaxy, store, friends, fightClub, settings
 
     var id: String { rawValue }
 
@@ -10,7 +10,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         ("Plan", [.today, .schedule, .tasks, .calendar, .planner]),
         ("Focus", [.timer, .reports]),
         ("Rewards", [.galaxy, .store]),
-        ("Social", [.friends]),
+        ("Social", [.friends, .fightClub]),
         ("App", [.settings]),
     ]
     var title: String {
@@ -25,6 +25,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .galaxy: "My Galaxy"
         case .store: "Store"
         case .friends: "Friends"
+        case .fightClub: "Fight Club"
         case .settings: "Settings"
         }
     }
@@ -40,6 +41,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .galaxy: "sparkles"
         case .store: "bag"
         case .friends: "person.2"
+        case .fightClub: "burst.fill"
         case .settings: "gearshape"
         }
     }
@@ -53,6 +55,7 @@ struct ContentView: View {
     @Environment(AccountService.self) private var account
     @Environment(UpdateChecker.self) private var updates
     @Environment(ChallengeService.self) private var challenges
+    @Environment(FightClubService.self) private var fightClub
     @State private var showAdmin = false
 
     var body: some View {
@@ -122,6 +125,7 @@ struct ContentView: View {
                 await friends.syncNow()
                 await friends.pushLive(timer: timer, force: timer.isRunning)
                 await challenges.tick()
+                await fightClub.tick()
                 try? await Task.sleep(for: .seconds(60))
             }
         }
@@ -142,6 +146,7 @@ struct ContentView: View {
             case .galaxy: GalaxyPage()
             case .store: StoreView()
             case .friends: FriendsView()
+            case .fightClub: FightClubPage()
             case .settings: SettingsView()
             }
     }
