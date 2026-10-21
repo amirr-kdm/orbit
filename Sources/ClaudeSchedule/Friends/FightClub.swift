@@ -50,6 +50,8 @@ final class FightClubService {
     @ObservationIgnored var onRocketsMoved: (() async -> Void)?
 
     init(store: AppStore) { self.store = store }
+    /// Developer tool only: who the pretend invite comes from
+    var testFriendID: (() -> UUID?)?
 
     func fighters(of b: Boss) -> [BossFighter] { fighters[b.id] ?? [] }
     func damageDone(_ b: Boss) -> Int { fighters(of: b).reduce(0) { $0 + $1.damage } }
@@ -83,6 +85,14 @@ final class FightClubService {
                             hp: 900, deadline: Date().addingTimeInterval(86400 * 2), monster: 3, status: "alive", created_at: Date().addingTimeInterval(-86400 * 3))
             if !bosses.contains(where: { $0.id == fake.id }) { bosses.insert(fake, at: 0) }
             fighters[fake.id] = [BossFighter(boss_id: fake.id, user_id: me, minutes: 300, damage: 240)]
+            // and a pretend invite from a friend, to see what an invite looks like
+            let inviteBoss = Boss(id: UUID(uuidString: "00000000-0000-0000-0000-0000000B0551")!, creator: UUID(), title: "Finish chapter 5",
+                                  hp: 600, deadline: Date().addingTimeInterval(86400 * 3), monster: 2, status: "alive", created_at: Date())
+            if !bosses.contains(where: { $0.id == inviteBoss.id }) { bosses.append(inviteBoss) }
+            let from = testFriendID?() ?? UUID()
+            if !invites.contains(where: { $0.boss_id == inviteBoss.id }) {
+                invites.append(BossInvite(boss_id: inviteBoss.id, user_id: me, from_user: from))
+            }
         }
     }
 
