@@ -133,6 +133,12 @@ final class FightClubService {
         await perform { _ = try await self.client.rpc("invite_boss_group", Body(b: b.id.uuidString, g: group.uuidString)) }
     }
 
+    /// Invite some friends and whole groups in one go
+    func sendInvites(_ b: Boss, friends: Set<UUID>, groups: Set<UUID>) async {
+        for f in friends { await invite(b, friend: f) }
+        for g in groups { await invite(b, group: g) }
+    }
+
     /// Only the one who summoned it
     func delete(_ b: Boss) async {
         await perform { _ = try await self.client.rpc("delete_boss", ["b": b.id.uuidString]) }
@@ -287,38 +293,111 @@ struct FightInvitesCard: View {
     }
 }
 
-/// Invite friends one by one, or a whole group at once
-struct InviteMenu: View {
-    let boss: Boss
-    @Environment(FightClubService.self) private var fc
+/// Pick who to invite: tap friends' avatars and whole groups
+struct InvitePicker: View {
+    @Binding var friendIDs: Set<UUID>
+    @Binding var groupIDs: Set<UUID>
+    /// Already fighting or invited (shown, not selectable)
+    var taken: Set<UUID> = []
     @Environment(FriendsService.self) private var friends
-    @State private var sent: String?
 
     var body: some View {
-        let fighting = Set(fc.fighters(of: boss).map(\.user_id))
-        let invited = Set(fc.invited(to: boss).map(\.user_id))
-        Menu {
-            Section("Friends") {
-                ForEach(friends.friends) { f in
-                    Button {
-                        Task { await fc.invite(boss, friend: f.id); sent = "Invite sent to \(f.profile.name)" }
-                    } label: {
-                        Text(f.profile.name + (fighting.contains(f.id) ? " — fighting" : invited.contains(f.id) ? " — invited" : ""))
+        VStack(alignment: .leading, spacing: 10) {
+            if friends.friends.isEmpty && friends.groups.isEmpty {
+                Text("Add friends or join a group to fight together — or just fight alone.").font(.caption).foregroundStyle(.secondary)
+            }
+            if !friends.friends.isEmpty {
+                Text("FRIENDS").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(friends.friends) { f in
+                            let on = friendIDs.contains(f.id), done = taken.contains(f.id)
+                            Button {
+                                if on { friendIDs.remove(f.id) } else { friendIDs.insert(f.id) }
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Avatar(name: f.profile.name, color: .accentColor, size: 40, planet: f.profile.avatar)
+                                        .overlay(alignment: .bottomTrailing) {
+                                            if on || done {
+                                                Image(systemName: "checkmark.circle.fill").foregroundStyle(done ? .gray : .green)
+                                                    .background(Circle().fill(.background)).offset(x: 4, y: 4)
+                                            }
+                                        }
+                                    Text(f.profile.name).font(.caption).lineLimit(1).frame(width: 64)
+                                    if done { Text("already in").font(.caption2).foregroundStyle(.secondary) }
+                                }
+                                .padding(6)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(on ? Color.red.opacity(0.18) : .clear))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(done)
+                        }
                     }
-                    .disabled(fighting.contains(f.id) || invited.contains(f.id))
                 }
-                if friends.friends.isEmpty { Text("No friends yet") }
             }
-            Section("Whole group") {
-                ForEach(friends.groups) { g in
-                    Button("\(g.name) (\(g.members.count))") { Task { await fc.invite(boss, group: g.id); sent = "Everyone in \(g.name) was invited" } }
+            if !friends.groups.isEmpty {
+                Text("WHOLE GROUP").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    ForEach(friends.groups) { g in
+                        let on = groupIDs.contains(g.id)
+                        Button {
+                            if on { groupIDs.remove(g.id) } else { groupIDs.insert(g.id) }
+                        } label: {
+                            Label("\(g.name) · \(g.members.count)", systemImage: on ? "checkmark.circle.fill" : "person.3.fill")
+                                .font(.callout)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(Capsule().fill(on ? Color.red.opacity(0.25) : Color.primary.opacity(0.07)))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                if friends.groups.isEmpty { Text("No groups yet") }
             }
-        } label: {
-            Label(sent ?? "Invite", systemImage: "person.badge.plus")
         }
-        .fixedSize()
+    }
+}
+
+/// Invite from the battle screen
+struct InviteSheet: View {
+    let boss: Boss
+    @Environment(FightClubService.self) private var fc
+    @Environment(\.dismiss) private var dismiss
+    @State private var friendIDs: Set<UUID> = []
+    @State private var groupIDs: Set<UUID> = []
+
+    var body: some View {
+        let taken = Set(fc.fighters(of: boss).map(\.user_id) + fc.invited(to: boss).map(\.user_id))
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Invite to fight “\(boss.title)”", systemImage: "person.badge.plus").font(.title3.weight(.bold))
+            InvitePicker(friendIDs: $friendIDs, groupIDs: $groupIDs, taken: taken)
+            if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Send Invites") {
+                    Task { await fc.sendInvites(boss, friends: friendIDs, groups: groupIDs); dismiss() }
+                }
+                .buttonStyle(.borderedProminent).tint(.red).keyboardShortcut(.defaultAction)
+                .disabled(friendIDs.isEmpty && groupIDs.isEmpty || fc.busy)
+            }
+        }
+        .padding(20).frame(width: 480)
+    }
+}
+
+/// Quick deadlines instead of a date picker
+private enum Due: String, CaseIterable, Identifiable {
+    case tonight = "Tonight", tomorrow = "Tomorrow", days3 = "3 days", week = "A week", custom = "Pick…"
+    var id: String { rawValue }
+    func date(custom: Date) -> Date {
+        let cal = Calendar.current, now = Date()
+        let tonight = cal.date(bySettingHour: 23, minute: 59, second: 0, of: now) ?? now
+        switch self {
+        case .tonight: return now.addingTimeInterval(3600 * 2) > tonight ? tonight.addingTimeInterval(86400) : tonight
+        case .tomorrow: return tonight.addingTimeInterval(86400)
+        case .days3: return tonight.addingTimeInterval(3 * 86400)
+        case .week: return tonight.addingTimeInterval(7 * 86400)
+        case .custom: return custom
+        }
     }
 }
 
@@ -328,47 +407,79 @@ struct NewBossSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var hours = 5.0
-    @State private var deadline = Date().addingTimeInterval(3 * 86400)
+    @State private var due: Due = .days3
+    @State private var customDate = Date().addingTimeInterval(5 * 86400)
+    @State private var friendIDs: Set<UUID> = []
+    @State private var groupIDs: Set<UUID> = []
 
     private var level: Int { let m = hours * 60; return m <= 300 ? 1 : m <= 600 ? 2 : m <= 1200 ? 3 : m <= 2400 ? 4 : 5 }
     private var pool: Int { Int(hours * 45 * (1 + 0.15 * Double(level - 1))) }
+    private var deadline: Date { due.date(custom: customDate) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             Label("Summon a monster", systemImage: "burst.fill").font(.title3.weight(.bold))
-            HStack(alignment: .top, spacing: 16) {
-                if let img = monsterImage(level) {
-                    Image(nsImage: img).resizable().scaledToFit()
-                        .frame(width: 70 + CGFloat(level) * 14, height: 70 + CGFloat(level) * 14)
-                        .animation(.spring(duration: 0.3), value: level)
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    TextField("Goal, e.g. Finish chapter 5", text: $title).textFieldStyle(.roundedBorder)
-                    // the arrows stay put: the changing number has a fixed-width slot before them
-                    HStack(spacing: 6) {
-                        Text("It takes")
-                        Text(hm(Int(hours * 60))).monospacedDigit().fontWeight(.semibold).frame(width: 74, alignment: .trailing)
-                        Stepper("", value: $hours, in: 0.5...100, step: 0.5).labelsHidden()
-                        Text("of study")
+            HStack(alignment: .top, spacing: 18) {
+                VStack(spacing: 6) {
+                    if let img = monsterImage(level) {
+                        Image(nsImage: img).resizable().scaledToFit()
+                            .frame(width: 70 + CGFloat(level) * 14, height: 70 + CGFloat(level) * 14)
+                            .animation(.spring(duration: 0.3), value: level)
                     }
-                    DatePicker("Deadline", selection: $deadline, in: Date().addingTimeInterval(1800)..., displayedComponents: [.date, .hourAndMinute])
-                    Text("Monster level \(level) · \(hm(Int(hours * 60))) of health · prize \(pool) 🚀 shared by damage").font(.callout.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Level \(level)").font(.caption.weight(.heavy)).padding(.horizontal, 8).padding(.vertical, 2).background(Capsule().fill(Color.red.opacity(0.25)))
+                    Text("\(pool) 🚀 prize").font(.caption.weight(.semibold))
+                }
+                .frame(width: 150)
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Goal, e.g. Finish chapter 5", text: $title).textFieldStyle(.roundedBorder)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("HOW MUCH STUDY").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            ForEach([2.0, 5, 10, 20], id: \.self) { h in
+                                Button("\(Int(h))h") { hours = h }
+                                    .buttonStyle(.bordered).tint(hours == h ? .red : nil)
+                            }
+                            Divider().frame(height: 18)
+                            Text(hm(Int(hours * 60))).monospacedDigit().fontWeight(.semibold).frame(width: 64, alignment: .trailing)
+                            Stepper("", value: $hours, in: 0.5...100, step: 0.5).labelsHidden()
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("DEADLINE").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+                        Picker("", selection: $due) { ForEach(Due.allCases) { Text($0.rawValue).tag($0) } }
+                            .pickerStyle(.segmented).labelsHidden()
+                        if due == .custom {
+                            DatePicker("", selection: $customDate, in: Date().addingTimeInterval(1800)..., displayedComponents: [.date, .hourAndMinute]).labelsHidden()
+                        }
+                        Text("Escapes \(deadline.formatted(.dateTime.weekday(.wide).hour().minute())) · \(deadline.formatted(.relative(presentation: .named)))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
-            Text("You can fight alone, or invite friends or a whole group from the battle screen. Each minute studied after it appears is one bullet. If the deadline passes first, it escapes and nobody wins.")
+            Divider()
+            VStack(alignment: .leading, spacing: 6) {
+                Text(friendIDs.isEmpty && groupIDs.isEmpty ? "Fight alone, or tap friends and groups to invite them" : "Invites go out when you summon")
+                    .font(.callout.weight(.semibold))
+                InvitePicker(friendIDs: $friendIDs, groupIDs: $groupIDs)
+            }
+            Text("Each minute studied after it appears is one bullet. Only hits count. If the deadline comes first, it escapes and nobody wins.")
                 .font(.caption).foregroundStyle(.secondary)
             if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Summon") {
-                    Task { if let id = await fc.create(title: title.isEmpty ? "Study goal" : title, minutes: Int(hours * 60), deadline: deadline) { onCreated(id) } }
+                Button(friendIDs.isEmpty && groupIDs.isEmpty ? "Summon & Fight Alone" : "Summon & Invite") {
+                    Task {
+                        if let id = await fc.create(title: title.isEmpty ? "Study goal" : title, minutes: Int(hours * 60), deadline: deadline) {
+                            if let b = fc.bosses.first(where: { $0.id == id }) { await fc.sendInvites(b, friends: friendIDs, groups: groupIDs) }
+                            onCreated(id)
+                        }
+                    }
                 }
                 .buttonStyle(.borderedProminent).tint(.red).keyboardShortcut(.defaultAction).disabled(fc.busy)
             }
         }
-        .padding(20).frame(width: 520)
+        .padding(20).frame(width: 600)
     }
 }
 
@@ -387,6 +498,7 @@ struct BattleView: View {
     @State private var flushing = false
     @FocusState private var focused: Bool
     @State private var confirmDelete = false
+    @State private var inviting = false
     @State private var holdLeft = false
     @State private var holdRight = false
     @State private var lastShot = Date.distantPast
@@ -467,13 +579,14 @@ struct BattleView: View {
                 Spacer()
                 Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Escapes \(b.deadline.formatted(.relative(presentation: .named)))")
                     .font(.callout).foregroundStyle(.secondary)
-                if b.isAlive { InviteMenu(boss: b) }
+                if b.isAlive { Button { inviting = true } label: { Label("Invite", systemImage: "person.badge.plus") } }
                 if b.creator == friends.me?.id {
                     Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
                         .help("Delete this monster")
                 }
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
+            .sheet(isPresented: $inviting) { InviteSheet(boss: b) }
             .confirmationDialog("Delete “\(b.title)”?", isPresented: $confirmDelete) {
                 Button("Delete", role: .destructive) { Task { await fc.delete(b); dismiss() } }
             } message: { Text("It disappears for everyone fighting it. Bullets already fired are lost and nobody gets a prize.") }
