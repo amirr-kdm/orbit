@@ -56,7 +56,7 @@ export interface StudySession {
 }
 
 export interface PlacedPlanet { id: string; planetID: string; addedAt: string; systemID?: string }
-export interface SolarSystem { id: string; name: string; sun: SunType }
+export interface SolarSystem { id: string; name: string; sun: SunType; /** where it sits on the map (dragged) */ x?: number; y?: number }
 
 export interface Settings {
   primaryCalendar: "persian" | "gregorian";
@@ -115,6 +115,8 @@ export interface AppData {
   /** Rocket gifts from the owner already added to rocketGrant (gift ids) */
   claimedGifts?: string[];
   plannerFolders?: PlannerFolder[];
+  /** Level Pass rewards taken */
+  claimedLevels?: number[];
 }
 
 export const uid = () =>

@@ -108,3 +108,15 @@ export const STORE: PlanetDef[] = [
   S("s_infinity", "Infinity Core", "Every colour, every orbit — the rarest world of all.", 1000,
     { shape: "burst", colors: ["#FEF9C3", "#F472B6", "#4C1D95"], pattern: "rainbow", accent: "#FFFFFF", ring: { color: "#FDE68A", tilt: 12, width: 0.12, double: true }, moons: 3, features: ["halo"], glow: true, crafts: ["comet", "shuttle", "stars"] }),
 ];
+
+/** Level Pass prizes (levels 10, 20 … 60): animated planets you can't buy — same as the Mac app */
+const R = (id: string, name: string, blurb: string, colors: [string, string, string], accent: string): PlanetDef =>
+  ({ id, name, group: 1, blurb, price: 0, colors, accent, glow: true, image: id });
+export const REWARDS: PlanetDef[] = [
+  R("lv_t1", "Penguin Ride", "Level 10 prize: two penguins riding a rocket through pink clouds.", ["#FBCFE8", "#EC4899", "#831843"], "#F9A8D4"),
+  R("lv_t2", "Penguin Probe", "Level 20 prize: a penguin keeping watch from its satellite.", ["#BAE6FD", "#38BDF8", "#0C4A6E"], "#7DD3FC"),
+  R("lv_t3", "Shiba Launch", "Level 30 prize: a pixel Shiba blasting off.", ["#FED7AA", "#F97316", "#7C2D12"], "#FDBA74"),
+  R("lv_t4", "Frog Planet", "Level 40 prize: a very tired frog world with its own ring.", ["#BBF7D0", "#22C55E", "#14532D"], "#86EFAC"),
+  R("lv_t5", "Happy Earth", "Level 50 prize: a cheerful Earth waving at its moon.", ["#BFDBFE", "#3B82F6", "#14532D"], "#93C5FD"),
+  R("lv_t6", "Penguin Voyager", "Level 60 prize: the final ride — a penguin rocketing past Mars.", ["#E9D5FF", "#A855F7", "#3B0764"], "#D8B4FE"),
+];

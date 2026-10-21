@@ -16,8 +16,11 @@ import Friends from "./pages/Friends";
 import Settings from "./pages/Settings";
 import iconUrl from "./icon.png";
 import { useAccount } from "./lib/account";
+import LevelPass from "./pages/LevelPass";
+import { myStreak } from "./lib/friends";
+import { FREEZES_PER_MONTH } from "./lib/streak";
 import { AdminPanel, LoginPage, PendingPage, ProfileModal } from "./pages/Account";
-import { Avatar } from "./components";
+import { Avatar, StreakIcon } from "./components";
 
 export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "settings";
 const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
@@ -39,7 +42,7 @@ const NavCtx = createContext<Nav>(null!);
 export const useNav = () => useContext(NavCtx);
 
 export default function App() {
-  const { data } = useStore();
+  const { data, passMoment, setPassMoment } = useStore();
   const timer = useTimer();
   const [tab, setTab] = useState<Tab>((new URLSearchParams(location.search).get("tab") as Tab) || "today");
   const [focusDay, setFocusDay] = useState<Date>();
@@ -101,6 +104,7 @@ export default function App() {
                 <Avatar name={account.profile?.name ?? "?"} planet={data.avatarPlanet} size={26} color="var(--accent)" />
                 <div style={{ flex: 1, minWidth: 0 }}><b className="small">@{account.profile?.username ?? account.profile?.name}</b>
                   <div className="small muted">{account.syncError ? "Offline" : "Synced"}</div></div>
+                <StreakChip />
               </button>
             )}
           </div>
@@ -108,7 +112,7 @@ export default function App() {
         <main className="main">
           {account.giftNotice != null && (
             <div className="banner" style={{ background: "color-mix(in srgb, #F97316 18%, transparent)" }}>
-              🎁 <b>You got {account.giftNotice} rockets from the Orbit admin! 🚀</b><span className="spacer" />
+              🎁 <b>{account.giftNotice}</b><span className="spacer" />
               <button className="btn small primary" onClick={() => { nav.go("store"); account.clearGiftNotice(); }}>Open Store</button>
               <button className="icon-btn" onClick={account.clearGiftNotice}>✕</button>
             </div>
@@ -126,7 +130,25 @@ export default function App() {
         </main>
         {showAdmin && account.isAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
         {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+        {passMoment && <LevelPass key={passMoment.id} fromHours={passMoment.from} onClose={() => setPassMoment(null)} />}
       </div>
     </NavCtx.Provider>
+  );
+}
+
+/** Streak days next to the account; hover to see the freezes left this month */
+function StreakChip() {
+  const { data } = useStore();
+  const info = myStreak(data);
+  return (
+    <span className="streak-chip" onClick={(e) => e.stopPropagation()}>
+      <StreakIcon size={15} /><b>{info.days}</b>
+      <span className="streak-pop">
+        <b><StreakIcon size={18} /> {info.days}-day streak</b>
+        <span>{Array.from({ length: FREEZES_PER_MONTH }, (_, i) => <span key={i} style={{ opacity: i < info.freezesLeft ? 1 : 0.3 }}>❄️</span>)} {info.freezesLeft} of {FREEZES_PER_MONTH} freezes left this month</span>
+        <span className="small muted">Miss a day and a freeze is used automatically, so your streak survives. You get 3 new ones every month.</span>
+        {info.frozen.length > 0 && <span className="small" style={{ color: "#22D3EE" }}>Frozen: {info.frozen.slice(0, 5).map((d) => d.toLocaleDateString()).join(", ")}</span>}
+      </span>
+    </span>
   );
 }

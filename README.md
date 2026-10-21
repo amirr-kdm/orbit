@@ -48,9 +48,12 @@ Mac and Windows share the same server, so friends on both platforms can study to
 | ✅ **Today & Tasks** | Daily to-do list, Day / Week / List views with drag and drop, skipped to-dos, and an Obsidian-style **graph**. |
 | ⏱ **Study timer** | Stopwatch or Pomodoro. Every session is saved. |
 | 📊 **Reports & calendar** | Weekly and monthly charts, unfinished to-dos, Persian & Gregorian calendars. |
-| 🌌 **My Galaxy** | **+1 level for every 3 hours** of study. Collect 50 planets and build solar systems. |
+| 🌌 **My Galaxy** | **+1 level for every 3 hours** of study. Collect 50 planets, build solar systems, arrange them on an endless map. |
+| 🏁 **Level Pass** | Your ship flies forward after every study session. Claim 25 rockets each level, and a special animated planet every 10 levels. |
 | 🛍 **Store** | Earn 🚀 rockets by studying and buy 40+ hand-made planets. |
 | 👥 **Friends & groups** | Friend codes, live *studying now*, weekly leaderboards, groups with a weekly prize. |
+| 🏆 **Challenges & promises** | Group challenges with an entry fee (all finish → fees doubled), and promises to a friend with rockets at stake. |
+| ⚡ **Streaks** | Days in a row with study — with 3 automatic streak freezes every month. |
 
 ---
 
@@ -67,8 +70,8 @@ Mac and Windows share the same server, so friends on both platforms can study to
 
 | | |
 |---|---|
-| ⭐ **Levels** | Start at level 1, **+1 level per 3 hours** studied (max 50). Each level unlocks a planet. |
-| 🚀 **Rockets** | 200 to start · **25 per study hour** · weekly bonus from 10 hours up (100 → 400) · **100** for topping a group's weekly board. |
+| ⭐ **Levels** | Start at level 1, **+1 level per 3 hours** studied (max 60). Each level unlocks a planet. |
+| 🚀 **Rockets** | 200 to start · **25 per level** (claim them on the Level Pass) · weekly bonus from 10 hours up (100 → 400) · **100** for topping a group's weekly board. |
 | 🪐 **Store planets** | 100–1000 rockets by rarity (Common, Rare, Epic, Legendary). 3 refund tickets for everyone. |
 
 <details>

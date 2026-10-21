@@ -6,6 +6,7 @@ import { StoreProvider } from "./lib/store";
 import { FriendsProvider } from "./lib/friends";
 import { TimerProvider } from "./lib/timer";
 import { AccountProvider } from "./lib/account";
+import { ChallengesProvider } from "./lib/challenges";
 import { registerPicture } from "./lib/planets";
 import ufo from "./assets/ufo.png";
 import satellite from "./assets/satellite.png";
@@ -15,7 +16,7 @@ registerPicture("ufo", ufo);
 registerPicture("satellite", satellite);
 registerPicture("meteor", meteor);
 // Every other store picture in assets/ (s4_… and animated frames s4_name_0, _1, …)
-for (const [path, url] of Object.entries(import.meta.glob("./assets/s4_*.png", { eager: true, import: "default" }))) {
+for (const [path, url] of Object.entries(import.meta.glob(["./assets/s4_*.png", "./assets/lv_*.png", "./assets/pass_ship*.png"], { eager: true, import: "default" }))) {
   registerPicture(path.split("/").pop()!.replace(".png", ""), url as string);
 }
 
@@ -24,9 +25,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <StoreProvider>
       <FriendsProvider>
         <AccountProvider>
-          <TimerProvider>
-            <App />
-          </TimerProvider>
+          <ChallengesProvider>
+            <TimerProvider>
+              <App />
+            </TimerProvider>
+          </ChallengesProvider>
         </AccountProvider>
       </FriendsProvider>
     </StoreProvider>

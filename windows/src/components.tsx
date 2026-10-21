@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import streakUrl from "./assets/streak.png";
 
 /** An animation loop capped at `fps` that pauses while the window is hidden or minimised.
  *  Uncapped loops kept slow laptops at full CPU/GPU. Returns a stop function. */
@@ -122,7 +123,7 @@ export function Modal({ onClose, children, width }: { onClose: () => void; child
 
 // ---------- Galaxy / solar systems ----------
 
-const slots = (n: number) => Array.from({ length: n }, (_, i) => ({ radius: 100 + i * 32, offset: i * 2.1, speed: (0.35 / Math.sqrt(i + 1)) * (i % 3 === 2 ? -1 : 1) }));
+const slots = (n: number) => { const L = galaxyLook(); return Array.from({ length: n }, (_, i) => ({ radius: 100 * Math.max(1, L.sun * 0.95) + i * 32 * L.orbit, offset: i * 2.1, speed: (0.35 / Math.sqrt(i + 1)) * (i % 3 === 2 ? -1 : 1) })); };
 
 function drawStars(ctx: CanvasRenderingContext2D, w: number, h: number, seed = 7) {
   let s = seed;
@@ -134,11 +135,12 @@ function drawStars(ctx: CanvasRenderingContext2D, w: number, h: number, seed = 7
 }
 
 /** Paint a solar system into a w×h area at time t (seconds) */
-export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["systems"][number], w: number, h: number, t: number, large: boolean, cache: Map<string, HTMLCanvasElement>) {
+export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["systems"][number], w: number, h: number, t: number, large: boolean, cache: Map<string, HTMLCanvasElement>, hideName = false) {
+  const L = galaxyLook();
   const sl = slots(sys.planets.length);
   const maxR = sl.length ? sl[sl.length - 1].radius : 60;
   const scale = Math.min(large ? 1.6 : 1, (Math.min(w, h * 1.5) / 2 - 20) / (maxR + 30));
-  const cx = w / 2, cy = h / 2, ps = (large ? 42 : 30) * Math.max(scale, 0.7); // planets stay small next to their star
+  const cx = w / 2, cy = h / 2, ps = (large ? 42 : 30) * Math.max(scale, 0.7) * L.planet;
   ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.lineWidth = 1;
   for (const s of sl) { ctx.beginPath(); ctx.ellipse(cx, cy, s.radius * scale, s.radius * scale * 0.55, 0, 0, Math.PI * 2); ctx.stroke(); }
   const items = sys.planets.map((id, i) => {
@@ -159,105 +161,207 @@ export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["syst
     ctx.drawImage(img, it.x - ps / 2, it.y - ps / 2, ps, ps);
   };
   items.filter((i) => i.z < 0).forEach(draw);
-  paintSun(ctx, sys.sun, cx, cy, (large ? 46 : 30) * (SUNS[sys.sun]?.scale ?? 1) * Math.max(scale, 0.75), t);
+  paintSun(ctx, sys.sun, cx, cy, (large ? 46 : 30) * (SUNS[sys.sun]?.scale ?? 1) * Math.max(scale, 0.75) * L.sun, t);
   items.filter((i) => i.z >= 0).forEach(draw);
-  if (!large) { ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.font = "bold 15px 'Segoe UI', sans-serif"; ctx.textAlign = "center"; ctx.fillText(sys.name, cx, h - 8); }
+  if (!large && !hideName) { ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.font = "bold 15px 'Segoe UI', sans-serif"; ctx.textAlign = "center"; ctx.fillText(sys.name, cx, h - 8); }
 }
 
-export function SystemCanvas({ sys, width, height, large }: { sys: GalaxyData["systems"][number]; width: number; height: number; large: boolean }) {
+export function SystemCanvas({ sys, width, height, large, res = 1, hideName = false }: { sys: GalaxyData["systems"][number]; width: number; height: number; large: boolean; res?: number; hideName?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    const cv = ref.current!; const dpr = window.devicePixelRatio || 1;
+    // res > 1: drawn extra sharp because it is shown zoomed in
+    const cv = ref.current!; const dpr = (window.devicePixelRatio || 1) * res;
     cv.width = width * dpr; cv.height = height * dpr;
     const ctx = cv.getContext("2d")!; const cache = new Map<string, HTMLCanvasElement>();
     const paint = () => {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
       if (large) drawStars(ctx, width, height);
-      paintSystem(ctx, sys, width, height, performance.now() / 1000, large, cache);
+      paintSystem(ctx, sys, width, height, performance.now() / 1000, large && !hideName, cache, hideName);
     };
     paint();
-    return frameLoop(paint, large ? 30 : 15);
-  }, [sys, width, height, large]);
+    return frameLoop(paint, large || res > 1 ? 30 : 15);
+  }, [sys, width, height, large, res, hideName]);
   return <canvas ref={ref} style={{ width, height, display: "block" }} />;
 }
 
-/** Spiral galaxy: systems placed along two arms; drag to pan, wheel/slider to zoom, click a system */
-export function GalaxyMap({ data, height = 560, onSelect, returningFrom }: { data: GalaxyData; height?: number; onSelect: (id: string) => void; returningFrom?: string | null }) {
-  // Camera "fly": scale the whole map around one system (zoom in before opening it, zoom out when coming back)
+/** How solar systems are drawn (sliders, kept on this computer) — same as the Mac app */
+export const LOOK_DEFAULTS = { orbit: 1, sun: 1, planet: 1.35 };
+export function galaxyLook(): typeof LOOK_DEFAULTS {
+  try { return { ...LOOK_DEFAULTS, ...JSON.parse(localStorage.getItem("galaxy-look") ?? "{}") }; } catch { return LOOK_DEFAULTS; }
+}
+
+/** Sliders for orbit spacing, sun size and planet size */
+export function GalaxyLookButton() {
+  const [open, setOpen] = useState(false);
+  const [look, setLook] = useState(galaxyLook());
+  const set = (k: keyof typeof LOOK_DEFAULTS, v: number) => { const n = { ...look, [k]: v }; setLook(n); localStorage.setItem("galaxy-look", JSON.stringify(n)); };
+  const row = (label: string, k: keyof typeof LOOK_DEFAULTS, min: number, max: number) => (
+    <label style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span className="row small"><span>{label}</span><span className="spacer" /><span className="muted">{Math.round(look[k] * 100)}%</span></span>
+      <input type="range" min={min} max={max} step={0.01} value={look[k]} onChange={(e) => set(k, +e.target.value)} style={{ padding: 0 }} />
+    </label>
+  );
+  return (
+    <div style={{ position: "relative" }}>
+      <button className="btn small" title="Orbit spacing, sun size and planet size" onClick={() => setOpen((o) => !o)}>☰</button>
+      {open && (
+        <div className="popover" style={{ top: 34, right: 0, width: 260, color: "var(--text)" }} onMouseDown={(e) => e.stopPropagation()}>
+          <b>Solar system look</b>
+          {row("◌ Orbit spacing", "orbit", 0.6, 2.2)}
+          {row("☀️ Sun size", "sun", 0.5, 2)}
+          {row("🌍 Planet size", "planet", 0.6, 2.6)}
+          <div className="row"><span className="spacer" /><button className="btn small" onClick={() => { setLook(LOOK_DEFAULTS); localStorage.setItem("galaxy-look", JSON.stringify(LOOK_DEFAULTS)); }}>Reset</button>
+            <button className="btn small" onClick={() => setOpen(false)}>Close</button></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const WORLD_W = 2600, WORLD_H = 1700;
+/** How big a solar system is drawn on the map */
+export const TILE_SCALE = 1.265;
+export const ZOOM_MIN = 0.35, ZOOM_MAX = 1.3;
+const spiralPos = (i: number) => {
+  if (i === 0) return { x: WORLD_W / 2 + 260, y: WORLD_H / 2 - 60 };
+  const k = Math.floor((i + 1) / 2), arm = i % 2 === 0 ? 0 : Math.PI, a = arm + 0.25 + k * 1.05, r = 300 + k * 190;
+  return { x: WORLD_W / 2 + Math.cos(a) * r * 1.25, y: WORLD_H / 2 + Math.sin(a) * r * 0.78 };
+};
+/** A system's place: where it was dragged to, or its spot on the spiral */
+export const systemPos = (s: { x?: number | null; y?: number | null }, i: number) => (s.x != null && s.y != null ? { x: s.x, y: s.y } : spiralPos(i));
+
+/** Endless starfield as a repeating tile (drawn once) */
+let starTile: string | null = null;
+function starTileURL() {
+  if (starTile) return starTile;
+  const c = document.createElement("canvas"); c.width = c.height = 400; const ctx = c.getContext("2d")!;
+  let s = 5; const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 70; i++) { ctx.fillStyle = `rgba(255,255,255,${0.25 + rnd() * 0.5})`; const r = rnd() < 0.9 ? 1 : 2; ctx.fillRect(rnd() * 400, rnd() * 400, r, r); }
+  return (starTile = c.toDataURL());
+}
+
+/** The galaxy: endless, systems on a spiral (or where you dragged them). Drag the sky to move, drag a system to place it,
+ *  pinch (Ctrl + wheel) or the slider to zoom. Opening a system is the camera zooming in on it — one continuous view. */
+export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove }: {
+  data: GalaxyData; height?: number; focused?: string | null; onSelect: (id: string) => void; onMove?: (id: string, x: number, y: number) => void;
+}) {
   const box = useRef<HTMLDivElement>(null);
-  const [fly, setFly] = useState<{ k: number; ox: number; oy: number; anim: boolean } | null>(null);
-  const FLY = 4;
   const [zoom, setZoom] = useState(0.62);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null);
-  const W = 2600, H = 1700;
+  /** Camera override while flying to / sitting on a system */
+  const [cam, setCam] = useState<{ z: number; x: number; y: number } | null>(null);
+  const [size, setSize] = useState({ w: 900, h: height });
+  const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean; sys?: string; sx?: number; sy?: number } | null>(null);
+  const [moving, setMoving] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const bg = useRef<HTMLCanvasElement>(null);
-  const pos = (i: number) => {
-    if (i === 0) return { x: W / 2 + 260, y: H / 2 - 60 };
-    const k = Math.floor((i + 1) / 2), arm = i % 2 === 0 ? 0 : Math.PI, a = arm + 0.25 + k * 1.05, r = 300 + k * 190;
-    return { x: W / 2 + Math.cos(a) * r * 1.25, y: H / 2 + Math.sin(a) * r * 0.78 };
-  };
-  const originOf = (i: number) => {
-    const p = pos(i), el = box.current;
-    return { ox: (el?.clientWidth ?? 0) / 2 + pan.x + (p.x - W / 2) * zoom, oy: (el?.clientHeight ?? 0) / 2 + pan.y + (p.y - H / 2) * zoom };
-  };
-  const flyIn = (i: number, id: string) => {
-    const o = originOf(i);
-    setFly({ k: 1, ...o, anim: false });
-    requestAnimationFrame(() => requestAnimationFrame(() => setFly({ k: FLY, ...o, anim: true })));
-    setTimeout(() => onSelect(id), 520);
-  };
+  const flight = useRef(0);
   useEffect(() => {
-    const i = data.systems.findIndex((s) => s.id === returningFrom); if (i < 0) return;
-    const o = originOf(i);
-    setFly({ k: FLY, ...o, anim: false });
-    requestAnimationFrame(() => requestAnimationFrame(() => setFly({ k: 1, ...o, anim: true })));
-    const t = setTimeout(() => setFly(null), 800);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const el = box.current; if (!el) return;
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight })); ro.observe(el);
+    return () => ro.disconnect();
   }, []);
+  const z = cam?.z ?? zoom, px = cam?.x ?? pan.x, py = cam?.y ?? pan.y;
+  const fitZoom = () => Math.max(1.5, Math.min(size.w / (330 * TILE_SCALE), size.h / (260 * TILE_SCALE)) * 0.95);
+
+  // Fly: zoom on a log scale while the system glides on screen, so the camera never swings through empty space
   useEffect(() => {
-    const cv = bg.current!; cv.width = W / 2; cv.height = H / 2;
+    const id = focused ?? null;
+    const target = id ?? lastFocus.current;
+    const i = data.systems.findIndex((s) => s.id === target);
+    if (i < 0) { setCam(null); return; }
+    const p = systemPos(data.systems[i], i), rel = { x: p.x - WORLD_W / 2, y: p.y - WORLD_H / 2 };
+    const z0 = cam?.z ?? zoom, z1 = id ? fitZoom() : zoom;
+    const s0 = { x: px + rel.x * z0, y: py + rel.y * z0 }, s1 = id ? { x: 0, y: 0 } : { x: s0.x * 0.4, y: s0.y * 0.4 };
+    lastFocus.current = id;
+    const start = performance.now(), dur = 850, run = ++flight.current;
+    const step = (now: number) => {
+      if (run !== flight.current) return;
+      const t = Math.min(1, (now - start) / dur), e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const zz = Math.exp(Math.log(z0) + (Math.log(z1) - Math.log(z0)) * e);
+      const sx = s0.x + (s1.x - s0.x) * e, sy = s0.y + (s1.y - s0.y) * e;
+      const next = { z: zz, x: sx - rel.x * zz, y: sy - rel.y * zz };
+      if (t < 1) { setCam(next); requestAnimationFrame(step); }
+      else if (id) setCam(next);
+      else { setCam(null); setPan({ x: next.x, y: next.y }); }
+    };
+    requestAnimationFrame(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused]);
+  const lastFocus = useRef<string | null>(null);
+
+  useEffect(() => {
+    const cv = bg.current!; cv.width = WORLD_W / 2; cv.height = WORLD_H / 2;
     const ctx = cv.getContext("2d")!; ctx.scale(0.5, 0.5);
     let s = 3; const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-    const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W * 0.6);
-    g.addColorStop(0, "#1E1B4B"); g.addColorStop(0.5, "#0B1023"); g.addColorStop(1, "#020617"); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const g = ctx.createRadialGradient(WORLD_W / 2, WORLD_H / 2, 0, WORLD_W / 2, WORLD_H / 2, WORLD_W * 0.6);
+    g.addColorStop(0, "#1E1B4B"); g.addColorStop(0.5, "#0B1023"); g.addColorStop(1, "#020617"); ctx.fillStyle = g; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
     const neb = ["#7C3AED", "#DB2777", "#0EA5E9", "#14B8A6"];
-    for (let i = 0; i < 14; i++) { const x = rnd() * W, y = rnd() * H, r = 120 + rnd() * 260; const n = ctx.createRadialGradient(x, y, 0, x, y, r); n.addColorStop(0, neb[i % 4] + "2e"); n.addColorStop(1, "transparent"); ctx.fillStyle = n; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
+    for (let i = 0; i < 14; i++) { const x = rnd() * WORLD_W, y = rnd() * WORLD_H, r = 120 + rnd() * 260; const n = ctx.createRadialGradient(x, y, 0, x, y, r); n.addColorStop(0, neb[i % 4] + "2e"); n.addColorStop(1, "transparent"); ctx.fillStyle = n; ctx.fillRect(x - r, y - r, r * 2, r * 2); }
     for (let a = 0; a < 2; a++) for (let j = 0; j < 1400; j++) {
       const t = (j / 1400) * 4.2, ang = a * Math.PI + t * 1.25 + 0.25, rad = 60 + t * 290, sp = 14 + t * 26;
-      const x = W / 2 + Math.cos(ang) * rad * 1.25 + (rnd() - 0.5) * sp * 2, y = H / 2 + Math.sin(ang) * rad * 0.78 + (rnd() - 0.5) * sp * 2;
+      const x = WORLD_W / 2 + Math.cos(ang) * rad * 1.25 + (rnd() - 0.5) * sp * 2, y = WORLD_H / 2 + Math.sin(ang) * rad * 0.78 + (rnd() - 0.5) * sp * 2;
       const hue = rnd(); ctx.fillStyle = hue < 0.15 ? "#F9A8D4" : hue < 0.3 ? "#93C5FD" : "#FFFFFF"; ctx.globalAlpha = 0.35 + rnd() * 0.55;
       const d = rnd() < 0.92 ? 2 : 4; ctx.fillRect(x, y, d, d);
     }
-    ctx.globalAlpha = 1; drawStars(ctx, W, H, 11);
+    ctx.globalAlpha = 1; drawStars(ctx, WORLD_W, WORLD_H, 11);
   }, []);
+
+  const w = WORLD_W * z, h = WORLD_H * z;
+  // world origin on screen
+  const ox = size.w / 2 + px - w / 2, oy = size.h / 2 + py - h / 2;
+  const tile = 400 * z;
   return (
-    <div ref={box} className="space" style={{ height, cursor: drag.current ? "grabbing" : "grab" }}
-      onWheel={(e) => setZoom((z) => Math.min(1.3, Math.max(0.35, z - e.deltaY * 0.001)))}
-      onMouseDown={(e) => { drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }; }}
-      onMouseMove={(e) => { const d = drag.current; if (!d) return; if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 4) d.moved = true; setPan({ x: d.px + e.clientX - d.x, y: d.py + e.clientY - d.y }); }}
-      onMouseUp={() => { setTimeout(() => (drag.current = null), 0); }} onMouseLeave={() => (drag.current = null)}>
-      <div style={{ position: "absolute", inset: 0, transformOrigin: fly ? `${fly.ox}px ${fly.oy}px` : undefined, transform: fly ? `scale(${fly.k})` : undefined,
-        transition: fly?.anim ? (fly.k > 1 ? "transform .6s cubic-bezier(.55,0,.9,.4), opacity .6s" : "transform .7s cubic-bezier(.1,.6,.3,1), opacity .7s") : undefined,
-        opacity: fly && fly.k > 1 && fly.anim ? 0.35 : 1 }}>
-      <div style={{ position: "absolute", left: "50%", top: "50%", width: W * zoom, height: H * zoom, transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))` }}>
-        <canvas ref={bg} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+    <div ref={box} className="space" style={{ height, cursor: focused ? "default" : drag.current ? "grabbing" : "grab", userSelect: "none",
+      backgroundColor: "#020617", backgroundImage: `url(${starTileURL()})`, backgroundSize: `${tile}px ${tile}px`, backgroundPosition: `${ox}px ${oy}px` }}
+      onWheel={(e) => {
+        // Windows touchpads send a pinch as Ctrl + wheel; a plain wheel scrolls the page
+        if (!e.ctrlKey || focused || cam) return;
+        e.preventDefault();
+        const nz = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom * (1 - e.deltaY * 0.01)));
+        setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz);
+      }}
+      onMouseDown={(e) => { if (focused) return; drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }; }}
+      onMouseMove={(e) => {
+        const d = drag.current; if (!d) return;
+        if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 4) d.moved = true;
+        if (!d.moved) return;
+        if (d.sys && onMove) setMoving({ id: d.sys, dx: e.clientX - d.x, dy: e.clientY - d.y });
+        else setPan({ x: d.px + e.clientX - d.x, y: d.py + e.clientY - d.y });
+      }}
+      onMouseUp={(e) => {
+        const d = drag.current;
+        if (d?.sys) {
+          if (d.moved && onMove) onMove(d.sys, d.sx! + (e.clientX - d.x) / zoom, d.sy! + (e.clientY - d.y) / zoom);
+          else if (!d.moved) onSelect(d.sys);
+        }
+        setMoving(null); setTimeout(() => (drag.current = null), 0);
+      }}
+      onMouseLeave={() => { drag.current = null; setMoving(null); }}>
+      <div style={{ position: "absolute", left: ox, top: oy, width: w, height: h }}>
+        <canvas ref={bg} style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
+          maskImage: "radial-gradient(ellipse at center, black 55%, transparent 72%)", WebkitMaskImage: "radial-gradient(ellipse at center, black 55%, transparent 72%)" }} />
         {data.systems.map((s, i) => {
-          const p = pos(i), w = 330 * zoom * 1.1, h = 260 * zoom * 1.1;
+          const p0 = systemPos(s, i);
+          const mv = moving?.id === s.id ? moving : null;
+          const p = { x: p0.x + (mv ? mv.dx / z : 0), y: p0.y + (mv ? mv.dy / z : 0) };
+          const tw = 330 * zoom * TILE_SCALE, th = 260 * zoom * TILE_SCALE, k = z / zoom;
+          const open = focused === s.id;
           return (
-            <div key={s.id} title={`Open ${s.name}`} style={{ position: "absolute", left: p.x * zoom - w / 2, top: p.y * zoom - h / 2, width: w, height: h, cursor: "pointer" }}
-              onClick={() => { if (!drag.current?.moved && !fly) flyIn(i, s.id); }}>
-              <SystemCanvas sys={s} width={w} height={h} large={false} />
+            <div key={s.id} title={focused ? undefined : `Open ${s.name} · drag to move it`}
+              style={{ position: "absolute", left: p.x * z - tw / 2, top: p.y * z - th / 2, width: tw, height: th, transform: `scale(${k})`,
+                cursor: focused ? "default" : "pointer", opacity: !focused || open ? 1 : 0, transition: "opacity .4s", zIndex: mv ? 2 : 1 }}
+              onMouseDown={(e) => { if (focused) return; e.stopPropagation(); drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false, sys: s.id, sx: p0.x, sy: p0.y }; }}>
+              <SystemCanvas sys={s} width={tw} height={th} large={false} res={open ? Math.min(4, k) : 1} hideName={!!focused} />
             </div>
           );
         })}
       </div>
-      </div>
-      <div style={{ position: "absolute", right: 16, bottom: 14, display: "flex", gap: 8, alignItems: "center", background: "rgba(0,0,0,.35)", padding: "6px 12px", borderRadius: 99 }}>
-        <span className="small">🔍</span>
-        <input type="range" min={0.35} max={1.3} step={0.01} value={zoom} onChange={(e) => setZoom(+e.target.value)} style={{ width: 120, padding: 0 }} />
-      </div>
+      {!focused && (
+        <div style={{ position: "absolute", right: 16, bottom: 14, display: "flex", gap: 8, alignItems: "center", background: "rgba(0,0,0,.35)", padding: "6px 12px", borderRadius: 99 }}>
+          <span className="small">🔍</span>
+          <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={0.01} value={zoom} onChange={(e) => { const nz = +e.target.value; setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz); }} style={{ width: 120, padding: 0 }} />
+        </div>
+      )}
     </div>
   );
 }
@@ -292,3 +396,6 @@ export function CellPalette({ selection, onPick }: { selection?: string; onPick:
     </div>
   );
 }
+
+/** The streak lightning bolt */
+export const StreakIcon = ({ size = 16 }: { size?: number }) => <img src={streakUrl} alt="" style={{ width: size, height: size, objectFit: "contain", verticalAlign: "-3px" }} />;

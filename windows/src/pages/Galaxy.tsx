@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { GalaxyMap, LevelBadge, PlanetCanvas, SystemCanvas } from "../components";
+import { GalaxyLookButton, GalaxyMap, LevelBadge, PlanetCanvas } from "../components";
 import { galaxyData, useFriends } from "../lib/friends";
 import { SunType, SYSTEM_NAMES } from "../lib/model";
 import { GROUP_TITLES, PLANETS, planetByID, SUNS, unlockLevel } from "../lib/planets";
-import { HOURS_PER_LEVEL, MAX_LEVEL, progress, useStore } from "../lib/store";
+import { canClaim, HOURS_PER_LEVEL, MAX_LEVEL, progress, useStore } from "../lib/store";
+import LevelPass from "./LevelPass";
 import { StoreShelf } from "./Store";
 
 export default function Galaxy() {
@@ -12,10 +13,9 @@ export default function Galaxy() {
   const p = progress(data);
   const gd = galaxyData(data);
   const [focused, setFocused] = useState<string | null>(null);
-  // Zoom out of a system: play the shrink, then show the map, which pulls back from that system
-  const [last, setLast] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState(false);
-  const back = () => { if (leaving) return; setLast(focused); setLeaving(true); setTimeout(() => { setFocused(null); setLeaving(false); }, 280); };
+  const back = () => setFocused(null);
+  const [pass, setPass] = useState(false);
+  const ready = Array.from({ length: p.level }, (_, i) => i + 1).filter((l) => canClaim(data, l)).length;
   const [selected, setSelected] = useState<string | null>(null);
   const [target, setTarget] = useState<string>();
   const [toast, setToast] = useState<string | null>(null);
@@ -31,7 +31,8 @@ export default function Galaxy() {
           {avatar ? <PlanetCanvas planet={avatar} size={110} animate /> : <span style={{ fontSize: 34 }}>🪐</span>}
         </div>
         <div style={{ flex: 1 }}>
-          <div className="row"><h2 style={{ margin: 0 }}>{friends.me?.name ?? "You"}</h2><LevelBadge level={p.level} /></div>
+          <div className="row"><h2 style={{ margin: 0 }}>{friends.me?.name ?? "You"}</h2><LevelBadge level={p.level} /><span className="spacer" />
+            <button className="btn primary" style={{ background: ready ? "#F97316" : undefined }} onClick={() => setPass(true)}>🏁 Level Pass{ready ? ` · ${ready} to claim` : ""}</button></div>
           {p.level >= MAX_LEVEL ? <div className="muted">Max level reached — every planet is yours 🏆</div> : <>
             <div className="small muted" style={{ margin: "4px 0" }}>{Math.max(0, p.level * HOURS_PER_LEVEL - p.totalHours).toFixed(1)}h of study to level {p.level + 1} · every {HOURS_PER_LEVEL}h studied = +1 level</div>
             <div className="progress" style={{ maxWidth: 420 }}><div style={{ width: `${((p.totalHours - (p.level - 1) * HOURS_PER_LEVEL) / HOURS_PER_LEVEL) * 100}%` }} /></div></>}
@@ -44,9 +45,8 @@ export default function Galaxy() {
       </div>
 
       <div style={{ position: "relative" }}>
-        {sys ? (
-          <div className={`space ${leaving ? "zoom-out" : "zoom-in"}`} style={{ height: 600 }}><SystemCanvas sys={sys} width={1200} height={600} large /></div>
-        ) : <GalaxyMap data={gd} height={600} returningFrom={last} onSelect={(id) => { setLast(id); setFocused(id); }} />}
+        {/* One continuous map: opening a system is the camera zooming in on it */}
+        <GalaxyMap data={gd} height={600} focused={focused} onSelect={setFocused} onMove={(id, x, y) => actions.moveSystem(id, x, y)} />
         <div style={{ position: "absolute", top: 16, left: 18, right: 18, display: "flex", alignItems: "flex-start", color: "white", pointerEvents: "none" }}>
           <div style={{ pointerEvents: "auto" }}>
             {sys ? <>
@@ -55,11 +55,12 @@ export default function Galaxy() {
             </> : <>
               <div className="small" style={{ fontWeight: 800, letterSpacing: 2, opacity: 0.7 }}>MY GALAXY</div>
               <h2 style={{ margin: 0 }}>{gd.systems.length} solar system{gd.systems.length > 1 ? "s" : ""} · {data.galaxy.length} planets</h2>
-              <div style={{ opacity: 0.7 }}>Drag to explore · click a solar system to fly in</div>
+              <div style={{ opacity: 0.7 }}>Drag to explore · drag a system to move it · click one to fly in</div>
             </>}
           </div>
           <span className="spacer" />
           <div style={{ pointerEvents: "auto" }} className="row">
+            <GalaxyLookButton />
             {sys ? <>
               <select value={sys.sun} onChange={(e) => actions.updateSystem(sys.id, (s) => { s.sun = e.target.value as SunType; })}>
                 {Object.entries(SUNS).map(([k, v]) => <option key={k} value={k} disabled={v.level > p.level}>{v.name}{v.level > p.level ? ` — level ${v.level}` : ""}</option>)}
@@ -76,6 +77,7 @@ export default function Galaxy() {
         {toast && <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,.6)", color: "white", padding: "8px 16px", borderRadius: 99, fontWeight: 600 }}>{toast}</div>}
       </div>
 
+      {pass && <LevelPass onClose={() => setPass(false)} />}
       <StoreShelf onToast={show} />
 
       <div className="row"><h2 style={{ margin: 0 }}>Planet Collection</h2><span className="muted">{unlockedCount}/{PLANETS.length}</span></div>

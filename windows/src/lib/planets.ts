@@ -1,4 +1,4 @@
-import { STORE, type Craft } from "./storePlanets";
+import { REWARDS, STORE, type Craft } from "./storePlanets";
 // The 50 planets — same catalogue and look as the Mac app, drawn on an HTML canvas.
 
 type Shape = "circle" | "heart" | "star" | "cube" | "donut" | "diamond" | "hexagon" | "egg" | "cloud" | "flower"
@@ -87,7 +87,7 @@ export const PLANETS: PlanetDef[] = [
   P("claude", "Claude's Cosmos", 10, "The final reward. ✨", { shape: "burst", colors: ["#FED7AA", "#D97757", "#7C2D12"], pattern: "swirl", accent: "#FFEDD5", ring: { color: "#FED7AA", tilt: -20, width: 0.12, double: true }, moons: 3, features: ["face"], glow: true }),
 ];
 
-export const planetByID = (id?: string | null) => PLANETS.find((p) => p.id === id) ?? STORE.find((p) => p.id === id);
+export const planetByID = (id?: string | null) => PLANETS.find((p) => p.id === id) ?? STORE.find((p) => p.id === id) ?? REWARDS.find((p) => p.id === id);
 export const isStorePlanet = (id?: string | null) => STORE.some((p) => p.id === id);
 
 // ---------- Painter ----------
@@ -605,7 +605,7 @@ function paintPicture(ctx: Ctx, p: PlanetDef, c: number, r: number, phase: numbe
   const accent = p.accent ?? "#FFFFFF";
   const g = ctx.createRadialGradient(c, c, r * 0.3, c, c, r * 1.6); g.addColorStop(0, rgba(accent, 0.45)); g.addColorStop(1, rgba(accent, 0));
   ctx.fillStyle = g; ellipse(ctx, c, c, r * 1.6, r * 1.6); ctx.fill();
-  const bob = Math.sin(phase * TAU) * r * 0.08, side = r * 3.3;
+  const bob = Math.sin(phase * TAU) * r * 0.08, side = r * ((p.image ?? "").startsWith("lv_") ? 3.5 : 3.3);
   if (p.image === "ufo") {
     const b = ctx.createLinearGradient(c, c + r * 0.25, c, c + r * 1.3); b.addColorStop(0, rgba(accent, 0.5)); b.addColorStop(1, rgba(accent, 0));
     ctx.beginPath(); ctx.moveTo(c - r * 0.35, c + r * 0.25 + bob); ctx.lineTo(c + r * 0.35, c + r * 0.25 + bob); ctx.lineTo(c + r * 0.7, c + r * 1.3); ctx.lineTo(c - r * 0.7, c + r * 1.3); ctx.closePath();

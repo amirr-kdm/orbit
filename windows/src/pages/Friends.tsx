@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Avatar, GalaxyMap, LevelBadge, Modal, SystemCanvas } from "../components";
+import { GroupChallenges, PromiseModal, Promises } from "./Challenges";
+import { StreakIcon, Avatar, GalaxyMap, LevelBadge, Modal, SystemCanvas } from "../components";
 import { dayKey, duration, isToday, shortDuration, WEEKDAYS_SHORT, weekDays, weekdayIndex } from "../lib/dates";
 import { FriendCard, minutesOn, streak, studyingNow, supabaseConfigured, useFriends, weekMinutes, weekSubjects } from "../lib/friends";
 import { SUNS } from "../lib/planets";
@@ -15,6 +16,7 @@ export default function Friends() {
   const [added, setAdded] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [galaxy, setGalaxy] = useState<FriendCard | null>(null);
+  const [promising, setPromising] = useState<FriendCard | null>(null);
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<number>(() => Number(localStorage.getItem("friends-tab") ?? 0));
   useEffect(() => { localStorage.setItem("friends-tab", String(tab)); }, [tab]);
@@ -89,6 +91,7 @@ export default function Friends() {
         </div>
       )}
 
+      <Promises />
       <div className="card">
         <h3>🏆 This week's leaderboard</h3>
         {!f.friends.length && <div className="muted">Add a friend with their code to start comparing. Share yours: <b>{f.me.friend_code}</b></div>}
@@ -102,8 +105,9 @@ export default function Friends() {
                 <Avatar name={x.profile.name} planet={x.profile.avatar} size={34} color={x.isMe ? "var(--accent)" : undefined} />
                 <div style={{ flex: 1 }}>
                   <div className="row"><b>{x.profile.name}{x.isMe ? " (you)" : ""}</b><LevelBadge level={x.profile.level ?? 1} />{studyingNow(x) && <span className="dot" style={{ background: "#22C55E" }} />}
-                    <span className="spacer" />{streak(x) > 0 && <span>🔥 {streak(x)}</span>}
-                    {x.profile.rockets !== undefined && <span title="Rockets"><RocketIcon size={15} /> {x.profile.rockets}</span>}<b style={{ width: 80, textAlign: "right" }}>{duration(weekMinutes(x) * 60)}</b></div>
+                    <span className="spacer" />{streak(x) > 0 && <span><StreakIcon size={15} /> {streak(x)}</span>}
+                    {x.profile.rockets !== undefined && <span title="Rockets"><RocketIcon size={15} /> {x.profile.rockets}</span>}<b style={{ width: 80, textAlign: "right" }}>{duration(weekMinutes(x) * 60)}</b>
+                    {!x.isMe && <button className="icon-btn" title={`Promise ${x.profile.name} you'll study — with rockets at stake`} onClick={(e) => { e.stopPropagation(); setPromising(x); }}>🤞</button>}</div>
                   <div className="progress" style={{ marginTop: 5 }}><div style={{ width: `${(weekMinutes(x) / top) * 100}%`, background: x.isMe ? undefined : "#94A3B8" }} /></div>
                 </div>
               </div>
@@ -122,6 +126,7 @@ export default function Friends() {
       </div>
 
       {galaxy && <FriendGalaxy card={galaxy} onClose={() => setGalaxy(null)} />}
+      {promising && <PromiseModal friend={promising} onClose={() => setPromising(null)} />}
     </div>
   );
 }
@@ -161,8 +166,6 @@ function Breakdown({ card, onGalaxy }: { card: FriendCard; onGalaxy: () => void 
 function FriendGalaxy({ card, onClose }: { card: FriendCard; onClose: () => void }) {
   const data = card.profile.galaxy ?? { systems: [] };
   const [focus, setFocus] = useState<string | null>(null);
-  const [last, setLast] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState(false);
   const sys = data.systems.find((s) => s.id === focus);
   const count = data.systems.reduce((a, s) => a + s.planets.length, 0);
   return (
@@ -170,15 +173,16 @@ function FriendGalaxy({ card, onClose }: { card: FriendCard; onClose: () => void
       <div className="row" style={{ marginBottom: 12 }}>
         <Avatar name={card.profile.name} planet={card.profile.avatar} size={44} />
         <div><div className="row"><h2 style={{ margin: 0 }}>{card.isMe ? "Your galaxy" : `${card.profile.name}'s galaxy`}</h2><LevelBadge level={card.profile.level ?? 1} /></div>
-          <div className="muted">{data.systems.length} solar systems · {count} planets · 🔥 {streak(card)}</div></div>
+          <div className="muted">{data.systems.length} solar systems · {count} planets · <StreakIcon size={14} /> {streak(card)}</div></div>
         <span className="spacer" />
-        {sys && <button className="btn" onClick={() => { if (leaving) return; setLast(focus); setLeaving(true); setTimeout(() => { setFocus(null); setLeaving(false); }, 280); }}>‹ Galaxy</button>}
+        {sys && <button className="btn" onClick={() => setFocus(null)}>‹ Galaxy</button>}
         <button className="btn primary" onClick={onClose}>Done</button>
       </div>
-      {sys ? <div className={`space ${leaving ? "zoom-out" : "zoom-in"}`} style={{ height: 520 }}><SystemCanvas sys={sys} width={900} height={520} large />
-        <div style={{ position: "absolute", top: 12, left: 14, fontWeight: 600 }}>{sys.name} · {SUNS[sys.sun]?.name}</div></div>
-        : count === 0 ? <div className="space" style={{ height: 520, display: "grid", placeItems: "center" }}>No planets yet ✨</div>
-        : <GalaxyMap data={data} height={520} returningFrom={last} onSelect={(id) => { setLast(id); setFocus(id); }} />}
+      {count === 0 ? <div className="space" style={{ height: 520, display: "grid", placeItems: "center" }}>No planets yet ✨</div>
+        : <div style={{ position: "relative" }}>
+            <GalaxyMap data={data} height={520} focused={focus} onSelect={setFocus} />
+            {sys && <div style={{ position: "absolute", top: 12, left: 14, fontWeight: 600, color: "white" }}>{sys.name} · {SUNS[sys.sun]?.name}</div>}
+          </div>}
     </Modal>
   );
 }
@@ -239,7 +243,7 @@ function Groups({ mine, onGalaxy }: { mine: FriendCard | null; onGalaxy: (c: Fri
               <Avatar name={x.profile.name} planet={x.profile.avatar} size={32} color={x.isMe ? "var(--accent)" : undefined} />
               <div style={{ flex: 1 }}>
                 <div className="row"><b>{x.profile.name}{x.isMe ? " (you)" : ""}</b><LevelBadge level={x.profile.level ?? 1} />{studyingNow(x) && <span className="small" style={{ color: "#22C55E" }}>● {studyingNow(x)}</span>}
-                  <span className="spacer" />{streak(x) > 0 && <span>🔥 {streak(x)}</span>}{x.profile.rockets !== undefined && <span><RocketIcon size={14} /> {x.profile.rockets}</span>}
+                  <span className="spacer" />{streak(x) > 0 && <span><StreakIcon size={15} /> {streak(x)}</span>}{x.profile.rockets !== undefined && <span><RocketIcon size={14} /> {x.profile.rockets}</span>}
                   <b style={{ width: 70, textAlign: "right" }}>{duration(weekMinutes(x) * 60)}</b></div>
                 <div className="progress" style={{ marginTop: 4 }}><div style={{ width: `${(weekMinutes(x) / top) * 100}%` }} /></div>
               </div>
@@ -248,6 +252,7 @@ function Groups({ mine, onGalaxy }: { mine: FriendCard | null; onGalaxy: (c: Fri
             </div>
           ))}
         </div>}
+        {g && <GroupChallenges group={g} />}
       </>}
     </div>
   );

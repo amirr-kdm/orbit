@@ -33,7 +33,9 @@ interface Account {
   /** Give (or take back, if negative) rockets; their app adds them on its next check */
   giftRockets: (id: string, amount: number) => Promise<boolean>;
   /** Rockets just received as a gift (banner until dismissed) */
-  giftNotice: number | null; clearGiftNotice: () => void;
+  giftNotice: string | null; clearGiftNotice: () => void;
+  /** Re-check rocket gifts / payouts right away */
+  claimGifts: () => Promise<void>;
 }
 
 const Ctx = createContext<Account | null>(null);
@@ -75,7 +77,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const dataRef = useRef<AppData>(data); dataRef.current = data;
   const stateRef = useRef(state); stateRef.current = state;
   const restoring = useRef(false);
-  const [giftNotice, setGiftNotice] = useState<number | null>(null);
+  const [giftNotice, setGiftNotice] = useState<string | null>(null);
   const timer = useRef<number>();
   const notified = useRef<Set<string>>(new Set());
 
@@ -149,13 +151,13 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const claimGifts = useCallback(async () => {
     if (stateRef.current !== "approved" || restoring.current) return;
     try {
-      const gifts: { id: string; amount: number }[] = await client.get("rocket_gifts?select=id,amount");
+      const gifts: { id: string; amount: number; reason?: string | null }[] = await client.get("rocket_gifts?select=id,amount,reason");
       const known = dataRef.current.claimedGifts ?? [];
       if (!gifts.some((g) => !known.includes(g.id))) return;
-      const total = gifts.filter((g) => !known.includes(g.id)).reduce((a, g) => a + g.amount, 0);
-      if (total > 0) {
-        setGiftNotice(total);
-        notify(`You got ${total} 🚀 rockets!`, "A gift from the Orbit admin. Spend them in the Store.");
+      // Tell about rockets received (paying a fee is your own action, so it stays quiet)
+      for (const g of gifts.filter((x) => !known.includes(x.id) && x.amount > 0)) {
+        setGiftNotice(g.reason ? `${g.reason} (+${g.amount} 🚀)` : `You got ${g.amount} rockets from the Orbit admin! 🚀`);
+        notify(g.reason ? `+${g.amount} 🚀 rockets` : `You got ${g.amount} 🚀 rockets!`, g.reason ?? "A gift from the Orbit admin. Spend them in the Store.");
       }
       update((d) => {
         const claimed = d.claimedGifts ?? (d.claimedGifts = []);
@@ -323,7 +325,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       await perform(async () => { await client.rpc("admin_reset_password", { uid: id, new_password: temp }); ok = true; });
       return ok ? temp : null;
     },
-    giftNotice, clearGiftNotice: () => setGiftNotice(null),
+    giftNotice, clearGiftNotice: () => setGiftNotice(null), claimGifts,
     giftRockets: async (id, amount) => {
       let ok = false;
       await perform(async () => { await client.rpc("admin_gift_rockets", { uid: id, amount }); ok = true; });

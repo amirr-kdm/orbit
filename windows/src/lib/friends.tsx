@@ -1,4 +1,5 @@
 // Friends: talks to the same Supabase project as the Mac app (same tables and data format).
+import { computeStreak } from "./streak";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppData } from "./model";
 import { addDays, dayKey, startOfDay, weekDays } from "./dates";
@@ -15,8 +16,8 @@ const SESSION_KEY = "orbit-session-v1";
 export interface SubjectStat { name: string; minutes: number; color: string }
 export interface DailyStat { user_id: string; day: string; minutes: number; todos_done: number; todos_total: number; subjects: SubjectStat[] }
 export interface LiveStatus { user_id: string; studying?: string | null; started_at?: string | null; updated_at?: string | null }
-export interface GalaxyData { systems: { id: string; name: string; sun: string; planets: string[] }[] }
-export interface Profile { id: string; name: string; friend_code: string; level?: number; avatar?: string | null; galaxy?: GalaxyData | null; rockets?: number }
+export interface GalaxyData { systems: { id: string; name: string; sun: string; planets: string[]; x?: number | null; y?: number | null }[] }
+export interface Profile { id: string; name: string; friend_code: string; level?: number; avatar?: string | null; galaxy?: GalaxyData | null; rockets?: number; /** their streak as their own app counts it (freezes included) */ streak?: number | null }
 /** A study group: everyone in it sees each other's progress */
 export interface StudyGroup { id: string; name: string; code: string; owner: string; members: string[] }
 
@@ -25,6 +26,10 @@ export interface FriendCard { profile: Profile; stats: Record<string, DailyStat>
 export const minutesOn = (f: FriendCard, d: Date) => f.stats[dayKey(d)]?.minutes ?? 0;
 export const weekMinutes = (f: FriendCard) => weekDays(new Date()).reduce((a, d) => a + minutesOn(f, d), 0);
 export function streak(f: FriendCard): number {
+  if (f.profile.streak != null) return f.profile.streak;
+  return computeStreak((d) => minutesOn(f, d) > 0).days;
+}
+function plainStreak(f: FriendCard): number {
   let d = new Date(); if (minutesOn(f, d) === 0) d = addDays(d, -1);
   let n = 0; while (minutesOn(f, d) > 0) { n++; d = addDays(d, -1); }
   return n;
@@ -142,7 +147,7 @@ function localStat(d: AppData, day: Date, userID: string): DailyStat {
 }
 
 export function galaxyData(d: AppData): GalaxyData {
-  return { systems: d.solarSystems.map((s) => ({ id: s.id, name: s.name, sun: s.sun, planets: d.galaxy.filter((g) => g.systemID === s.id).map((g) => g.planetID) })) };
+  return { systems: d.solarSystems.map((s) => ({ id: s.id, name: s.name, sun: s.sun, planets: d.galaxy.filter((g) => g.systemID === s.id).map((g) => g.planetID), x: s.x, y: s.y })) };
 }
 
 // ---------- React context ----------
@@ -253,7 +258,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
     const d = dataRef.current;
     const uid = client.session.userID;
     const rows = Array.from({ length: 7 }, (_, i) => localStat(d, addDays(new Date(), -i), uid));
-    const extras = { level: progress(d).level, avatar: d.avatarPlanet ?? null, galaxy: galaxyData(d), rockets: wallet(d).balance };
+    const extras = { level: progress(d).level, avatar: d.avatarPlanet ?? null, galaxy: galaxyData(d), rockets: wallet(d).balance, streak: myStreak(d).days };
     const sig = JSON.stringify([rows, extras]);
     if (sig === lastSent.current) return;
     await run(async () => {
@@ -338,4 +343,10 @@ export function useFriends(): Friends {
   const f = useContext(Ctx);
   if (!f) throw new Error("FriendsProvider missing");
   return f;
+}
+
+/** My streak from my own study history (freezes included) */
+export function myStreak(d: AppData) {
+  const days = new Set(d.sessions.map((s) => dayKey(new Date(s.start))));
+  return computeStreak((day) => days.has(dayKey(day)));
 }

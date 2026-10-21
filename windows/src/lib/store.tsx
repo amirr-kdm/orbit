@@ -186,7 +186,7 @@ export function applyPlannerTo(d: AppData, p: Planner, date: Date, recurrence: R
 
 // ---------- Galaxy progress (same rules as the Mac app) ----------
 
-export const MAX_LEVEL = 50;
+export const MAX_LEVEL = 60;
 export const HOURS_PER_LEVEL = 3;
 export interface Progress { level: number; totalHours: number; weekHours: number; credits: number }
 
@@ -217,13 +217,22 @@ export function weekBonuses(d: AppData, now = new Date()): { start: Date; hours:
   return out;
 }
 
-export interface Wallet { study: number; bonuses: number; groups: number; spent: number; balance: number }
+/** Until this day rockets came for every hour studied; since then they come from the Level Pass (25 a level) */
+export const LEVEL_PASS_START = new Date(2026, 9, 21);
+export const ROCKETS_PER_LEVEL = 25;
+/** Levels 10, 20 … 60 also give a special planet */
+export const levelPlanet = (level: number) => (level > 0 && level % 10 === 0 ? `lv_t${level / 10}` : null);
+export const canClaim = (d: AppData, level: number) => level >= 1 && level <= progress(d).level && !(d.claimedLevels ?? []).includes(level);
+export const totalHours = (d: AppData) => d.sessions.reduce((a, s) => a + s.duration, 0) / 3600;
+
+export interface Wallet { study: number; levels: number; bonuses: number; groups: number; spent: number; balance: number }
 export function wallet(d: AppData): Wallet {
-  const study = Math.floor(d.sessions.reduce((a, s) => a + s.duration, 0) / 3600 * ROCKETS_PER_HOUR);
+  const study = Math.floor(d.sessions.filter((s) => new Date(s.start) < LEVEL_PASS_START).reduce((a, s) => a + s.duration, 0) / 3600 * ROCKETS_PER_HOUR);
+  const levels = (d.claimedLevels ?? []).length * ROCKETS_PER_LEVEL;
   const bonuses = weekBonuses(d).reduce((a, b) => a + b.rockets, 0);
   const groups = d.groupWins.length * GROUP_WIN_ROCKETS;
   const spent = d.purchases.reduce((a, p) => a + p.price, 0);
-  return { study, bonuses, groups, spent, balance: STARTING_ROCKETS + d.rocketGrant + study + bonuses + groups - spent };
+  return { study, levels, bonuses, groups, spent, balance: STARTING_ROCKETS + d.rocketGrant + study + levels + bonuses + groups - spent };
 }
 export const ownedCount = (d: AppData, id: string) => d.purchases.filter((p) => p.planetID === id).length;
 export const placedCount = (d: AppData, id: string) => d.galaxy.filter((g) => g.planetID === id).length;
@@ -242,6 +251,9 @@ interface Store {
   replaceAll: (d: AppData) => void;
   update: (fn: (d: AppData) => void) => void;
   actions: ReturnType<typeof makeActions>;
+  /** Set after a study session is saved: the Level Pass opens and the ship flies from → to (hours) */
+  passMoment: { from: number; to: number; id: number } | null;
+  setPassMoment: (m: { from: number; to: number; id: number } | null) => void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -415,13 +427,20 @@ function makeActions(update: Store["update"]) {
       if (p?.price && wallet(d).balance >= p.price) d.purchases.push({ id: uid(), planetID: id, price: p.price, date: new Date().toISOString() });
     }),
     refund: (id: string) => update((d) => {
-      if (d.refundsUsed >= REFUND_TICKETS) return;
+      if (d.refundsUsed >= REFUND_TICKETS || !STORE.find((x) => x.id === id)?.price) return;
       const i = d.purchases.map((p) => p.planetID).lastIndexOf(id);
       if (i < 0) return;
       d.purchases.splice(i, 1); d.refundsUsed += 1;
       if (placedCount(d, id) > ownedCount(d, id)) { const j = d.galaxy.map((g) => g.planetID).lastIndexOf(id); if (j >= 0) d.galaxy.splice(j, 1); }
       if (d.avatarPlanet === id && ownedCount(d, id) === 0) d.avatarPlanet = undefined;
     }),
+    /** Take a level's rewards: 25 rockets, plus a planet on every 10th level */
+    claimLevel: (level: number) => update((d) => {
+      if (!canClaim(d, level)) return;
+      (d.claimedLevels ??= []).push(level);
+      const p = levelPlanet(level); if (p) d.purchases.push({ id: uid(), planetID: p, price: 0, date: new Date().toISOString() });
+    }),
+    moveSystem: (id: string, x: number, y: number) => update((d) => { const s = d.solarSystems.find((v) => v.id === id); if (s) { s.x = x; s.y = y; } }),
     placeOwned: (id: string, systemID?: string) => update((d) => {
       const t = roomIn(d, systemID);
       if (unplacedCount(d, id) > 0 && progress(d).credits > 0 && t) d.galaxy.push({ id: uid(), planetID: id, addedAt: new Date().toISOString(), systemID: t.id });
@@ -470,12 +489,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* storage full or blocked */ }
   }, [data]);
 
-  const actions = useMemo(() => makeActions(update), [update]);
+  const [passMoment, setPassMoment] = useState<Store["passMoment"]>(null);
+  const dataRef = useRef(data); dataRef.current = data;
+  const actions = useMemo(() => {
+    const a = makeActions(update);
+    return { ...a, addSession: (s: StudySession) => {
+      const before = totalHours(dataRef.current);
+      a.addSession(s);
+      if (s.duration >= 60) setPassMoment({ from: before, to: before + s.duration / 3600, id: Date.now() });
+    } };
+  }, [update]);
   const replaceAll = useCallback((d: AppData) => {
     const def = defaultData();
     setData({ ...def, ...d, settings: { ...def.settings, ...d.settings }, schedule: normalized(d.schedule ?? []) });
   }, []);
-  const value = useMemo(() => ({ data, update, actions, replaceAll }), [data, update, actions, replaceAll]);
+  const value = useMemo(() => ({ data, update, actions, replaceAll, passMoment, setPassMoment }), [data, update, actions, replaceAll, passMoment]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

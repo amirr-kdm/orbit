@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useNav } from "../App";
 import { Modal, PlanetCanvas } from "../components";
 import { PlanetDef } from "../lib/planets";
-import { RARITY_COLOR, Rarity, rarityOf, STORE } from "../lib/storePlanets";
+import { RARITY_COLOR, Rarity, rarityOf, STORE, REWARDS } from "../lib/storePlanets";
 import {
-  BONUS_TIERS, GROUP_WIN_ROCKETS, ownedCount, placedCount, progress, REFUND_TICKETS, ROCKETS_PER_HOUR, unplacedCount,
+  BONUS_TIERS, GROUP_WIN_ROCKETS, ownedCount, placedCount, progress, REFUND_TICKETS, ROCKETS_PER_LEVEL, unplacedCount,
   useStore, wallet, weekBonuses, weeklyBonus,
 } from "../lib/store";
 import rocketIcon from "../assets/rocket.png";
@@ -39,10 +39,10 @@ export default function StorePage() {
         <div style={{ flex: 1 }}>
           <div className="small" style={{ opacity: 0.7, fontWeight: 600 }}>Your rockets</div>
           <div className="row" style={{ gap: 6 }}><span style={{ fontSize: 38, fontWeight: 900 }}>{w.balance.toLocaleString()}</span><RocketIcon size={22} /></div>
-          <div className="small" style={{ opacity: 0.7 }}>{w.study} from study · {w.bonuses} weekly bonuses · {w.groups} group wins · {w.spent} spent</div>
+          <div className="small" style={{ opacity: 0.7 }}>{w.study + w.levels} from study · {w.bonuses} weekly bonuses · {w.groups} group wins · {w.spent} spent</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <b>🕐 {ROCKETS_PER_HOUR} rockets for every hour you study</b>
+          <b>🏁 {ROCKETS_PER_LEVEL} rockets for every level — claim them on the Level Pass</b>
           <div className="small" style={{ opacity: 0.7 }}>Weekly bonus when Friday ends:</div>
           <div className="row" style={{ gap: 5 }}>
             {BONUS_TIERS.map(([h, r]) => <div key={h} style={{ background: "rgba(255,255,255,.08)", borderRadius: 7, padding: "3px 7px", textAlign: "center", fontSize: 11 }}><b>{h}</b><br />+{r}</div>)}
@@ -123,7 +123,7 @@ export function StoreShelf({ onToast }: { onToast: (t: string) => void }) {
   const { data, actions } = useStore();
   const [sel, setSel] = useState<string | null>(null);
   const [target, setTarget] = useState("");
-  const owned = STORE.filter((p) => ownedCount(data, p.id) > 0);
+  const owned = [...REWARDS, ...STORE].filter((p) => ownedCount(data, p.id) > 0);
   if (!owned.length) return null;
   const credits = progress(data).credits;
   const count = (sid: string) => data.galaxy.filter((g) => g.systemID === sid).length;
