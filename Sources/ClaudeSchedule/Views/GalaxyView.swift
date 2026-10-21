@@ -522,6 +522,7 @@ struct GalaxyMapView: View {
     @State private var userScale = 1.0
     @State private var hovering = false
     @State private var monitor: Any?
+    @State private var lastPinch: CGFloat = 1
     @State private var viewSize = CGSize(width: 900, height: 600)
 
     private var baseZoom: Double { min(1.8, max(0.25, zoom * userScale)) }
@@ -582,7 +583,16 @@ struct GalaxyMapView: View {
         .environment(\.colorScheme, .dark)
         .background(GeometryReader { g in Color.clear.onAppear { viewSize = g.size }.onChange(of: g.size) { _, s in viewSize = s } })
         .onHover { hovering = $0 }
-        .onAppear { startTrackpad(); if focused != nil { camera(to: focused, animated: false) } }
+        .onAppear { if focused != nil { camera(to: focused, animated: false) } }
+        // Trackpad pinch zooms (scrolling is left to the page)
+        .simultaneousGesture(MagnifyGesture()
+            .onChanged { v in
+                guard focused == nil, flyZoom == nil else { return }
+                let k = v.magnification / max(0.01, lastPinch)
+                lastPinch = v.magnification
+                rescale(by: k)
+            }
+            .onEnded { _ in lastPinch = 1 })
         .onChange(of: focused) { _, id in camera(to: id, animated: true) }
         .onDisappear { if let monitor { NSEvent.removeMonitor(monitor) }; monitor = nil }
         .onChange(of: zoom) { old, new in
