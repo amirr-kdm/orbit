@@ -169,7 +169,7 @@ struct CalendarView: View {
                         ForEach(fixed) { row in
                             HStack(spacing: 10) {
                                 RoundedRectangle(cornerRadius: 2)
-                                    .fill(row.entry.color ?? store.category(row.entry.categoryID)?.color ?? .gray)
+                                    .fill(store.color(of: row.entry) ?? store.category(row.entry.categoryID)?.color ?? .gray)
                                     .frame(width: 4, height: 26)
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(row.entry.title)
@@ -244,7 +244,7 @@ struct DayCell: View {
         let accent = store.settings.template.style.accent
         let lines: [Line] =
             todos.map { Line(id: $0.id.uuidString, title: $0.entry.title,
-                             color: $0.entry.color ?? store.category($0.entry.categoryID)?.color ?? accent,
+                             color: store.color(of: $0.entry) ?? store.category($0.entry.categoryID)?.color ?? accent,
                              isDone: $0.isDone) }
             + tasks.map { Line(id: $0.id.uuidString, title: $0.title,
                                color: store.category($0.categoryID)?.color ?? .gray, isDone: $0.isDone) }

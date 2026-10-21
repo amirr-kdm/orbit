@@ -115,7 +115,7 @@ struct CategoryGraphView: View {
                     let id = "entry:\(e.id)|\(Cal.dayKey(day))"
                     let h = hub(for: e.categoryID)
                     nodes.append(.init(id: id, title: multiDay ? "\(e.title) · \(Fmt.date(day, period == .week ? "EEE" : "MMM d", kind))" : e.title,
-                                       color: e.colorHex ?? store.category(e.categoryID)?.colorHex ?? "#5B7CFA",
+                                       color: store.colorHex(of: e) ?? store.category(e.categoryID)?.colorHex ?? "#5B7CFA",
                                        isHub: false, isSchedule: true, isDone: r.isDone,
                                        detail: "\(Fmt.date(day, "EEE, MMM d", kind)) · \(r.slot.title)", ref: .schedule(e.id), date: day))
                     edges.append(.init(a: h, b: id))
@@ -127,7 +127,7 @@ struct CategoryGraphView: View {
                 if done && !showDone { continue }
                 let h = hub(for: e.categoryID)
                 let slot = store.slot(e.slotID)?.title ?? ""
-                let hex = e.colorHex ?? store.category(e.categoryID)?.colorHex ?? "#5B7CFA"
+                let hex = store.colorHex(of: e) ?? store.category(e.categoryID)?.colorHex ?? "#5B7CFA"
                 nodes.append(.init(id: "entry:\(e.id)", title: e.title, color: hex, isHub: false, isSchedule: true,
                                    isDone: done, detail: "Weekly schedule · \(Cal.weekdayNames[e.weekday]) \(slot)",
                                    ref: .schedule(e.id), date: nil))
