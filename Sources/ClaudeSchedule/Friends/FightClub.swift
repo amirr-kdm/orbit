@@ -1,12 +1,11 @@
 import SwiftUI
 
-// Fight Club (experiment): a group sets a goal, a space monster appears with one health point per minute
+// Fight Club (experiment): you set a goal (alone, then invite friends or a whole group), a space monster appears with one health point per minute
 // the goal takes. Every minute you study after it appears is a bullet; fire them from your ship.
 // Beat it before the deadline and the rockets are shared by damage done. Rules run on the server (supabase/bosses.sql).
 
 struct Boss: Decodable, Identifiable, Hashable {
     let id: UUID
-    let group_id: UUID
     let creator: UUID
     let title: String
     let hp: Int
@@ -20,6 +19,12 @@ struct Boss: Decodable, Identifiable, Hashable {
     var isAlive: Bool { status == "alive" }
 }
 
+struct BossInvite: Decodable, Hashable {
+    let boss_id: UUID
+    let user_id: UUID
+    let from_user: UUID
+}
+
 struct BossFighter: Decodable, Hashable {
     let boss_id: UUID
     let user_id: UUID
@@ -31,6 +36,9 @@ struct BossFighter: Decodable, Hashable {
 final class FightClubService {
     private(set) var bosses: [Boss] = []
     private(set) var fighters: [UUID: [BossFighter]] = [:]
+    /// Invites: to me (to answer) and the ones my fights sent out
+    private(set) var invites: [BossInvite] = []
+    @ObservationIgnored private var notified: Set<UUID> = []
     var error: String?
     var busy = false
 
@@ -39,8 +47,6 @@ final class FightClubService {
     @ObservationIgnored var onRocketsMoved: (() async -> Void)?
 
     init(store: AppStore) { self.store = store }
-    var testGroupID: (() -> UUID?)?
-    private func testGroup() async -> UUID? { testGroupID?() }
 
     func fighters(of b: Boss) -> [BossFighter] { fighters[b.id] ?? [] }
     func damageDone(_ b: Boss) -> Int { fighters(of: b).reduce(0) { $0 + $1.damage } }
@@ -62,15 +68,18 @@ final class FightClubService {
                 let ids = list.map { $0.id.uuidString.lowercased() }.joined(separator: ",")
                 for r in try await client.select("boss_fighters?boss_id=in.(\(ids))", as: [BossFighter].self) { by[r.boss_id, default: []].append(r) }
             }
+            let inv = try await client.select("boss_invites?select=boss_id,user_id,from_user", as: [BossInvite].self)
             bosses = list
             fighters = by
+            invites = inv
+            notifyNewInvites()
         } catch {}
         // Developer tool: CS_TEST_BOSS=1 shows a pretend monster (local only, firing does nothing)
-        if ProcessInfo.processInfo.environment["CS_TEST_BOSS"] != nil, let g = await testGroup() {
-            let fake = Boss(id: UUID(uuidString: "00000000-0000-0000-0000-00000000B055")!, group_id: g, creator: UUID(), title: "Test monster",
+        if ProcessInfo.processInfo.environment["CS_TEST_BOSS"] != nil, let me = await client.userID {
+            let fake = Boss(id: UUID(uuidString: "00000000-0000-0000-0000-00000000B055")!, creator: UUID(), title: "Test monster",
                             hp: 900, deadline: Date().addingTimeInterval(86400 * 2), monster: 3, status: "alive", created_at: Date().addingTimeInterval(-86400 * 3))
             if !bosses.contains(where: { $0.id == fake.id }) { bosses.insert(fake, at: 0) }
-            fighters[fake.id] = [BossFighter(boss_id: fake.id, user_id: UUID(), minutes: 300, damage: 240)]
+            fighters[fake.id] = [BossFighter(boss_id: fake.id, user_id: me, minutes: 300, damage: 240)]
         }
     }
 
@@ -88,18 +97,61 @@ final class FightClubService {
         await load()
     }
 
-    func create(group: UUID, title: String, minutes: Int, deadline: Date) async -> Bool {
-        struct Body: Encodable { let g: String; let title: String; let goal: Int; let ends: String }
+    /// Summon a monster on your own; invite people afterwards. Returns its id.
+    func create(title: String, minutes: Int, deadline: Date) async -> UUID? {
+        struct Body: Encodable { let title: String; let goal: Int; let ends: String }
         busy = true
         defer { busy = false }
         do {
-            _ = try await client.rpc("create_boss", Body(g: group.uuidString, title: title, goal: minutes, ends: ISO8601DateFormatter().string(from: deadline)))
+            let data = try await client.rpc("create_boss", Body(title: title, goal: minutes, ends: ISO8601DateFormatter().string(from: deadline)))
+            let id = (try? JSONDecoder().decode(UUID.self, from: data))
             error = nil
             await load()
-            return true
+            return id
         } catch {
             self.error = (error as? SupabaseClient.APIError)?.message ?? "Can't reach the server."
-            return false
+            return nil
+        }
+    }
+
+    // MARK: Invites
+
+    func invitesToMe(_ me: UUID?) -> [BossInvite] { invites.filter { $0.user_id == me } }
+    func invited(to b: Boss) -> [BossInvite] { invites.filter { $0.boss_id == b.id } }
+
+    func invite(_ b: Boss, friend: UUID) async {
+        struct Body: Encodable { let b: String; let who: String }
+        await perform { _ = try await self.client.rpc("invite_boss", Body(b: b.id.uuidString, who: friend.uuidString)) }
+    }
+
+    /// Everyone in the group gets the invite
+    func invite(_ b: Boss, group: UUID) async {
+        struct Body: Encodable { let b: String; let g: String }
+        await perform { _ = try await self.client.rpc("invite_boss_group", Body(b: b.id.uuidString, g: group.uuidString)) }
+    }
+
+    func answer(_ b: UUID, accept: Bool) async {
+        struct Body: Encodable { let b: String; let accept: Bool }
+        await perform { _ = try await self.client.rpc("answer_boss_invite", Body(b: b.uuidString, accept: accept)) }
+    }
+
+    private func perform(_ work: @escaping () async throws -> Void) async {
+        busy = true
+        defer { busy = false }
+        do { try await work(); error = nil } catch { self.error = (error as? SupabaseClient.APIError)?.message ?? "Can't reach the server." }
+        await load()
+    }
+
+    private func notifyNewInvites() {
+        Task {
+            guard let me = await client.userID else { return }
+            for inv in invitesToMe(me) where !notified.contains(inv.boss_id) {
+                notified.insert(inv.boss_id)
+                if let b = bosses.first(where: { $0.id == inv.boss_id }) {
+                    Notifier.post(id: "boss-\(b.id)", title: "👾 You're invited to fight “\(b.title)”",
+                                  body: "Open Fight Club to join — study to earn bullets and share the prize.")
+                }
+            }
         }
     }
 
@@ -130,21 +182,22 @@ final class FightClubService {
 func monsterImage(_ n: Int) -> NSImage? { PlanetPainter.bundleImage("boss\(min(5, max(1, n)))") }
 private func hm(_ m: Int) -> String { let h = m / 60, r = m % 60; return h == 0 ? "\(r)m" : (r == 0 ? "\(h)h" : "\(h)h \(r)m") }
 
-/// The monsters of one study group
+/// Monsters you fight
 struct FightClubCard: View {
-    let group: StudyGroup
     @Environment(FightClubService.self) private var fc
+    @Environment(FriendsService.self) private var friends
     @State private var creating = false
     @State private var battle: Boss?
 
     var body: some View {
-        let list = fc.bosses.filter { $0.group_id == group.id }
-        Card(title: "Fight Club", systemImage: "burst.fill") {
+        let me = friends.me?.id
+        let list = fc.bosses.filter { b in fc.fighters(of: b).contains { $0.user_id == me } || b.id.uuidString.hasSuffix("B055") }
+        Card(title: "Your fights", systemImage: "burst.fill") {
             HStack {
-                Text("Set a goal and a monster appears. Every minute you study is a bullet — beat it together before the deadline and share the rockets by damage.")
+                Text("Set a goal and a monster appears. Fight alone or invite friends or a whole group. Every minute you study is a bullet.")
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button { fc.error = nil; creating = true } label: { Label("New Monster", systemImage: "plus") }
+                Button { fc.error = nil; creating = true } label: { Label("Summon Monster", systemImage: "plus") }
                     .buttonStyle(.borderedProminent).tint(.red)
             }
             if list.isEmpty { Text("No monsters yet — summon one!").font(.callout).foregroundStyle(.secondary) }
@@ -162,6 +215,8 @@ struct FightClubCard: View {
                                     .background(Capsule().fill(Color.red.opacity(0.25)))
                                 Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Due \(b.deadline.formatted(.relative(presentation: .named)))")
                                     .font(.caption).foregroundStyle(.secondary)
+                                Spacer()
+                                Label("\(fc.fighters(of: b).count)", systemImage: "person.2.fill").font(.caption).foregroundStyle(.secondary)
                             }
                             ProgressView(value: Double(fc.healthLeft(b)), total: Double(b.hp)).tint(.red)
                             Text("\(hm(fc.healthLeft(b))) of \(hm(b.hp)) health left · \(b.pool) 🚀 prize").font(.caption).foregroundStyle(.secondary)
@@ -175,13 +230,78 @@ struct FightClubCard: View {
                 .buttonStyle(.plain)
             }
         }
-        .sheet(isPresented: $creating) { NewBossSheet(group: group) }
+        .sheet(isPresented: $creating) { NewBossSheet { id in creating = false; Task { await fc.load(); battle = fc.bosses.first { $0.id == id } } } }
         .sheet(item: $battle) { BattleView(bossID: $0.id) }
     }
 }
 
+/// Invites waiting for my answer
+struct FightInvitesCard: View {
+    @Environment(FightClubService.self) private var fc
+    @Environment(FriendsService.self) private var friends
+
+    var body: some View {
+        let mine = fc.invitesToMe(friends.me?.id)
+        if !mine.isEmpty {
+            Card(title: "Invitations", systemImage: "envelope.badge.fill") {
+                ForEach(mine, id: \.boss_id) { inv in
+                    if let b = fc.bosses.first(where: { $0.id == inv.boss_id }) {
+                        HStack(spacing: 12) {
+                            if let img = monsterImage(b.monster) { Image(nsImage: img).resizable().scaledToFit().frame(width: 44, height: 44) }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(friends.people[inv.from_user]?.profile.name ?? "A friend") invites you to fight “\(b.title)”").font(.callout.weight(.semibold))
+                                Text("LV \(b.monster) · \(hm(b.hp)) of health · \(b.pool) 🚀 prize · due \(b.deadline.formatted(.relative(presentation: .named)))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Decline") { Task { await fc.answer(b.id, accept: false) } }
+                            Button("Join the Fight") { Task { await fc.answer(b.id, accept: true) } }.buttonStyle(.borderedProminent).tint(.red)
+                        }
+                        .disabled(fc.busy)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Invite friends one by one, or a whole group at once
+struct InviteMenu: View {
+    let boss: Boss
+    @Environment(FightClubService.self) private var fc
+    @Environment(FriendsService.self) private var friends
+    @State private var sent: String?
+
+    var body: some View {
+        let fighting = Set(fc.fighters(of: boss).map(\.user_id))
+        let invited = Set(fc.invited(to: boss).map(\.user_id))
+        Menu {
+            Section("Friends") {
+                ForEach(friends.friends) { f in
+                    Button {
+                        Task { await fc.invite(boss, friend: f.id); sent = "Invite sent to \(f.profile.name)" }
+                    } label: {
+                        Text(f.profile.name + (fighting.contains(f.id) ? " — fighting" : invited.contains(f.id) ? " — invited" : ""))
+                    }
+                    .disabled(fighting.contains(f.id) || invited.contains(f.id))
+                }
+                if friends.friends.isEmpty { Text("No friends yet") }
+            }
+            Section("Whole group") {
+                ForEach(friends.groups) { g in
+                    Button("\(g.name) (\(g.members.count))") { Task { await fc.invite(boss, group: g.id); sent = "Everyone in \(g.name) was invited" } }
+                }
+                if friends.groups.isEmpty { Text("No groups yet") }
+            }
+        } label: {
+            Label(sent ?? "Invite", systemImage: "person.badge.plus")
+        }
+        .fixedSize()
+    }
+}
+
 struct NewBossSheet: View {
-    let group: StudyGroup
+    var onCreated: (UUID) -> Void = { _ in }
     @Environment(FightClubService.self) private var fc
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
@@ -193,7 +313,7 @@ struct NewBossSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("Summon a monster in \(group.name)", systemImage: "burst.fill").font(.title3.weight(.bold))
+            Label("Summon a monster", systemImage: "burst.fill").font(.title3.weight(.bold))
             HStack(alignment: .top, spacing: 16) {
                 if let img = monsterImage(level) {
                     Image(nsImage: img).resizable().scaledToFit()
@@ -207,14 +327,14 @@ struct NewBossSheet: View {
                     Text("Monster level \(level) · \(hm(Int(hours * 60))) of health · prize \(pool) 🚀 shared by damage").font(.callout.weight(.semibold))
                 }
             }
-            Text("Everyone in the group can fight. Each minute studied after it appears is one bullet. If the deadline passes first, it escapes and nobody wins.")
+            Text("You can fight alone, or invite friends or a whole group from the battle screen. Each minute studied after it appears is one bullet. If the deadline passes first, it escapes and nobody wins.")
                 .font(.caption).foregroundStyle(.secondary)
             if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Summon") {
-                    Task { if await fc.create(group: group.id, title: title.isEmpty ? "Study goal" : title, minutes: Int(hours * 60), deadline: deadline) { dismiss() } }
+                    Task { if let id = await fc.create(title: title.isEmpty ? "Study goal" : title, minutes: Int(hours * 60), deadline: deadline) { onCreated(id) } }
                 }
                 .buttonStyle(.borderedProminent).tint(.red).keyboardShortcut(.defaultAction).disabled(fc.busy)
             }
@@ -263,6 +383,7 @@ struct BattleView: View {
                 Spacer()
                 Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Escapes \(b.deadline.formatted(.relative(presentation: .named)))")
                     .font(.callout).foregroundStyle(.secondary)
+                if b.isAlive { InviteMenu(boss: b) }
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
             HStack(spacing: 8) {
@@ -399,9 +520,8 @@ private struct BulletView: View {
     }
 }
 
-/// Fight Club page: the monsters of every group you're in
+/// Fight Club page: invitations and your fights
 struct FightClubPage: View {
-    @Environment(FriendsService.self) private var friends
     @Environment(FightClubService.self) private var fc
 
     var body: some View {
@@ -411,21 +531,15 @@ struct FightClubPage: View {
                     if let img = monsterImage(5) { Image(nsImage: img).resizable().scaledToFit().frame(width: 76, height: 76) }
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Fight Club").font(.largeTitle.weight(.bold))
-                        Text("Summon a monster for a group goal. Study to earn bullets, fire them from your ship, and share the rockets when it falls.")
+                        Text("Summon a monster for a study goal. Study to earn bullets, fire them from your ship, and share the rockets when it falls.")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
                     if let ship = PlanetPainter.bundleImage("fighter") { Image(nsImage: ship).resizable().scaledToFit().frame(width: 70, height: 70) }
                 }
-                if friends.groups.isEmpty {
-                    Card { Text("Join or create a study group in Friends → Groups to fight monsters together.").foregroundStyle(.secondary) }
-                }
-                ForEach(friends.groups) { g in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label(g.name, systemImage: "person.3.fill").font(.title3.weight(.semibold))
-                        FightClubCard(group: g)
-                    }
-                }
+                FightInvitesCard()
+                FightClubCard()
+                if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
             }
             .padding(24)
         }

@@ -42,7 +42,6 @@ struct ClaudeScheduleApp: App {
         _challenges = State(initialValue: challenges)
         let fightClub = FightClubService(store: store)
         fightClub.onRocketsMoved = { [weak account] in await account?.claimGifts() }
-        fightClub.testGroupID = { [weak friends] in friends?.groups.first?.id }
         _fightClub = State(initialValue: fightClub)
     }
 
