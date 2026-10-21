@@ -18,6 +18,7 @@ struct CategoryGraphView: View {
     @State private var anchor = Date()
     @State private var selected: String?
     @State private var dragNode: Int?
+    @State private var grabOffset: CGSize = .zero
     @State private var panStart: CGSize?
     @State private var monitor: Any?
     @AppStorage("graphHubSize") private var hubSize = 1.0
@@ -224,18 +225,30 @@ struct CategoryGraphView: View {
                 }
             }
             .onAppear { sim.viewSize = size }
-            .onChange(of: size) { _, s in sim.viewSize = s }
+            .onChange(of: size) { old, s in
+                // the details panel opening or closing changes the width: keep the graph where it was on screen
+                sim.pan = CGSize(width: sim.pan.width + (old.width - s.width) / 2, height: sim.pan.height + (old.height - s.height) / 2)
+                sim.viewSize = s
+            }
         }
     }
 
     private func drag(size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { v in
+                // a click is not a drag: nothing moves until the pointer has really moved
+                guard hypot(v.translation.width, v.translation.height) > 4 || dragNode != nil || panStart != nil else { return }
                 if dragNode == nil && panStart == nil {
-                    if let i = sim.hit(v.startLocation, size: size) { dragNode = i } else { panStart = sim.pan }
+                    if let i = sim.hit(v.startLocation, size: size) {
+                        dragNode = i
+                        // keep the spot you grabbed under the pointer (no jump to the node's centre)
+                        let w = sim.toWorld(v.startLocation, size)
+                        grabOffset = CGSize(width: sim.nodes[i].x - w.x, height: sim.nodes[i].y - w.y)
+                    } else { panStart = sim.pan }
                 }
                 if let i = dragNode, sim.nodes.indices.contains(i) {
-                    sim.place(i, at: sim.toWorld(v.location, size))
+                    let w = sim.toWorld(v.location, size)
+                    sim.place(i, at: CGPoint(x: w.x + grabOffset.width, y: w.y + grabOffset.height))
                     sim.reheat(0.3)
                 } else if let s = panStart {
                     sim.pan = CGSize(width: s.width + v.translation.width, height: s.height + v.translation.height)
