@@ -384,6 +384,56 @@ struct InviteSheet: View {
     }
 }
 
+/// Pick a deadline day (Persian calendar) and time — the next two weeks as cards
+private struct PersianDuePicker: View {
+    @Binding var date: Date
+
+    private var days: [Date] {
+        let today = Cal.persian.startOfDay(for: Date())
+        return (0..<14).compactMap { Cal.persian.date(byAdding: .day, value: $0, to: today) }
+    }
+    private static let times: [(String, Int, Int)] = [("Noon", 12, 0), ("6 PM", 18, 0), ("9 PM", 21, 0), ("Midnight", 23, 59)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(days, id: \.self) { d in
+                        let on = Cal.persian.isDate(d, inSameDayAs: date)
+                        Button { set(day: d) } label: {
+                            VStack(spacing: 2) {
+                                Text(Fmt.date(d, "EEE", .persian)).font(.caption2).foregroundStyle(on ? .white : .secondary)
+                                Text(Fmt.date(d, "d", .persian)).font(.headline.monospacedDigit())
+                                Text(Fmt.date(d, "MMM", .persian)).font(.caption2).foregroundStyle(on ? .white : .secondary)
+                            }
+                            .frame(width: 46, height: 58)
+                            .background(RoundedRectangle(cornerRadius: 9).fill(on ? Color.red : Color.primary.opacity(0.07)))
+                            .foregroundStyle(on ? .white : .primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            HStack(spacing: 6) {
+                ForEach(Self.times, id: \.0) { t in
+                    let on = Calendar.current.component(.hour, from: date) == t.1 && Calendar.current.component(.minute, from: date) == t.2
+                    Button(t.0) { set(hour: t.1, minute: t.2) }.buttonStyle(.bordered).tint(on ? .red : nil)
+                }
+            }
+        }
+    }
+
+    private func set(day: Date) {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+        date = Calendar.current.date(bySettingHour: c.hour ?? 23, minute: c.minute ?? 59, second: 0, of: day) ?? day
+        if date < Date().addingTimeInterval(1800) { date = Date().addingTimeInterval(3600) }
+    }
+    private func set(hour: Int, minute: Int) {
+        date = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+        if date < Date().addingTimeInterval(1800) { date = date.addingTimeInterval(86400) }
+    }
+}
+
 /// Quick deadlines instead of a date picker
 private enum Due: String, CaseIterable, Identifiable {
     case tonight = "Tonight", tomorrow = "Tomorrow", days3 = "3 days", week = "A week", custom = "Pick…"
@@ -408,7 +458,7 @@ struct NewBossSheet: View {
     @State private var title = ""
     @State private var hours = 5.0
     @State private var due: Due = .days3
-    @State private var customDate = Date().addingTimeInterval(5 * 86400)
+    @State private var customDate = Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: Date().addingTimeInterval(5 * 86400)) ?? Date()
     @State private var friendIDs: Set<UUID> = []
     @State private var groupIDs: Set<UUID> = []
 
@@ -448,10 +498,8 @@ struct NewBossSheet: View {
                         Text("DEADLINE").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
                         Picker("", selection: $due) { ForEach(Due.allCases) { Text($0.rawValue).tag($0) } }
                             .pickerStyle(.segmented).labelsHidden()
-                        if due == .custom {
-                            DatePicker("", selection: $customDate, in: Date().addingTimeInterval(1800)..., displayedComponents: [.date, .hourAndMinute]).labelsHidden()
-                        }
-                        Text("Escapes \(deadline.formatted(.dateTime.weekday(.wide).hour().minute())) · \(deadline.formatted(.relative(presentation: .named)))")
+                        if due == .custom { PersianDuePicker(date: $customDate) }
+                        Text("Escapes \(Fmt.date(deadline, "EEEE d MMMM · HH:mm", .persian)) · \(deadline.formatted(.relative(presentation: .named)))")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
