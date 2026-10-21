@@ -460,7 +460,7 @@ extension PlanetPainter {
                                        center: c, startRadius: r * 0.3, endRadius: r * 1.6))
         let bob = sin(phase * .pi * 2) * r * 0.08
         // Round "portal" pictures (Level Pass planets) are already planet-shaped
-        let side = r * ((p.image ?? "").hasPrefix("lv_") ? 2.9 : 3.3)
+        let side = r * ((p.image ?? "").hasPrefix("lv_") ? 3.5 : 3.3)
         let rect = CGRect(x: c.x - side / 2, y: c.y - side / 2 + bob, width: side, height: side)
         let frames = p.image.map(Self.frames) ?? []
         // Animated pictures play at about 8 frames a second
