@@ -751,6 +751,13 @@ final class AppStore {
         sessions.filter { $0.start >= interval.start && $0.start < interval.end }
     }
 
+    /// Study that earns rewards (levels, rockets, streak, leaderboards, challenges, Fight Club):
+    /// timed sessions only — manual logs count in reports and the calendar, not here
+    func rewardTime(in interval: DateInterval) -> TimeInterval {
+        sessions(in: interval).filter { !$0.isManual }.reduce(0) { $0 + $1.duration }
+    }
+    func rewardTime(on day: Date) -> TimeInterval { rewardTime(in: Cal.persian.dayInterval(day)) }
+
     func studyTime(in interval: DateInterval) -> TimeInterval {
         sessions(in: interval).reduce(0) { $0 + $1.duration }
     }

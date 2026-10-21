@@ -73,7 +73,7 @@ final class ChallengeService {
         let now = Date()
         var settled = false
         for c in challenges where store.accountReady && c.isOpen && joined(c, me: me) && c.started(now) && now <= c.ends_at.addingTimeInterval(Challenge.grace) {
-            let minutes = Int(store.studyTime(in: DateInterval(start: c.starts_at, end: min(now, c.ends_at))) / 60)
+            let minutes = Int(store.rewardTime(in: DateInterval(start: c.starts_at, end: min(now, c.ends_at))) / 60)
             struct Body: Encodable { let c: String; let minutes: Int }
             _ = try? await client.rpc("report_challenge", Body(c: c.id.uuidString, minutes: minutes))
         }

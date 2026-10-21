@@ -50,7 +50,7 @@ extension AppStore {
         var out: [WeekBonus] = []
         while week < current {
             let next = Cal.persian.date(byAdding: .day, value: 7, to: week) ?? current
-            let hours = studyTime(in: DateInterval(start: week, end: next)) / 3600
+            let hours = rewardTime(in: DateInterval(start: week, end: next)) / 3600
             out.append(WeekBonus(weekStart: week, hours: hours, rockets: Self.weeklyBonus(hours: hours)))
             week = next
         }

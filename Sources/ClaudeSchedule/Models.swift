@@ -150,6 +150,8 @@ struct StudySession: Identifiable, Codable, Hashable {
     var start: Date
     var duration: TimeInterval
     var note = ""
+    /// Logged by hand ("Log Manually"): shown in reports and the calendar, but earns no rewards
+    var isManual = false
 
     var end: Date { start.addingTimeInterval(duration) }
 }
@@ -272,6 +274,7 @@ extension StudySession {
         start = try c.decode(Date.self, forKey: .start)
         duration = try c.decode(TimeInterval.self, forKey: .duration)
         note = try c.decodeIfPresent(String.self, forKey: .note) ?? ""
+        isManual = try c.decodeIfPresent(Bool.self, forKey: .isManual) ?? false
     }
 }
 

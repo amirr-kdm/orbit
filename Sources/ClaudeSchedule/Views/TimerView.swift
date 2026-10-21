@@ -423,12 +423,18 @@ struct ManualSessionSheet: View {
             }
             .formStyle(.grouped)
 
+            Label("Logged sessions show in your reports and calendar, but don't count for levels, rockets, streaks, leaderboards, challenges or Fight Club. Use the timer for those.",
+                  systemImage: "info.circle")
+                .font(.caption).foregroundStyle(.secondary)
+                .padding(.horizontal)
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Log") {
-                    store.addSession(store.makeSession(ref: target, categoryID: categoryID, start: start,
-                                                       duration: TimeInterval(minutes * 60), note: note))
+                    var s = store.makeSession(ref: target, categoryID: categoryID, start: start,
+                                              duration: TimeInterval(minutes * 60), note: note)
+                    s.isManual = true
+                    store.addSession(s)
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)

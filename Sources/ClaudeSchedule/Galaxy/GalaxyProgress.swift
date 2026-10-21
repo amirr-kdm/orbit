@@ -93,9 +93,9 @@ struct GalaxyProgress {
 extension AppStore {
     /// One level for every 3 hours studied in total (max 60). Level-ups happen straight away.
     func galaxyProgress(now: Date = Date()) -> GalaxyProgress {
-        let total = sessions.reduce(0) { $0 + $1.duration } / 3600
+        let total = sessions.filter { !$0.isManual }.reduce(0) { $0 + $1.duration } / 3600
         let currentWeek = Cal.weekStart(now)
-        let weekHours = studyTime(in: DateInterval(start: currentWeek, end: now.addingTimeInterval(1))) / 3600
+        let weekHours = rewardTime(in: DateInterval(start: currentWeek, end: now.addingTimeInterval(1))) / 3600
         let level = min(GalaxyProgress.maxLevel, 1 + Int(total / GalaxyProgress.hoursPerLevel))
         // One planet spot per level, shared by collection and store planets
         return GalaxyProgress(level: level, totalHours: total, weekHours: weekHours,

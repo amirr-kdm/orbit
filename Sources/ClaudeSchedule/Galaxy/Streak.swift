@@ -45,7 +45,7 @@ struct StreakInfo: Equatable {
 }
 
 extension AppStore {
-    var streakInfo: StreakInfo { StreakInfo.compute { studyTime(on: $0) > 0 } }
+    var streakInfo: StreakInfo { StreakInfo.compute { rewardTime(on: $0) > 0 } }
 }
 
 /// The streak lightning bolt (Resources/streak.png)

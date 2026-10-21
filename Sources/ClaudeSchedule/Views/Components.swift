@@ -202,7 +202,17 @@ struct SessionRow: View {
                 .fill(store.subject(of: session).color)
                 .frame(width: 4, height: 32)
             VStack(alignment: .leading, spacing: 2) {
-                Text(store.itemTitle(of: session)).lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(store.itemTitle(of: session)).lineLimit(1)
+                    if session.isManual {
+                        Label("Manual", systemImage: "hand.raised.fill")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.secondary.opacity(0.18)))
+                            .foregroundStyle(.secondary)
+                            .help("Logged by hand: counts in reports, not for levels, rockets, streaks or prizes")
+                    }
+                }
                 Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()

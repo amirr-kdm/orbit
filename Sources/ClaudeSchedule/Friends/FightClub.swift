@@ -66,6 +66,7 @@ final class FightClubService {
         guard end > b.created_at else { return 0 }
         let subject = task(for: b).map(\.categoryID)
         let seconds = store.sessions.reduce(0.0) { sum, s in
+            if s.isManual { return sum }   // manual logs earn no bullets
             if let subject {   // the fight's subject, its subcategories included
                 if let want = subject { if !store.isInside(s.categoryID, want) { return sum } } else if s.categoryID != nil { return sum }
             }

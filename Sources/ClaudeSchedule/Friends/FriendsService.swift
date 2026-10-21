@@ -336,7 +336,7 @@ final class FriendsService {
         let thisWeek = Cal.weekStart(Date())
         guard let lastWeek = Cal.persian.date(byAdding: .day, value: -7, to: thisWeek) else { return }
         let days = (0..<7).compactMap { Cal.persian.date(byAdding: .day, value: $0, to: lastWeek) }
-        let myMinutes = Int(store.studyTime(in: DateInterval(start: lastWeek, end: thisWeek)) / 60)
+        let myMinutes = Int(store.rewardTime(in: DateInterval(start: lastWeek, end: thisWeek)) / 60)
         guard myMinutes > 0 else { return }
         var won: [String] = []
         for g in groups where g.members.count >= 2 {
@@ -405,7 +405,8 @@ final class FriendsService {
     }
 
     private func localStat(for day: Date, userID: UUID) -> DailyStat {
-        let sessions = store.sessions(in: Cal.persian.dayInterval(day))
+        // what friends see (leaderboards, group prizes): timed study only
+        let sessions = store.sessions(in: Cal.persian.dayInterval(day)).filter { !$0.isManual }
         let todos = store.todos(on: day)
         var subjects: [String: SubjectStat] = [:]
         for s in sessions {
