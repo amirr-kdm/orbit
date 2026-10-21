@@ -285,7 +285,7 @@ private struct PlannerDetail: View {
         } else {
             ScheduleCellView(
                 entry: entry,
-                colorHex: editing == key ? editColor : entry?.colorHex,
+                colorHex: editing == key ? editColor : store.colorHex(of: entry),
                 category: store.category(entry?.categoryID),
                 template: template,
                 font: store.settings.font,

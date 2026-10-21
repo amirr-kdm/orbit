@@ -293,6 +293,14 @@ final class AppStore {
 
     // MARK: Tasks
 
+    /// The colour a schedule cell shows: its category's colour for to-dos when that setting is on, else its own
+    func colorHex(of e: ScheduleEntry?) -> String? {
+        guard let e else { return nil }
+        if settings.categoryColors, e.kind == .todo, let c = category(e.categoryID) { return c.colorHex }
+        return e.colorHex
+    }
+    func color(of e: ScheduleEntry) -> Color? { colorHex(of: e).map(Color.init(hex:)) }
+
     func task(_ id: UUID?) -> TaskItem? {
         guard let id else { return nil }
         return tasks.first { $0.id == id }
@@ -552,7 +560,7 @@ final class AppStore {
         case .schedule(let id):
             guard let e = entry(id), let slot = slot(e.slotID) else { return nil }
             return TodoItem(ref: ref, title: e.title, detail: "\(Cal.weekdayShort[e.weekday]) \(slot.title)",
-                            color: e.color ?? category(e.categoryID)?.color ?? .accentColor,
+                            color: color(of: e) ?? category(e.categoryID)?.color ?? .accentColor,
                             isDone: false, sortMinute: slot.startMinute)
         case .task(let id):
             guard let t = task(id) else { return nil }
@@ -619,7 +627,7 @@ final class AppStore {
                 guard let slot = slots.first(where: { $0.id == e.slotID }) else { return nil }
                 let detail = category(e.categoryID).map { "\(slot.title) · \($0.name)" } ?? slot.title
                 return TodoItem(ref: .schedule(e.id), title: e.title, detail: detail,
-                                color: e.color ?? .accentColor,
+                                color: color(of: e) ?? .accentColor,
                                 isDone: isDone(.schedule(e.id), on: day), sortMinute: slot.startMinute,
                                 isSkipped: isSkipped(.schedule(e.id), on: day))
             }

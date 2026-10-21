@@ -520,7 +520,7 @@ struct BoardScheduleCard: View {
     var body: some View {
         let e = row.entry
         let category = store.category(e.categoryID)
-        let color = e.color ?? category?.color ?? .accentColor
+        let color = store.color(of: e) ?? category?.color ?? .accentColor
 
         BoardCard(color: color, isDone: row.isDone, isSkipped: row.isSkipped, hovering: hovering,
                   toggle: { store.tapStatus(.schedule(e.id), on: row.date) },
@@ -765,7 +765,7 @@ struct ScheduleTaskRow: View {
             .buttonStyle(.plain)
 
             RoundedRectangle(cornerRadius: 2)
-                .fill(entry.color ?? category?.color ?? .accentColor)
+                .fill(store.color(of: entry) ?? category?.color ?? .accentColor)
                 .frame(width: 4, height: 30)
 
             VStack(alignment: .leading, spacing: 3) {

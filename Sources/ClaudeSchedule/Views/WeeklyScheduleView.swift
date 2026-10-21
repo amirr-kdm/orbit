@@ -256,7 +256,7 @@ struct WeeklyScheduleView: View {
                         let isNow = day == today && currentSlot?.id == slot.id
                         ScheduleCellView(
                             entry: entry,
-                            colorHex: editing == key ? editColor : entry?.colorHex,
+                            colorHex: editing == key ? editColor : store.colorHex(of: entry),
                             category: store.category(entry?.categoryID),
                             recurrence: entry?.recurrence,
                             template: template,

@@ -167,6 +167,8 @@ struct AppSettings: Codable, Equatable {
     var evenWeekAnchor: Date = AppSettings.defaultEvenAnchor
     /// Colours offered for schedule and planner cells (add your own, delete any)
     var cellPalette: [String] = AppSettings.defaultPalette
+    /// To-dos that have a category take its colour (otherwise each cell keeps its own colour)
+    var categoryColors = false
 
     static let defaultPalette: [String] = ["#FFFFFF", "#FF6B6B", "#FFA94D", "#FFD43B", "#69DB7C",
                                            "#4DABF7", "#7C6CF2", "#F783AC", "#94A3B8"]
@@ -286,6 +288,7 @@ extension AppSettings {
         template = (try? c.decodeIfPresent(ScheduleTemplate.self, forKey: .template)) ?? d.template
         evenWeekAnchor = try c.decodeIfPresent(Date.self, forKey: .evenWeekAnchor) ?? d.evenWeekAnchor
         cellPalette = try c.decodeIfPresent([String].self, forKey: .cellPalette) ?? d.cellPalette
+        categoryColors = try c.decodeIfPresent(Bool.self, forKey: .categoryColors) ?? d.categoryColors
     }
 }
 

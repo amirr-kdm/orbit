@@ -121,6 +121,13 @@ struct SettingsView: View {
             }
 
             Section {
+                Toggle(isOn: $store.settings.categoryColors) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("To-dos use their category's colour")
+                        Text("On: a to-do with a category shows the category's colour in the schedule, Today and Tasks. Off: each cell keeps its own colour.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 ForEach($store.categories) { $cat in
                     HStack {
                         ColorPicker("", selection: Binding(
