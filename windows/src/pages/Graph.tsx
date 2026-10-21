@@ -129,8 +129,18 @@ export default function Graph({ catFilter }: { catFilter: string }) {
   };
 
   // Simulation + drawing loop
+  // Once the layout has settled and nothing changes, stop redrawing (saves CPU and battery)
+  const quiet = useRef({ key: "", since: 0 });
   useEffect(() => {
-    return frameLoop(() => { step(); draw(); }, 30);
+    quiet.current.since = performance.now();   // something re-rendered: draw for a moment
+    return frameLoop((now) => {
+      step();
+      const { sim, view } = shared;
+      const key = `${hover.current}|${selRef.current}|${view.scale}|${view.panX}|${view.panY}|${sim.nodes.length}|${innerWidth}x${innerHeight}|${lookRef.current ? JSON.stringify(lookRef.current) : ""}`;
+      if (key !== quiet.current.key) { quiet.current = { key, since: now }; }
+      if (sim.alpha < 0.003 && !drag.current && now - quiet.current.since > 1500) return;
+      draw();
+    }, 30);
   });
 
   function step() {

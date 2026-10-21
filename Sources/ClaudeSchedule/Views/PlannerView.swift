@@ -599,10 +599,11 @@ private struct NotesPanel: View {
                     .padding(.top, 12)
                     formatBar.padding(.horizontal, 12).padding(.vertical, 8)
                     Divider()
-                    RichTextEditor(noteID: note.id, rtf: note.rtf, controller: controller) { id, data in
+                    RichTextEditor(noteID: note.id, rtf: note.rtfForEditor, controller: controller) { id, data in
                         store.updatePlanner(plannerID) { p in
                             if let i = p.notes.firstIndex(where: { $0.id == id }) {
                                 p.notes[i].rtf = data
+                                p.notes[i].html = nil   // saved here: the RTF is now the newest copy
                                 p.notes[i].updatedAt = Date()
                             }
                         }

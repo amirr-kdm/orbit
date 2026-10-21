@@ -184,6 +184,19 @@ struct PlannerNote: Identifiable, Codable, Hashable {
     var title = "Note"
     var rtf = Data()
     var updatedAt = Date()
+    /// Set when the note was last edited in the Windows app (it stores HTML); shown and saved back as RTF here
+    var html: String?
+
+    /// The note as RTF: a Windows edit (HTML) wins over the old RTF
+    @MainActor var rtfForEditor: Data {
+        // (older Windows builds saved the word "undefined" when opening a Mac note: ignore it)
+        guard let html, html != "undefined", let data = html.data(using: .utf8),
+              let text = try? NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.html,
+                                                                       .characterEncoding: String.Encoding.utf8.rawValue],
+                                                 documentAttributes: nil)
+        else { return rtf }
+        return text.rtf(from: NSRange(location: 0, length: text.length), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]) ?? rtf
+    }
 }
 
 /// A draft week you can plan freely, take notes in, and later copy into the weekly schedule

@@ -73,7 +73,8 @@ export interface Settings {
 }
 
 /** A rich-text note inside a planner (HTML) */
-export interface PlannerNote { id: string; title: string; html: string; updatedAt: string }
+/** `html` is written here; `rtf` (base64) by the Mac app — whichever app saved last, its field is the newest */
+export interface PlannerNote { id: string; title: string; html?: string; rtf?: string; updatedAt: string }
 
 /** A draft week with brainstorm notes that can be copied into the weekly schedule */
 export interface Planner {

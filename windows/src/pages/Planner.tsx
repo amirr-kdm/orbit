@@ -1,3 +1,4 @@
+import { rtfToHtml } from "../lib/rtf";
 import React, { useEffect, useRef, useState } from "react";
 import { CellPalette, MenuItem, Modal, useContextMenu } from "../components";
 import { addDays, monthDay, WEEKDAYS, WEEKDAYS_SHORT, weekStart } from "../lib/dates";
@@ -317,20 +318,24 @@ function Notes({ planner }: { planner: PlannerT }) {
   const editor = useRef<HTMLDivElement>(null);
   const pending = useRef<number>();
   const loaded = useRef<string>();
+  const shown = useRef<string>();
   const [inTable, setInTable] = useState(false);
 
   const save = () => {
     window.clearTimeout(pending.current);
     const id = loaded.current, html = editor.current?.innerHTML;
-    if (!id || html === undefined) return;
-    actions.updatePlanner(planner.id, (p) => { const n = p.notes.find((x) => x.id === id); if (n && n.html !== html) { n.html = html; n.updatedAt = new Date().toISOString(); } });
+    if (!id || html === undefined || html === shown.current) return;   // opened but not edited: leave it as it is
+    actions.updatePlanner(planner.id, (p) => { const n = p.notes.find((x) => x.id === id); shown.current = html; if (n && n.html !== html) { n.html = html; delete n.rtf; n.updatedAt = new Date().toISOString(); } });
   };
 
   // Load the note into the editor only when switching notes, so typing never jumps the caret
   useEffect(() => {
     if (!note || loaded.current === note.id || !editor.current) return;
     if (loaded.current) save();
-    editor.current.innerHTML = note.html;
+    // (older builds saved the word "undefined" when opening a Mac note: ignore it)
+    const html = note.html === "undefined" ? undefined : note.html;
+    editor.current.innerHTML = html ?? (note.rtf ? rtfToHtml(note.rtf) : "");
+    shown.current = editor.current.innerHTML;
     loaded.current = note.id;
   });
   useEffect(() => () => save(), []); // eslint-disable-line react-hooks/exhaustive-deps
