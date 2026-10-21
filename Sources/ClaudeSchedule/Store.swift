@@ -279,16 +279,45 @@ final class AppStore {
         return categories.first { $0.id == id }
     }
 
+    /// Categories in display order: each one followed by its subcategories
+    var orderedCategories: [Category] {
+        let top = categories.filter { $0.parentID == nil || category($0.parentID) == nil }
+        return top.flatMap { [$0] + subcategories(of: $0.id) }
+    }
+
+    func subcategories(of id: UUID) -> [Category] { categories.filter { $0.parentID == id } }
+
+    /// "IELTS › Speaking" for a subcategory, just the name otherwise
+    func categoryLabel(_ id: UUID?) -> String? {
+        guard let c = category(id) else { return nil }
+        if let p = category(c.parentID) { return "\(p.name) › \(c.name)" }
+        return c.name
+    }
+
+    /// Is `id` this category or one of its subcategories? (filters by a category include its subcategories)
+    func isInside(_ id: UUID?, _ filter: UUID) -> Bool {
+        id == filter || (id != nil && category(id)?.parentID == filter)
+    }
+
+    func addSubcategory(to parent: UUID) {
+        guard let p = category(parent) else { return }
+        categories.append(Category(name: "New subcategory", colorHex: p.colorHex, parentID: parent))
+    }
+
     func addCategory() {
         let palette = ["#4F7CF7", "#F28C38", "#2BB673", "#E5484D", "#9B6BDF", "#14B8C4", "#D9A21B", "#E255A1"]
         categories.append(Category(name: "New category", colorHex: palette[categories.count % palette.count]))
     }
 
+    /// Deleting a subcategory moves its items up to the parent; deleting a category keeps its
+    /// subcategories (as categories of their own) and leaves its items without a category
     func deleteCategory(_ id: UUID) {
+        let parent = category(id)?.parentID
         categories.removeAll { $0.id == id }
-        for i in tasks.indices where tasks[i].categoryID == id { tasks[i].categoryID = nil }
-        for i in schedule.indices where schedule[i].categoryID == id { schedule[i].categoryID = nil }
-        for i in sessions.indices where sessions[i].categoryID == id { sessions[i].categoryID = nil }
+        for i in categories.indices where categories[i].parentID == id { categories[i].parentID = nil }
+        for i in tasks.indices where tasks[i].categoryID == id { tasks[i].categoryID = parent }
+        for i in schedule.indices where schedule[i].categoryID == id { schedule[i].categoryID = parent }
+        for i in sessions.indices where sessions[i].categoryID == id { sessions[i].categoryID = parent }
     }
 
     // MARK: Tasks
@@ -564,7 +593,7 @@ final class AppStore {
                             isDone: false, sortMinute: slot.startMinute)
         case .task(let id):
             guard let t = task(id) else { return nil }
-            return TodoItem(ref: ref, title: t.title, detail: category(t.categoryID)?.name ?? "Task",
+            return TodoItem(ref: ref, title: t.title, detail: categoryLabel(t.categoryID) ?? "Task",
                             color: category(t.categoryID)?.color ?? .gray, isDone: t.isDone, sortMinute: 9999)
         }
     }
@@ -625,7 +654,7 @@ final class AppStore {
                       && !isMoved($0.id, from: day) }
             .compactMap { e -> TodoItem? in
                 guard let slot = slots.first(where: { $0.id == e.slotID }) else { return nil }
-                let detail = category(e.categoryID).map { "\(slot.title) · \($0.name)" } ?? slot.title
+                let detail = categoryLabel(e.categoryID).map { "\(slot.title) · \($0)" } ?? slot.title
                 return TodoItem(ref: .schedule(e.id), title: e.title, detail: detail,
                                 color: color(of: e) ?? .accentColor,
                                 isDone: isDone(.schedule(e.id), on: day), sortMinute: slot.startMinute,
@@ -638,7 +667,7 @@ final class AppStore {
     func todos(on day: Date) -> [TodoItem] {
         let taskItems = tasks(on: day).map { t in
             TodoItem(ref: .task(t.id), title: t.title,
-                     detail: category(t.categoryID)?.name ?? "Task",
+                     detail: categoryLabel(t.categoryID) ?? "Task",
                      color: category(t.categoryID)?.color ?? .gray,
                      isDone: t.isDone,
                      sortMinute: t.hasTime ? (t.dueDate.map(Cal.minuteOfDay) ?? 9999) : 9999,
@@ -670,10 +699,10 @@ final class AppStore {
             let t = task(id)
             s.taskID = id
             s.categoryID = t?.categoryID ?? categoryID
-            s.subject = category(s.categoryID)?.name ?? t?.title ?? ""
+            s.subject = categoryLabel(s.categoryID) ?? t?.title ?? ""
             s.colorHex = category(s.categoryID)?.colorHex ?? "#8E8E93"
         case nil:
-            s.subject = category(categoryID)?.name ?? "Free study"
+            s.subject = categoryLabel(categoryID) ?? "Free study"
             s.colorHex = category(categoryID)?.colorHex ?? "#8E8E93"
         }
         return s

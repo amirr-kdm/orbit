@@ -128,15 +128,26 @@ struct SettingsView: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                ForEach($store.categories) { $cat in
+                ForEach(store.orderedCategories) { cat in
                     HStack {
+                        if cat.parentID != nil {
+                            Image(systemName: "arrow.turn.down.right").foregroundStyle(.tertiary).padding(.leading, 14)
+                        }
                         ColorPicker("", selection: Binding(
-                            get: { cat.color },
-                            set: { cat.colorHex = $0.hexString }
+                            get: { store.category(cat.id)?.color ?? cat.color },
+                            set: { c in if let i = store.categories.firstIndex(where: { $0.id == cat.id }) { store.categories[i].colorHex = c.hexString } }
                         ), supportsOpacity: false)
                         .labelsHidden()
-                        TextField("Name", text: $cat.name)
-                            .textFieldStyle(.plain)
+                        TextField(cat.parentID == nil ? "Category" : "Subcategory", text: Binding(
+                            get: { store.category(cat.id)?.name ?? "" },
+                            set: { v in if let i = store.categories.firstIndex(where: { $0.id == cat.id }) { store.categories[i].name = v } }
+                        ))
+                        .textFieldStyle(.plain)
+                        if cat.parentID == nil {
+                            Button { store.addSubcategory(to: cat.id) } label: { Label("Sub", systemImage: "plus") }
+                                .buttonStyle(.borderless).font(.caption)
+                                .help("Add a subcategory, e.g. IELTS › Speaking")
+                        }
                         Button(role: .destructive) {
                             deletingCategory = cat
                         } label: {
@@ -147,7 +158,7 @@ struct SettingsView: View {
                 }
             } header: {
                 HStack {
-                    Text("Task categories")
+                    Text("Task categories & subcategories")
                     Spacer()
                     Button {
                         store.addCategory()
@@ -175,7 +186,9 @@ struct SettingsView: View {
                 deletingCategory = nil
             }
         } message: {
-            Text("Its tasks and sessions are kept, just without a category.")
+            Text(deletingCategory?.parentID != nil
+                 ? "Its tasks and sessions move to the parent category."
+                 : "Its tasks and sessions are kept, just without a category. Its subcategories become categories of their own.")
         }
         .confirmationDialog("Delete the \(deletingSlot?.title ?? "") slot?",
                             isPresented: Binding(get: { deletingSlot != nil }, set: { if !$0 { deletingSlot = nil } })) {

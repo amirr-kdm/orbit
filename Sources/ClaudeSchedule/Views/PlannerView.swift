@@ -307,7 +307,7 @@ private struct PlannerDetail: View {
                         set: { id in store.updatePlannerEntry(plannerID, entry.id) { $0.categoryID = id } }
                     )) {
                         Text("No category").tag(UUID?.none)
-                        ForEach(store.categories) { Text($0.name).tag(Optional($0.id)) }
+                        ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
                     }
                     Divider()
                     Button("Clear Cell", role: .destructive) {
@@ -325,11 +325,11 @@ private struct PlannerDetail: View {
             Menu {
                 Picker("Category", selection: categoryBinding) {
                     Text("No category").tag(UUID?.none)
-                    ForEach(store.categories) { c in Text(c.name).tag(Optional(c.id)) }
+                    ForEach(store.orderedCategories) { c in Text(store.categoryLabel(c.id) ?? c.name).tag(Optional(c.id)) }
                 }
                 .pickerStyle(.inline)
             } label: {
-                Label(store.category(categoryBinding.wrappedValue)?.name ?? "Category", systemImage: "tag")
+                Label(store.categoryLabel(categoryBinding.wrappedValue) ?? "Category", systemImage: "tag")
             }
             .menuStyle(.borderlessButton)
             .fixedSize()

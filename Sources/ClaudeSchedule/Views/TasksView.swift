@@ -133,7 +133,7 @@ struct TasksView: View {
 
             Picker("Category", selection: $categoryFilter) {
                 Text("All categories").tag(UUID?.none)
-                ForEach(store.categories) { Text($0.name).tag(Optional($0.id)) }
+                ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
             }
             .frame(width: 210)
         }
@@ -156,7 +156,7 @@ struct TasksView: View {
     // MARK: Filtering helpers
 
     private func matches(_ task: TaskItem) -> Bool {
-        if let categoryFilter, task.categoryID != categoryFilter { return false }
+        if let categoryFilter, !store.isInside(task.categoryID, categoryFilter) { return false }
         if !search.isEmpty {
             return task.title.localizedCaseInsensitiveContains(search) || task.notes.localizedCaseInsensitiveContains(search)
         }
@@ -164,10 +164,10 @@ struct TasksView: View {
     }
 
     private func matches(_ row: ScheduleTodoRow) -> Bool {
-        if let categoryFilter, row.entry.categoryID != categoryFilter { return false }
+        if let categoryFilter, !store.isInside(row.entry.categoryID, categoryFilter) { return false }
         if !search.isEmpty {
             return row.entry.text.localizedCaseInsensitiveContains(search)
-                || (store.category(row.entry.categoryID)?.name.localizedCaseInsensitiveContains(search) ?? false)
+                || (store.categoryLabel(row.entry.categoryID)?.localizedCaseInsensitiveContains(search) ?? false)
         }
         return true
     }
@@ -532,7 +532,7 @@ struct BoardScheduleCard: View {
         } meta: {
             Text(row.slot.title).monospacedDigit()
             if let badge = e.recurrence.badge { Text(badge).fontWeight(.heavy) }
-            else if let category { Text(category.name) }
+            else if let category { Text(store.categoryLabel(category.id) ?? category.name) }
         }
         .onHover { hovering = $0 }
         .draggable(DragPayload.occurrence(e.id, row.date)) {
@@ -573,7 +573,7 @@ struct BoardTaskCard: View {
             Text(task.title).strikethrough(task.isDone || task.isSkipped)
         } meta: {
             if task.hasTime, let d = task.dueDate { Label(Fmt.time(d), systemImage: "clock") }
-            if let category { Text(category.name) }
+            if let category { Text(store.categoryLabel(category.id) ?? category.name) }
             if task.priority == .high { Image(systemName: "flag.fill").foregroundStyle(.red) }
         }
         .onHover { hovering = $0 }
@@ -679,7 +679,7 @@ struct TaskEditor: View {
                 TextField("Title", text: $task.title)
                 Picker("Category", selection: $task.categoryID) {
                     Text("None").tag(UUID?.none)
-                    ForEach(store.categories) { Text($0.name).tag(Optional($0.id)) }
+                    ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
                 }
                 Picker("Priority", selection: $task.priority) {
                     ForEach(Priority.allCases) { Text($0.title).tag($0) }
@@ -792,7 +792,7 @@ struct ScheduleTaskRow: View {
                     set: { id in store.updateEntry(entry.id) { $0.categoryID = id } }
                 )) {
                     Text("No category").tag(UUID?.none)
-                    ForEach(store.categories) { Text($0.name).tag(Optional($0.id)) }
+                    ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
                 }
                 .pickerStyle(.inline)
             } label: {

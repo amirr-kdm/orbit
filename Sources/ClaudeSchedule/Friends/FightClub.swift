@@ -66,7 +66,9 @@ final class FightClubService {
         guard end > b.created_at else { return 0 }
         let subject = task(for: b).map(\.categoryID)
         let seconds = store.sessions.reduce(0.0) { sum, s in
-            if let subject, s.categoryID != subject { return sum }
+            if let subject {   // the fight's subject, its subcategories included
+                if let want = subject { if !store.isInside(s.categoryID, want) { return sum } } else if s.categoryID != nil { return sum }
+            }
             return sum + max(0, min(s.end, end).timeIntervalSince(max(s.start, b.created_at)))
         }
         return Int(seconds / 60)
@@ -338,12 +340,12 @@ struct SubjectPicker: View {
             Text("SUBJECT · only study in it gives bullets").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(store.categories) { c in
+                    ForEach(store.orderedCategories) { c in
                         let on = categoryID == c.id
                         Button { categoryID = c.id } label: {
                             HStack(spacing: 5) {
                                 Circle().fill(c.color).frame(width: 8, height: 8)
-                                Text(c.name).font(.callout)
+                                Text(store.categoryLabel(c.id) ?? c.name).font(.callout)
                             }
                             .padding(.horizontal, 10).padding(.vertical, 5)
                             .background(Capsule().fill(on ? c.color.opacity(0.35) : Color.primary.opacity(0.07)))
@@ -778,7 +780,7 @@ struct BattleView: View {
                 if b.isAlive {
                     let task = fc.task(for: b), cat = store.category(task?.categoryID)
                     Button { pickingSubject = true } label: {
-                        if let cat { Label(cat.name, systemImage: "book.fill") } else { Label("Pick a subject", systemImage: "book") }
+                        if let cat { Label(store.categoryLabel(cat.id) ?? cat.name, systemImage: "book.fill") } else { Label("Pick a subject", systemImage: "book") }
                     }
                     .tint(cat == nil ? .orange : nil)
                     .help(cat == nil ? "All your study counts until you pick a subject" : "Only study in this subject gives bullets · click to change")

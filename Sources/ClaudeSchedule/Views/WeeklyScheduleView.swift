@@ -375,8 +375,8 @@ struct WeeklyScheduleView: View {
                 Menu {
                     Picker("Category", selection: categoryBinding) {
                         Text("No category").tag(UUID?.none)
-                        ForEach(store.categories) { c in
-                            Label { Text(c.name) } icon: { Image(systemName: "circle.fill").foregroundStyle(c.color) }
+                        ForEach(store.orderedCategories) { c in
+                            Label { Text(store.categoryLabel(c.id) ?? c.name) } icon: { Image(systemName: "circle.fill").foregroundStyle(c.color) }
                                 .tag(Optional(c.id))
                         }
                     }
@@ -384,7 +384,7 @@ struct WeeklyScheduleView: View {
                     Divider()
                     Button("Manage Categories…") { router.selection = .settings }
                 } label: {
-                    Label(store.category(categoryBinding.wrappedValue)?.name ?? "Category", systemImage: "tag")
+                    Label(store.categoryLabel(categoryBinding.wrappedValue) ?? "Category", systemImage: "tag")
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
@@ -497,7 +497,7 @@ struct WeeklyScheduleView: View {
                 set: { id in store.updateEntry(entry.id) { $0.categoryID = id } }
             )) {
                 Text("No category").tag(UUID?.none)
-                ForEach(store.categories) { Text($0.name).tag(Optional($0.id)) }
+                ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
             }
             Menu("Colour") {
                 Button("Template colour") { store.updateEntry(entry.id) { $0.colorHex = nil } }

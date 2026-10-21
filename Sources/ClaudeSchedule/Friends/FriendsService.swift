@@ -401,7 +401,7 @@ final class FriendsService {
 
     private func liveTitle(_ timer: TimerEngine) -> String? {
         guard timer.isRunning, timer.phase == .focus else { return nil }
-        return timer.targetTitle ?? store.category(timer.categoryID)?.name ?? "Studying"
+        return timer.targetTitle ?? store.categoryLabel(timer.categoryID) ?? "Studying"
     }
 
     private func localStat(for day: Date, userID: UUID) -> DailyStat {

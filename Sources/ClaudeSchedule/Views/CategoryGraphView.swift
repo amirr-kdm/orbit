@@ -48,7 +48,7 @@ struct CategoryGraphView: View {
 
             if let id = selected, let node = graph.nodes.first(where: { $0.id == id }) {
                 GraphDetails(node: node,
-                             items: graph.edges.filter { $0.a == node.id }.compactMap { e in graph.nodes.first { $0.id == e.b } },
+                             items: items(of: node.id, in: graph),
                              showDone: showDone,
                              select: { selected = $0 },
                              close: { selected = nil })
@@ -67,6 +67,14 @@ struct CategoryGraphView: View {
         .onChange(of: linkLength) { _, _ in sim.setLook(hub: hubSize, leaf: leafSize, link: linkLength) }
     }
 
+    /// What a hub holds: its own items plus its subcategories' items (the subcategory hubs themselves aren't listed)
+    private func items(of id: String, in graph: GraphData) -> [GraphData.Node] {
+        graph.edges.filter { $0.a == id }.flatMap { e -> [GraphData.Node] in
+            guard let n = graph.nodes.first(where: { $0.id == e.b }) else { return [] }
+            return n.isHub ? items(of: n.id, in: graph) : [n]
+        }
+    }
+
     // MARK: Data
 
     private func buildGraph() -> GraphData {
@@ -81,11 +89,15 @@ struct CategoryGraphView: View {
                 let c = store.category(categoryID)
                 hubs[id] = .init(id: id, title: c?.name ?? "No category", color: c?.colorHex ?? "#8E8E93",
                                  isHub: true, isSchedule: false, isDone: false, detail: "", ref: nil, date: nil)
+                // a subcategory hangs off its parent category's hub
+                if let parent = c?.parentID, store.category(parent) != nil {
+                    edges.append(.init(a: hub(for: parent), b: id))
+                }
             }
             return id
         }
         func include(_ cat: UUID?, _ title: String) -> Bool {
-            if let categoryFilter, cat != categoryFilter { return false }
+            if let categoryFilter, !store.isInside(cat, categoryFilter) { return false }
             return q.isEmpty || title.lowercased().contains(q)
         }
 
@@ -520,7 +532,7 @@ private struct GraphDetails: View {
             if let slot { row("clock", "Time", "\(slot.title) · \(slot.endMinute - slot.startMinute) min") }
             row(e.recurrence.icon, "Repeats", e.recurrence == .once
                 ? "Only the week of \(e.weekStart.map { Fmt.date($0, "MMM d", kind) } ?? "")" : e.recurrence.title)
-            row("tag", "Category", store.category(e.categoryID)?.name ?? "None")
+            row("tag", "Category", store.categoryLabel(e.categoryID) ?? "None")
         }
         studied(.schedule(e.id))
         if e.text.contains("\n") {
@@ -565,7 +577,7 @@ private struct GraphDetails: View {
             } else {
                 row("tray", "Date", "No date")
             }
-            row("tag", "Category", store.category(t.categoryID)?.name ?? "None")
+            row("tag", "Category", store.categoryLabel(t.categoryID) ?? "None")
             row("flag", "Priority", t.priority.title)
             if !t.hasTime { row("hourglass", "Estimate", "\(t.estimatedMinutes) min") }
             row("plus.circle", "Created", Fmt.date(t.createdAt, "MMM d, y", kind))
@@ -583,7 +595,7 @@ private struct GraphDetails: View {
     @ViewBuilder
     private var hubInfo: some View {
         let catID = UUID(uuidString: String(node.id.dropFirst(4)))
-        let sessions = store.sessions.filter { $0.categoryID == catID }
+        let sessions = store.sessions.filter { s in catID.map { store.isInside(s.categoryID, $0) } ?? (s.categoryID == nil) }
         let week = Cal.persian.dateInterval(of: .weekOfYear, for: Date())
         section("Overview") {
             row("list.bullet", "Items", "\(items.count)")

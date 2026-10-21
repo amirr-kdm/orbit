@@ -89,7 +89,7 @@ struct TimerView: View {
                 if timer.target == nil {
                     Picker("Category", selection: $timer.categoryID) {
                         Text("None").tag(UUID?.none)
-                        ForEach(store.categories) { Text($0.name).tag(Optional($0.id)) }
+                        ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
                     }
                 }
                 TextField("Session note (e.g. chapter 3)", text: $timer.note)
@@ -202,7 +202,7 @@ struct ManualSessionSheet: View {
                 if target == nil {
                     Picker("Category", selection: $categoryID) {
                         Text("None").tag(UUID?.none)
-                        ForEach(store.categories) { Text($0.name).tag(Optional($0.id)) }
+                        ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
                     }
                 }
                 DatePicker("Started", selection: $start)
