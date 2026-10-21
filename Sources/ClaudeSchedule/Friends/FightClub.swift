@@ -58,9 +58,32 @@ final class FightClubService {
     func healthLeft(_ b: Boss) -> Int { max(0, b.hp - damageDone(b)) }
     func me(_ b: Boss, _ id: UUID?) -> BossFighter? { fighters(of: b).first { $0.user_id == id } }
 
-    /// Bullets I've earned so far, counted from my own study (what the server will accept after the next report)
+    /// Bullets I've earned so far, counted from my own study (what the server will accept after the next report).
+    /// Only the part of each session after the monster appeared counts — a timer already running when it was
+    /// summoned counts from that moment. With a subject picked, only study in that subject counts.
     func earned(_ b: Boss) -> Int {
-        Int(store.studyTime(in: DateInterval(start: b.created_at, end: max(b.created_at, min(Date(), b.deadline)))) / 60)
+        let end = min(Date(), b.deadline)
+        guard end > b.created_at else { return 0 }
+        let subject = task(for: b).map(\.categoryID)
+        let seconds = store.sessions.reduce(0.0) { sum, s in
+            if let subject, s.categoryID != subject { return sum }
+            return sum + max(0, min(s.end, end).timeIntervalSince(max(s.start, b.created_at)))
+        }
+        return Int(seconds / 60)
+    }
+
+    /// The task made for this fight (it holds the subject that counts)
+    func task(for b: Boss) -> TaskItem? { store.tasks.first { $0.bossID == b.id } }
+
+    /// Pick (or change) the subject that shoots at this monster: makes or updates its task
+    func setSubject(_ category: UUID, for id: UUID, title: String, deadline: Date, minutes: Int) {
+        if var t = store.tasks.first(where: { $0.bossID == id }) {
+            t.categoryID = category
+            store.upsertTask(t)
+        } else {
+            store.upsertTask(TaskItem(title: "💥 \(title)", notes: "Fight Club: study this subject to earn bullets.", categoryID: category,
+                                      dueDate: deadline, hasTime: true, estimatedMinutes: minutes, bossID: id))
+        }
     }
 
     func load() async {
@@ -277,6 +300,7 @@ struct FightClubCard: View {
 struct FightInvitesCard: View {
     @Environment(FightClubService.self) private var fc
     @Environment(FriendsService.self) private var friends
+    @State private var joining: Boss?
 
     var body: some View {
         let mine = fc.invitesToMe(friends.me?.id)
@@ -293,13 +317,81 @@ struct FightInvitesCard: View {
                             }
                             Spacer()
                             Button("Decline") { Task { await fc.answer(b.id, accept: false) } }
-                            Button("Join the Fight") { Task { await fc.answer(b.id, accept: true) } }.buttonStyle(.borderedProminent).tint(.red)
+                            Button("Join the Fight") { joining = b }.buttonStyle(.borderedProminent).tint(.red)
                         }
                         .disabled(fc.busy)
                     }
                 }
             }
+            .sheet(item: $joining) { b in JoinSubjectSheet(boss: b) }
         }
+    }
+}
+
+/// Which subject shoots at the monster (one of your categories)
+struct SubjectPicker: View {
+    @Binding var categoryID: UUID?
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("SUBJECT · only study in it gives bullets").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(store.categories) { c in
+                        let on = categoryID == c.id
+                        Button { categoryID = c.id } label: {
+                            HStack(spacing: 5) {
+                                Circle().fill(c.color).frame(width: 8, height: 8)
+                                Text(c.name).font(.callout)
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Capsule().fill(on ? c.color.opacity(0.35) : Color.primary.opacity(0.07)))
+                            .overlay(Capsule().strokeBorder(on ? c.color : .clear, lineWidth: 1.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            if store.categories.isEmpty { Text("Add a category in Settings first.").font(.caption).foregroundStyle(.orange) }
+        }
+    }
+}
+
+/// Joining a fight (or an older one without a subject): pick the subject that counts
+struct JoinSubjectSheet: View {
+    let boss: Boss
+    var joining = true
+    @Environment(FightClubService.self) private var fc
+    @Environment(\.dismiss) private var dismiss
+    @State private var categoryID: UUID?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label(joining ? "Join the fight against “\(boss.title)”" : "Subject for “\(boss.title)”", systemImage: "burst.fill")
+                .font(.title3.weight(.bold))
+            SubjectPicker(categoryID: $categoryID)
+            Text("A task “💥 \(boss.title)” is added to your Tasks. Study it with the timer to earn bullets.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(joining ? "Join the Fight" : "Save") {
+                    guard let categoryID else { return }
+                    Task {
+                        if joining { await fc.answer(boss.id, accept: true) }
+                        guard fc.error == nil else { return }
+                        fc.setSubject(categoryID, for: boss.id, title: boss.title, deadline: boss.deadline, minutes: boss.hp)
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.borderedProminent).tint(.red).keyboardShortcut(.defaultAction)
+                .disabled(categoryID == nil || fc.busy)
+            }
+        }
+        .padding(20).frame(width: 520)
+        .onAppear { categoryID = fc.task(for: boss)?.categoryID }
     }
 }
 
@@ -507,6 +599,7 @@ struct NewBossSheet: View {
     @State private var customDate = Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: Date().addingTimeInterval(5 * 86400)) ?? Date()
     @State private var friendIDs: Set<UUID> = []
     @State private var groupIDs: Set<UUID> = []
+    @State private var categoryID: UUID?
 
     private var level: Int { let m = hours * 60; return m <= 300 ? 1 : m <= 600 ? 2 : m <= 1200 ? 3 : m <= 2400 ? 4 : 5 }
     private var pool: Int { Int(hours * 45 * (1 + 0.15 * Double(level - 1))) }
@@ -528,6 +621,7 @@ struct NewBossSheet: View {
                 .frame(width: 150)
                 VStack(alignment: .leading, spacing: 12) {
                     TextField("Goal, e.g. Finish chapter 5", text: $title).textFieldStyle(.roundedBorder)
+                    SubjectPicker(categoryID: $categoryID)
                     VStack(alignment: .leading, spacing: 6) {
                         Text("HOW MUCH STUDY").font(.caption2.weight(.bold)).foregroundStyle(.secondary)
                         HStack(spacing: 6) {
@@ -559,7 +653,7 @@ struct NewBossSheet: View {
                     .font(.callout.weight(.semibold))
                 InvitePicker(friendIDs: $friendIDs, groupIDs: $groupIDs)
             }
-            Text("Each minute studied after it appears is one bullet. Only hits count. If the deadline comes first, it escapes and nobody wins.")
+            Text("Each minute you study the subject after it appears is one bullet — a task for it is added to your Tasks. Only hits count. If the deadline comes first, it escapes and nobody wins.")
                 .font(.caption).foregroundStyle(.secondary)
             if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
             HStack {
@@ -567,14 +661,16 @@ struct NewBossSheet: View {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button(friendIDs.isEmpty && groupIDs.isEmpty ? "Summon & Fight Alone" : "Summon & Invite") {
                     Task {
-                        if let id = await fc.create(title: title.isEmpty ? "Study goal" : title, minutes: Int(hours * 60), deadline: deadline) {
+                        let goal = title.isEmpty ? "Study goal" : title
+                        if let id = await fc.create(title: goal, minutes: Int(hours * 60), deadline: deadline) {
+                            if let categoryID { fc.setSubject(categoryID, for: id, title: goal, deadline: deadline, minutes: Int(hours * 60)) }
                             if let b = fc.bosses.first(where: { $0.id == id }) { await fc.sendInvites(b, friends: friendIDs, groups: groupIDs) }
                             onCreated(id)
                         }
                     }
                 }
                 .buttonStyle(.borderedProminent).tint(.red).keyboardShortcut(.defaultAction)
-                .disabled(fc.busy || deadline < Date().addingTimeInterval(1800))
+                .disabled(fc.busy || categoryID == nil || deadline < Date().addingTimeInterval(1800))
             }
         }
         .padding(20).frame(width: 600)
@@ -597,6 +693,8 @@ struct BattleView: View {
     @FocusState private var focused: Bool
     @State private var confirmDelete = false
     @State private var inviting = false
+    @State private var pickingSubject = false
+    @Environment(AppStore.self) private var store
     @State private var holdLeft = false
     @State private var holdRight = false
     @State private var lastShot = Date.distantPast
@@ -677,7 +775,15 @@ struct BattleView: View {
                 Spacer()
                 Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Escapes \(b.deadline.formatted(.relative(presentation: .named)))")
                     .font(.callout).foregroundStyle(.secondary)
-                if b.isAlive { Button { inviting = true } label: { Label("Invite", systemImage: "person.badge.plus") } }
+                if b.isAlive {
+                    let task = fc.task(for: b), cat = store.category(task?.categoryID)
+                    Button { pickingSubject = true } label: {
+                        if let cat { Label(cat.name, systemImage: "book.fill") } else { Label("Pick a subject", systemImage: "book") }
+                    }
+                    .tint(cat == nil ? .orange : nil)
+                    .help(cat == nil ? "All your study counts until you pick a subject" : "Only study in this subject gives bullets · click to change")
+                    Button { inviting = true } label: { Label("Invite", systemImage: "person.badge.plus") }
+                }
                 if b.creator == friends.me?.id {
                     Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
                         .help("Delete this monster")
@@ -685,6 +791,7 @@ struct BattleView: View {
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
             .sheet(isPresented: $inviting) { InviteSheet(boss: b) }
+            .sheet(isPresented: $pickingSubject) { JoinSubjectSheet(boss: b, joining: false) }
             .confirmationDialog("Delete “\(b.title)”?", isPresented: $confirmDelete) {
                 Button("Delete", role: .destructive) { Task { await fc.delete(b); dismiss() } }
             } message: { Text("It disappears for everyone fighting it. Bullets already fired are lost and nobody gets a prize.") }
@@ -780,7 +887,7 @@ struct BattleView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "bolt.horizontal.fill").foregroundStyle(.yellow)
                     Text("\(ammo) bullets").font(.headline.monospacedDigit())
-                    Text("· 1 per minute studied since it appeared").font(.caption).foregroundStyle(.secondary)
+                    Text(fc.task(for: b).flatMap { store.category($0.categoryID) }.map { "· 1 per minute of \($0.name) since it appeared" } ?? "· 1 per minute studied since it appeared").font(.caption).foregroundStyle(.secondary)
                 }
                 HStack(spacing: 2) {
                     ForEach(0..<30, id: \.self) { i in

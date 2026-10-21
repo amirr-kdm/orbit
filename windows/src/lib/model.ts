@@ -22,6 +22,8 @@ export interface TaskItem {
   isSkipped?: boolean;
   createdAt: string;
   completedAt?: string;
+  /** Made for a Fight Club monster: only study in this task's subject shoots at it */
+  bossID?: string;
 }
 
 export interface TimeSlot { id: string; startMinute: number; endMinute: number }

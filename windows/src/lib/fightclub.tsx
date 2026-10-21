@@ -2,7 +2,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { notify, useAccount } from "./account";
 import { accountData, sharedClient as client } from "./friends";
-import { studyTime, useStore } from "./store";
+import { useStore } from "./store";
+import { uid } from "./model";
 
 export interface Boss { id: string; creator: string; title: string; hp: number; deadline: string; monster: number; status: "alive" | "defeated" | "escaped"; created_at: string }
 export interface BossFighter { boss_id: string; user_id: string; minutes: number; damage: number; spent?: number }
@@ -18,16 +19,20 @@ interface FightClub {
   healthLeft: (b: Boss) => number; ammo: (b: Boss) => number;
   create: (title: string, minutes: number, deadline: Date) => Promise<string | null>;
   sendInvites: (b: Boss, friends: string[], groups: string[]) => Promise<void>;
-  answer: (boss: string, accept: boolean) => Promise<void>;
+  /** true when the server accepted it */
+  answer: (boss: string, accept: boolean) => Promise<boolean>;
   fire: (b: Boss, shots: number, hits: number) => Promise<void>;
   remove: (b: Boss) => Promise<void>;
   load: () => Promise<unknown>;
+  taskFor: (b: { id: string }) => import("./model").TaskItem | undefined;
+  /** Pick (or change) the subject that shoots at this monster: makes or updates its task */
+  setSubject: (category: string, b: { id: string; title: string; deadline: string; hp: number }) => void;
   setError: (e: string | null) => void;
 }
 const Ctx = createContext<FightClub | null>(null);
 
 export function FightClubProvider({ children }: { children: React.ReactNode }) {
-  const { data } = useStore();
+  const { data, update } = useStore();
   const account = useAccount();
   const [bosses, setBosses] = useState<Boss[]>([]);
   const [fighters, setFighters] = useState<Record<string, BossFighter[]>>({});
@@ -38,10 +43,23 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
   const notified = useRef(new Set<string>());
   const me = client.session?.userID.toLowerCase() ?? null;
 
-  /** Bullets I've earned so far from my own study (what the server accepts after the next report) */
+  /** The task made for this fight (it holds the subject that counts) */
+  const taskFor = (b: { id: string }) => dataRef.current.tasks.find((t) => t.bossID === b.id);
+
+  /** Bullets I've earned so far from my own study (what the server accepts after the next report).
+   *  Only the part of each session after the monster appeared counts — a timer already running when it was
+   *  summoned counts from that moment. With a subject picked, only study in that subject counts. */
   const earned = (b: Boss) => {
-    const start = new Date(b.created_at), end = new Date(Math.min(Date.now(), new Date(b.deadline).getTime()));
-    return end <= start ? 0 : Math.floor(studyTime(dataRef.current, start, end) / 60);
+    const start = new Date(b.created_at).getTime(), end = Math.min(Date.now(), new Date(b.deadline).getTime());
+    if (end <= start) return 0;
+    const task = taskFor(b);
+    let ms = 0;
+    for (const s of dataRef.current.sessions) {
+      if (task && (s.categoryID ?? undefined) !== (task.categoryID ?? undefined)) continue;
+      const a = new Date(s.start).getTime();
+      ms += Math.max(0, Math.min(a + s.duration * 1000, end) - Math.max(a, start));
+    }
+    return Math.floor(ms / 60_000);
   };
 
   const load = useCallback(async (): Promise<{ list: Boss[]; by: Record<string, BossFighter[]> } | undefined> => {
@@ -101,7 +119,13 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value: FightClub = {
-    bosses, fighters, invites, error, busy, me, healthLeft, ammo, load, setError,
+    bosses, fighters, invites, error, busy, me, healthLeft, ammo, load, setError, taskFor,
+    setSubject: (category, b) => update((d) => {
+      const t = d.tasks.find((x) => x.bossID === b.id);
+      if (t) { t.categoryID = category; return; }
+      d.tasks.push({ id: uid(), title: `💥 ${b.title}`, notes: "Fight Club: study this subject to earn bullets.", categoryID: category,
+        priority: 1, dueDate: b.deadline, hasTime: true, estimatedMinutes: b.hp, isDone: false, createdAt: new Date().toISOString(), bossID: b.id });
+    }),
     create: async (title, minutes, deadline) => {
       const id = await perform(() => client.rpc("create_boss", { title, goal: minutes, ends: deadline.toISOString() }));
       return typeof id === "string" ? id : null;
@@ -112,7 +136,11 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
         for (const g of groups) await client.rpc("invite_boss_group", { b: b.id, g });
       });
     },
-    answer: async (boss, accept) => { await perform(() => client.rpc("answer_boss_invite", { b: boss, accept })); },
+    answer: async (boss, accept) => {
+      let ok = false;
+      await perform(async () => { await client.rpc("answer_boss_invite", { b: boss, accept }); ok = true; });
+      return ok;
+    },
     fire: async (b, shots, hits) => {
       const before = healthLeft(b);
       try {

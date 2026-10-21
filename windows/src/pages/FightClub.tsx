@@ -3,6 +3,7 @@ import { Avatar, frameLoop, Modal } from "../components";
 import { dayNum, monthNum, yearNum } from "../lib/dates";
 import { Boss, bossLevel, bossPool, useFightClub } from "../lib/fightclub";
 import { useFriends } from "../lib/friends";
+import { useStore } from "../lib/store";
 import { RocketIcon } from "./Store";
 import m1 from "../assets/boss1.png";
 import m2 from "../assets/boss2.png";
@@ -26,6 +27,7 @@ export default function FightClubPage() {
   const fc = useFightClub();
   const f = useFriends();
   const [summoning, setSummoning] = useState(false);
+  const [joining, setJoining] = useState<Boss | null>(null);
   const [battle, setBattle] = useState<string | null>(null);
   useEffect(() => { fc.load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const mine = fc.bosses.filter((b) => (fc.fighters[b.id] ?? []).some((x) => x.user_id === fc.me));
@@ -53,7 +55,7 @@ export default function FightClubPage() {
                   <div className="small muted">LV {b.monster} · {hm(b.hp)} of health · {bossPool(b.hp)} 🚀 prize · due {rel(new Date(b.deadline))}</div>
                 </div>
                 <button className="btn" disabled={fc.busy} onClick={() => fc.answer(b.id, false)}>Decline</button>
-                <button className="btn primary" style={{ background: "#DC2626" }} disabled={fc.busy} onClick={() => fc.answer(b.id, true)}>Join the Fight</button>
+                <button className="btn primary" style={{ background: "#DC2626" }} disabled={fc.busy} onClick={() => setJoining(b)}>Join the Fight</button>
               </div>
             );
           })}
@@ -88,9 +90,49 @@ export default function FightClubPage() {
         {fc.error && <div className="small" style={{ color: "#ef4444", marginTop: 6 }}>{fc.error}</div>}
       </div>
 
+      {joining && <SubjectModal boss={joining} joining onClose={() => setJoining(null)} />}
       {summoning && <SummonModal onClose={() => setSummoning(false)} onCreated={(id) => { setSummoning(false); setBattle(id); }} />}
       {battle && <Battle bossID={battle} onClose={() => setBattle(null)} />}
     </div>
+  );
+}
+
+/** Which subject shoots at the monster (one of your categories) */
+function SubjectPicker({ value, onChange }: { value?: string; onChange: (id: string) => void }) {
+  const { data } = useStore();
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div className="small muted" style={{ fontWeight: 700 }}>SUBJECT · only study in it gives bullets</div>
+      <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
+        {data.categories.map((c) => (
+          <button key={c.id} className="btn small" onClick={() => onChange(c.id)}
+            style={{ borderRadius: 99, background: value === c.id ? c.colorHex + "59" : undefined, outline: value === c.id ? `1.5px solid ${c.colorHex}` : undefined }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 99, background: c.colorHex, marginRight: 5 }} />{c.name}
+          </button>
+        ))}
+      </div>
+      {!data.categories.length && <div className="small" style={{ color: "#f59e0b" }}>Add a category in Settings first.</div>}
+    </div>
+  );
+}
+
+/** Joining a fight (or an older one without a subject): pick the subject that counts */
+function SubjectModal({ boss, joining, onClose }: { boss: Boss; joining: boolean; onClose: () => void }) {
+  const fc = useFightClub();
+  const [cat, setCat] = useState(fc.taskFor(boss)?.categoryID);
+  return (
+    <Modal onClose={onClose} width={520}>
+      <h3 style={{ marginTop: 0 }}>💥 {joining ? `Join the fight against “${boss.title}”` : `Subject for “${boss.title}”`}</h3>
+      <SubjectPicker value={cat} onChange={setCat} />
+      <div className="small muted" style={{ marginTop: 10 }}>A task “💥 {boss.title}” is added to your Tasks. Study it with the timer to earn bullets.</div>
+      {fc.error && <div className="small" style={{ color: "#ef4444" }}>{fc.error}</div>}
+      <div className="row" style={{ marginTop: 12 }}><span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" style={{ background: "#DC2626" }} disabled={!cat || fc.busy} onClick={async () => {
+          if (!cat) return;
+          if (joining && !(await fc.answer(boss.id, true))) return;
+          fc.setSubject(cat, boss); onClose();
+        }}>{joining ? "Join the Fight" : "Save"}</button></div>
+    </Modal>
   );
 }
 
@@ -149,6 +191,7 @@ function SummonModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const fc = useFightClub();
   const days = usePersianDays();
   const [title, setTitle] = useState("");
+  const [cat, setCat] = useState<string>();
   const [hours, setHours] = useState(5);
   const [due, setDue] = useState<Due>("days3");
   const [pick, setPick] = useState(() => days[5]);
@@ -185,6 +228,7 @@ function SummonModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
           <input placeholder="Goal, e.g. Finish chapter 5" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <SubjectPicker value={cat} onChange={setCat} />
           <div className="small muted" style={{ fontWeight: 700 }}>HOW MUCH STUDY</div>
           <div className="row" style={{ gap: 6 }}>
             {[2, 5, 10, 20].map((h) => <button key={h} className="btn small" style={{ background: hours === h ? "#DC2626" : undefined, color: hours === h ? "white" : undefined }} onClick={() => setHours(h)}>{h}h</button>)}
@@ -217,12 +261,13 @@ function SummonModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       <hr style={{ border: "none", borderTop: "1px solid var(--line)", margin: "14px 0" }} />
       <b>{friends.length || groups.length ? "Invites go out when you summon" : "Fight alone, or tap friends and groups to invite them"}</b>
       <div style={{ marginTop: 8 }}><InvitePicker friends={friends} groups={groups} setFriends={setFriends} setGroups={setGroups} /></div>
-      <div className="small muted" style={{ marginTop: 10 }}>Each minute studied after it appears is one bullet. Only hits count. If the deadline comes first, it escapes and nobody wins.</div>
+      <div className="small muted" style={{ marginTop: 10 }}>Each minute you study the subject after it appears is one bullet — a task for it is added to your Tasks. Only hits count. If the deadline comes first, it escapes and nobody wins.</div>
       {fc.error && <div className="small" style={{ color: "#ef4444" }}>{fc.error}</div>}
       <div className="row" style={{ marginTop: 12 }}><span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" style={{ background: "#DC2626" }} disabled={fc.busy || tooSoon} onClick={async () => {
+        <button className="btn primary" style={{ background: "#DC2626" }} disabled={fc.busy || tooSoon || !cat} onClick={async () => {
           const id = await fc.create(title || "Study goal", Math.round(hours * 60), deadline);
           if (!id) return;
+          if (cat) fc.setSubject(cat, { id, title: title || "Study goal", deadline: deadline.toISOString(), hp: Math.round(hours * 60) });
           await fc.load();
           if (friends.length || groups.length) await fc.sendInvites({ id } as Boss, friends, groups);
           onCreated(id);
@@ -257,6 +302,8 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
   const state = useRef({ shipX: 0.5, left: false, right: false, bullets: [] as { x: number; t0: number; hit: boolean }[], shots: 0, hits: 0, last: 0 });
   const [, force] = useState(0);
   const [inviting, setInviting] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const { data } = useStore();
   const start = useRef(performance.now());
   const monsterEl = useRef(new Image());
   const shipEl = useRef(new Image());
@@ -355,6 +402,7 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
   });
 
   if (!b) return null;
+  const task = fc.taskFor(b), subject = data.categories.find((c) => c.id === task?.categoryID);
   const people = (fc.fighters[b.id] ?? []).filter((x) => x.damage > 0).sort((a, c) => c.damage - a.damage);
   const total = Math.max(1, people.reduce((a, x) => a + x.damage, 0) + state.current.hits);
   const pool = bossPool(b.hp);
@@ -364,6 +412,9 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
         <div style={{ padding: 16 }}>
           <div className="row"><h2 style={{ margin: 0 }}>{b.title}</h2><span className="badge" style={{ background: "#DC262660" }}>LV {b.monster}</span><span className="spacer" />
             <span className="small" style={{ opacity: 0.7 }}>{b.status === "defeated" ? "Defeated 🏆" : b.status === "escaped" ? "Escaped 💨" : `Escapes ${rel(new Date(b.deadline))}`}</span>
+            {b.status === "alive" && <button className="btn small" style={subject ? undefined : { background: "#f59e0b", color: "black" }}
+              title={subject ? "Only study in this subject gives bullets · click to change" : "All your study counts until you pick a subject"}
+              onClick={() => setPicking(true)}>📚 {subject?.name ?? "Pick a subject"}</button>}
             {b.status === "alive" && <button className="btn small" onClick={() => setInviting(true)}>👤＋ Invite</button>}
             {b.creator === fc.me && <button className="btn small danger" title="Delete this monster" onClick={() => { if (confirm(`Delete “${b.title}”? It disappears for everyone fighting it.`)) { fc.remove(b); onClose(); } }}>🗑</button>}
             <button className="btn small primary" onClick={onClose}>Done</button></div>
@@ -373,7 +424,7 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
           {b.status === "alive" && ammo === 0 && <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", background: "rgba(0,0,0,.6)", padding: "6px 12px", borderRadius: 99, fontWeight: 600 }}>Out of bullets — study to reload 📚</div>}</div>
         <div className="row" style={{ padding: 16, alignItems: "flex-start", gap: 20 }}>
           <div style={{ flex: 1 }}>
-            <div className="row" style={{ gap: 6 }}><span>⚡</span><b>{ammo} bullets</b><span className="small" style={{ opacity: 0.6 }}>· 1 per minute studied since it appeared</span></div>
+            <div className="row" style={{ gap: 6 }}><span>⚡</span><b>{ammo} bullets</b><span className="small" style={{ opacity: 0.6 }}>· 1 per minute {subject ? `of ${subject.name}` : "studied"} since it appeared</span></div>
             <div style={{ display: "flex", gap: 2, margin: "6px 0" }}>{Array.from({ length: 30 }, (_, i) => <span key={i} style={{ width: 5, height: 16, borderRadius: 3, background: i < Math.min(30, ammo) ? "#FACC15" : "rgba(255,255,255,.1)" }} />)}
               {ammo > 30 && <span className="small" style={{ opacity: 0.6 }}>+{ammo - 30}</span>}</div>
             <div className="small" style={{ opacity: 0.6 }}>{b.status === "alive" ? "Hold ← → (or A D) to fly · Space to fire (hold for rapid fire) · only hits count" : "This fight is over."}</div>
@@ -387,6 +438,7 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
           </div>
         </div>
         {inviting && <InviteModal boss={b} onClose={() => setInviting(false)} />}
+        {picking && <SubjectModal boss={b} joining={false} onClose={() => setPicking(false)} />}
       </div>
     </div>
   );

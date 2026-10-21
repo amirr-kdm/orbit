@@ -38,6 +38,8 @@ struct TaskItem: Identifiable, Codable, Hashable {
     var isSkipped = false
     var createdAt = Date()
     var completedAt: Date?
+    /// Made for a Fight Club monster: only study in this task's subject shoots at it
+    var bossID: UUID?
 }
 
 // MARK: - Weekly schedule
