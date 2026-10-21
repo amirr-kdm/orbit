@@ -148,6 +148,7 @@ struct GalaxyPage: View {
                 Spacer()
                 HStack(spacing: 8) {
                     if let focused {
+                        GalaxyLookButton()
                         systemMenu(focused, progress)
                     } else {
                         HStack(spacing: 4) {
@@ -156,6 +157,7 @@ struct GalaxyPage: View {
                             Button { withAnimation { zoom = min(1.3, zoom + 0.12) } } label: { Image(systemName: "plus.magnifyingglass") }
                         }
                         .buttonStyle(.plain)
+                        GalaxyLookButton()
                         newSystemMenu(progress)
                     }
                 }
@@ -763,7 +765,9 @@ struct SolarSystemView: View {
     /// One planet per orbit, inner orbits are faster
     static func layout(count: Int) -> [Slot] {
         (0..<count).map { i in
-            let radius = 100 + Double(i) * 32   // first orbit clears the (bigger) sun
+            let look = GalaxyLook.current
+            // the first orbit clears the sun (whatever its size); then one ring every 32 × spacing
+            let radius = 100 * max(1, look.sun * 0.95) + Double(i) * 32 * look.orbit
             let speed = 0.35 / sqrt(Double(i + 1)) * (i % 3 == 2 ? -1 : 1)
             return Slot(radius: radius, offset: Double(i) * 2.1, speed: speed)
         }
@@ -774,7 +778,8 @@ struct SolarSystemView: View {
         let maxR = slots.map(\.radius).max() ?? 60
         let scale = min(large ? 1.6 : 1.0, (min(size.width, size.height * 1.5) / 2 - 20) / (maxR + 30))
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let planetSize = (large ? 42 : 30) * max(scale, 0.7)   // planets stay small next to their star
+        let look = GalaxyLook.current
+        let planetSize = (large ? 42 : 30) * max(scale, 0.7) * look.planet
 
         // orbits
         for slot in slots {
@@ -800,7 +805,7 @@ struct SolarSystemView: View {
         }
         for item in placed where item.2 < 0 { drawPlanet(item) }
         SunPainter.paint(system.sun, in: &ctx, center: center,
-                         radius: (large ? 46 : 30) * system.sun.scale * max(scale, 0.75), time: t)
+                         radius: (large ? 46 : 30) * system.sun.scale * max(scale, 0.75) * look.sun, time: t)
         for item in placed where item.2 >= 0 { drawPlanet(item) }
 
         if !large && showName {
@@ -1036,5 +1041,61 @@ private struct MapSystemTile: View {
                 including: canMove ? .all : .none)
             .zIndex(drag == .zero ? 0 : 1)
             .help(showName ? "Open \(system.name) · drag to move it" : "")
+    }
+}
+
+/// How solar systems are drawn: orbit spacing, sun size and planet size (set with sliders, kept on this Mac)
+struct GalaxyLook {
+    var orbit: Double
+    var sun: Double
+    var planet: Double
+    static let defaults = (orbit: 1.0, sun: 1.0, planet: 1.35)
+
+    static var current: GalaxyLook {
+        let d = UserDefaults.standard
+        func v(_ k: String, _ def: Double) -> Double { d.object(forKey: k) == nil ? def : d.double(forKey: k) }
+        return GalaxyLook(orbit: v("galaxy.orbit", defaults.orbit), sun: v("galaxy.sun", defaults.sun), planet: v("galaxy.planet", defaults.planet))
+    }
+}
+
+/// Sliders for orbit spacing, sun size and planet size
+struct GalaxyLookButton: View {
+    @AppStorage("galaxy.orbit") private var orbit = GalaxyLook.defaults.orbit
+    @AppStorage("galaxy.sun") private var sun = GalaxyLook.defaults.sun
+    @AppStorage("galaxy.planet") private var planet = GalaxyLook.defaults.planet
+    @State private var open = false
+
+    var body: some View {
+        Button { open.toggle() } label: { Image(systemName: "slider.horizontal.3") }
+            .buttonStyle(.plain)
+            .help("Orbit spacing, sun size and planet size")
+            .popover(isPresented: $open, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Solar system look").font(.headline)
+                    slider("Orbit spacing", "circle.dashed", $orbit, 0.6...2.2)
+                    slider("Sun size", "sun.max.fill", $sun, 0.5...2.0)
+                    slider("Planet size", "globe.americas.fill", $planet, 0.6...2.6)
+                    HStack {
+                        Spacer()
+                        Button("Reset") {
+                            orbit = GalaxyLook.defaults.orbit; sun = GalaxyLook.defaults.sun; planet = GalaxyLook.defaults.planet
+                        }
+                        .controlSize(.small)
+                    }
+                }
+                .padding(16)
+                .frame(width: 280)
+            }
+    }
+
+    private func slider(_ title: String, _ icon: String, _ value: Binding<Double>, _ range: ClosedRange<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label(title, systemImage: icon).font(.callout)
+                Spacer()
+                Text("\(Int((value.wrappedValue * 100).rounded()))%").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: range)
+        }
     }
 }
