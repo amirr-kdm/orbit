@@ -19,6 +19,7 @@ struct CategoryGraphView: View {
     @State private var selected: String?
     @State private var dragNode: Int?
     @State private var grabOffset: CGSize = .zero
+    @State private var pressed: Int??
     @State private var panStart: CGSize?
     @State private var monitor: Any?
     @AppStorage("graphHubSize") private var hubSize = 1.0
@@ -62,6 +63,11 @@ struct CategoryGraphView: View {
             installMonitor()
         }
         .onDisappear(perform: removeMonitor)
+        // the details panel takes 314 pt of width: shift the view by half so the nodes stay put on screen
+        .onChange(of: selected == nil) { wasClosed, isClosed in
+            guard wasClosed != isClosed else { return }
+            sim.pan.width += isClosed ? 157 : -157
+        }
         .onChange(of: graph) { _, g in sim.sync(g) }
         .onChange(of: hubSize) { _, _ in sim.setLook(hub: hubSize, leaf: leafSize, link: linkLength) }
         .onChange(of: leafSize) { _, _ in sim.setLook(hub: hubSize, leaf: leafSize, link: linkLength) }
@@ -225,21 +231,19 @@ struct CategoryGraphView: View {
                 }
             }
             .onAppear { sim.viewSize = size }
-            .onChange(of: size) { old, s in
-                // the details panel opening or closing changes the width: keep the graph where it was on screen
-                sim.pan = CGSize(width: sim.pan.width + (old.width - s.width) / 2, height: sim.pan.height + (old.height - s.height) / 2)
-                sim.viewSize = s
-            }
+            .onChange(of: size) { _, s in sim.viewSize = s }
         }
     }
 
     private func drag(size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { v in
-                // a click is not a drag: nothing moves until the pointer has really moved
+                // find what was pressed right away (nodes keep drifting a little)…
+                if pressed == nil { pressed = .some(sim.hit(v.startLocation, size: size)) }
+                // …but a click is not a drag: nothing moves until the pointer has really moved
                 guard hypot(v.translation.width, v.translation.height) > 4 || dragNode != nil || panStart != nil else { return }
                 if dragNode == nil && panStart == nil {
-                    if let i = sim.hit(v.startLocation, size: size) {
+                    if let i = pressed ?? nil, sim.nodes.indices.contains(i) {
                         dragNode = i
                         // keep the spot you grabbed under the pointer (no jump to the node's centre)
                         let w = sim.toWorld(v.startLocation, size)
@@ -263,6 +267,7 @@ struct CategoryGraphView: View {
                 if let i = dragNode, sim.nodes.indices.contains(i) { sim.nodes[i].pinned = false }
                 dragNode = nil
                 panStart = nil
+                pressed = nil
             }
     }
 
@@ -800,6 +805,8 @@ final class GraphSim {
         var vx: CGFloat = 0
         var vy: CGFloat = 0
         var pinned = false
+        /// A subcategory's hub: the id of its parent category's hub
+        var hubParent: String?
         /// When the node starts to grow in (for the appear / re-arrange animation)
         var birth = Date()
         /// Where you dropped a category: it stays there instead of drifting to the centre
@@ -920,6 +927,8 @@ final class GraphSim {
             return (a, b)
         }
         for (a, b) in links { nodes[a].degree += 1; nodes[b].degree += 1 }
+        for i in nodes.indices { nodes[i].hubParent = nil }
+        for (a, b) in links where nodes[a].isHub && nodes[b].isHub { nodes[b].hubParent = nodes[a].id }
         reheat(added || old.isEmpty ? 1 : 0.3)
     }
 
@@ -955,6 +964,10 @@ final class GraphSim {
     /// How close two nodes may get. Categories keep room for their items so clusters never overlap.
     func minDistance(_ a: Node, _ b: Node) -> CGFloat {
         if a.isHub && b.isHub {
+            // a subcategory sits beside its parent like an item does, not a whole cluster away
+            if a.hubParent == b.id || b.hubParent == a.id {
+                return radius(a) + radius(b) + (40 + 3 * sqrt(CGFloat(min(a.degree, b.degree)))) * linkLength
+            }
             func reach(_ n: Node) -> CGFloat { radius(n) + (40 + 3 * sqrt(CGFloat(n.degree))) * linkLength + 14 * leafSize }
             return reach(a) + reach(b) + 10
         }
@@ -966,7 +979,9 @@ final class GraphSim {
         var q = p
         if nodes[i].isHub {
             for _ in 0..<4 {
-                for j in nodes.indices where j != i && nodes[j].isHub {
+                let mine = Set(cluster(of: i))
+                for j in nodes.indices where j != i && nodes[j].isHub && !mine.contains(j)
+                    && nodes[j].id != nodes[i].hubParent {
                     let dx = q.x - nodes[j].x, dy = q.y - nodes[j].y
                     let d = max(0.01, hypot(dx, dy)), minD = minDistance(nodes[i], nodes[j])
                     if d < minD { q = CGPoint(x: nodes[j].x + dx / d * minD, y: nodes[j].y + dy / d * minD) }
@@ -974,9 +989,24 @@ final class GraphSim {
             }
         }
         nodes[i].x = q.x; nodes[i].y = q.y
+        nodes[i].vx = 0; nodes[i].vy = 0
         nodes[i].pinned = true
         if nodes[i].isHub { nodes[i].anchor = q }
     }
+
+    /// Everything hanging off a category: its items, its subcategories and their items
+    func cluster(of i: Int) -> [Int] {
+        var out: [Int] = [], queue = [i], seen: Set<Int> = [i]
+        while let k = queue.popLast() {
+            for (a, b) in links where a == k && !seen.contains(b) {
+                seen.insert(b); out.append(b)
+                if nodes[b].isHub { queue.append(b) }
+            }
+        }
+        return out
+    }
+
+
 
     /// Size / length settings changed: let the layout adjust smoothly
     func setLook(hub: CGFloat, leaf: CGFloat, link: CGFloat) {
@@ -1068,6 +1098,11 @@ final class GraphSim {
             nodes[i].vy *= 0.58
             nodes[i].x += nodes[i].vx
             nodes[i].y += nodes[i].vy
+            // never let a bad step throw a node into infinity
+            if !nodes[i].x.isFinite || !nodes[i].y.isFinite || abs(nodes[i].x) > 1e5 || abs(nodes[i].y) > 1e5 {
+                nodes[i].x = .random(in: -40...40); nodes[i].y = .random(in: -40...40)
+                nodes[i].vx = 0; nodes[i].vy = 0; nodes[i].anchor = nil
+            }
         }
     }
 
