@@ -121,7 +121,7 @@ struct GalaxyPage: View {
 
         return ZStack(alignment: .topLeading) {
             // One continuous map: opening a system is just the camera zooming in on it
-            GalaxyMapView(data: data, zoom: zoom, focused: focusedSystem, onMove: { id, p in store.moveSystem(id, to: p) }) { id in focusedSystem = id }
+            GalaxyMapView(data: data, zoom: zoom, focused: focusedSystem, onMove: { id, p in store.moveSystem(id, to: p) }, onSelect: { id in focusedSystem = id }, onZoom: { zoom = $0 })
 
             // Overlay: title + controls
             HStack(alignment: .top) {
@@ -509,6 +509,11 @@ struct GalaxyMapView: View {
     /// Set to let the user drag solar systems around (their own galaxy only)
     var onMove: ((UUID, CGPoint) -> Void)? = nil
     var onSelect: ((UUID) -> Void)?
+    /// Pinch changes the outside zoom (e.g. the slider) instead of a private one
+    var onZoom: ((Double) -> Void)? = nil
+    static let zoomRange = 0.35...1.3
+    /// How big a solar system is drawn on the map (1.1 before; +15%)
+    static let tileScale: CGFloat = 1.265
 
     @State private var pan: CGSize = .zero
     @State private var flyZoom: Double?
@@ -585,24 +590,22 @@ struct GalaxyMapView: View {
         }
     }
 
-    /// Trackpad: pinch to zoom, two fingers to move around (a mouse wheel zooms)
+    /// Trackpad pinch zooms. Scrolling is left alone, so the page scrolls normally over the map.
     private func startTrackpad() {
         guard monitor == nil else { return }
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .magnify]) { e in
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .magnify) { e in
             guard hovering, focused == nil, flyZoom == nil else { return e }
-            if e.type == .magnify {
-                rescale(by: 1 + e.magnification)
-            } else if e.hasPreciseScrollingDeltas {
-                pan.width += e.scrollingDeltaX
-                pan.height += e.scrollingDeltaY
-            } else {
-                rescale(by: 1 + e.scrollingDeltaY * 0.03)
-            }
+            rescale(by: 1 + e.magnification)
             return nil
         }
     }
 
     private func rescale(by k: Double) {
+        // With a zoom slider outside, move the slider (it stays in step with the pinch)
+        if let onZoom {
+            onZoom(min(Self.zoomRange.upperBound, max(Self.zoomRange.lowerBound, zoom * k)))
+            return
+        }
         let before = baseZoom
         userScale = min(1.8 / max(zoom, 0.01), max(0.25 / max(zoom, 0.01), userScale * k))
         let ratio = baseZoom / before
@@ -610,7 +613,7 @@ struct GalaxyMapView: View {
     }
 
     /// Zoom at which one solar system fills the view — the close-up opens from exactly there
-    private var flyTarget: Double { max(1.5, min(viewSize.width / (330 * 1.1), viewSize.height / (260 * 1.1)) * 0.95) }
+    private var flyTarget: Double { max(1.5, min(viewSize.width / (330 * Self.tileScale), viewSize.height / (260 * Self.tileScale)) * 0.95) }
 
     /// Pan that centres system `index` at zoom `z`
     private static func centre(on index: Int, zoom z: Double) -> CGSize {
@@ -1011,8 +1014,8 @@ private struct MapSystemTile: View {
 
     var body: some View {
         // Painted at the real on-screen size, so it stays sharp when zoomed in
-        SolarSystemView(system: system, large: false, paintScale: zoom * 1.1, showName: showName)
-            .frame(width: 330 * zoom * 1.1, height: 260 * zoom * 1.1)
+        SolarSystemView(system: system, large: false, paintScale: zoom * GalaxyMapView.tileScale, showName: showName)
+            .frame(width: 330 * zoom * GalaxyMapView.tileScale, height: 260 * zoom * GalaxyMapView.tileScale)
             .contentShape(Ellipse())
             .offset(drag)
             .onTapGesture(perform: onTap)

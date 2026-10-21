@@ -555,7 +555,7 @@ struct FriendGalaxySheet: View {
                             .foregroundStyle(.white.opacity(0.8))
                     }
                 } else {
-                    GalaxyMapView(data: data, zoom: 0.5, focused: focused) { id in focused = id }
+                    GalaxyMapView(data: data, zoom: 0.5, focused: focused, onSelect: { id in focused = id })
                         .overlay(alignment: .topLeading) {
                             if let system {
                                 Text("\(system.name) · \(system.sun.name)").font(.headline).foregroundStyle(.white).padding(14)
