@@ -380,6 +380,9 @@ struct BattleView: View {
     @State private var flushing = false
     @FocusState private var focused: Bool
     @State private var confirmDelete = false
+    @State private var holdLeft = false
+    @State private var holdRight = false
+    @State private var lastShot = Date.distantPast
     private let start = Date()
 
     struct Bullet: Identifiable { let id = UUID(); let x: CGFloat; let t0: Double; let hit: Bool }
@@ -401,10 +404,28 @@ struct BattleView: View {
             .focused($focused)
             .focusEffectDisabled()
             .onAppear { focused = true }
-            .onKeyPress(.leftArrow) { shipX = max(0.04, shipX - 0.04); return .handled }
-            .onKeyPress(.rightArrow) { shipX = min(0.96, shipX + 0.04); return .handled }
-            .onKeyPress(.space) { shoot(b, ammo: ammo, left: left); return .handled }
+            // Keyboard: hold ← → (or A D) to fly, Space to fire (hold for rapid fire)
+            .onKeyPress(keys: [.leftArrow, .rightArrow, "a", "d"], phases: [.down, .repeat, .up]) { press in
+                let left = press.key == .leftArrow || press.key.character == "a"
+                if press.phase == .up { if left { holdLeft = false } else { holdRight = false } }
+                else { if left { holdLeft = true } else { holdRight = true } }
+                return .handled
+            }
+            .onKeyPress(.space, phases: [.down, .repeat]) { _ in
+                guard Date().timeIntervalSince(lastShot) > 0.12 else { return .handled }
+                lastShot = Date()
+                shoot(b, ammo: ammo, left: left)
+                return .handled
+            }
             .task { while !Task.isCancelled { try? await Task.sleep(for: .seconds(1.2)); await flush(b) } }
+            .task {
+                // smooth flying while a key is held
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(16))
+                    let dir: CGFloat = (holdRight ? 1 : 0) - (holdLeft ? 1 : 0)
+                    if dir != 0 { shipX = min(0.96, max(0.04, shipX + dir * 0.011)) }
+                }
+            }
             .onDisappear { Task { await flush(b) } }
         } else {
             Text("Loading…").frame(width: 300, height: 200).task { await fc.load() }
@@ -526,10 +547,7 @@ struct BattleView: View {
                 }
             }
             .contentShape(Rectangle())
-            .onContinuousHover { phase in
-                if case .active(let pt) = phase { shipX = min(0.96, max(0.04, pt.x / w)) }
-            }
-            .onTapGesture { shoot(b, ammo: ammo, left: left) }
+            .onTapGesture { focused = true }   // clicking the arena gives the keyboard back to the game
             .onAppear { arenaSize = geo.size }
             .onChange(of: geo.size) { _, s in arenaSize = s }
         }
@@ -552,7 +570,7 @@ struct BattleView: View {
                     }
                     if ammo > 30 { Text("+\(ammo - 30)").font(.caption2).foregroundStyle(.secondary) }
                 }
-                Text(b.isAlive ? "Move with the mouse or ← →  ·  click or Space to fire  ·  only hits count" : "This fight is over.")
+                Text(b.isAlive ? "Hold ← → (or A D) to fly  ·  Space to fire (hold for rapid fire)  ·  only hits count" : "This fight is over.")
                     .font(.caption).foregroundStyle(.secondary)
                 if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
             }
