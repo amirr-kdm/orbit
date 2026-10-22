@@ -107,6 +107,7 @@ final class AccountService {
                 store.accountReady = syncedAccount == session.userID.uuidString
                 await friends.reload()
                 await claimGifts()
+                await store.walletRefresh()   // rockets live on the server (moved over once, after gifts are in)
             } else {
                 Self.setCachedApproval(session.userID, false)
                 state = .pending
@@ -384,14 +385,16 @@ final class AccountService {
     /// Add rocket gifts from the owner that this account hasn't counted yet
     func claimGifts() async {
         guard state == .approved, !restoring, store.accountReady else { return }
-        struct Gift: Decodable { let id: UUID; let amount: Int; let reason: String? }
-        guard let gifts = try? await client.select("rocket_gifts?select=id,amount,reason", as: [Gift].self) else { return }
+        struct Gift: Decodable { let id: UUID; let amount: Int; let reason: String?; let ref: String? }
+        guard let gifts = try? await client.select("rocket_gifts?select=id,amount,reason,ref", as: [Gift].self) else { return }
         let new = gifts.filter { !store.claimedGifts.contains($0.id.uuidString) }
         guard !new.isEmpty else { return }
         store.claimedGifts += new.map(\.id.uuidString)
-        store.rocketGrant += new.reduce(0) { $0 + $1.amount }
-        // Tell about rockets received (paying a fee is your own action, so it stays quiet)
-        for g in new where g.amount > 0 {
+        // with a server wallet the balance already includes them; before that, they're added here
+        if !store.walletLive { store.rocketGrant += new.reduce(0) { $0 + $1.amount } }
+        else { await store.walletRefresh() }
+        // Tell about rockets received (buying, refunds, level rewards and fees are your own actions, so they stay quiet)
+        for g in new where g.amount > 0 && !(g.ref?.hasPrefix("refund:") ?? false) && !(g.ref?.hasPrefix("level:") ?? false) {
             let text = g.reason.map { "\($0) (+\(g.amount) 🚀)" } ?? "You got \(g.amount) rockets from the Orbit admin! 🚀"
             giftNotice = text
             Notifier.post(id: "gift-\(g.id)", title: g.reason == nil ? "You got \(g.amount) 🚀 rockets!" : "+\(g.amount) 🚀 rockets",
@@ -450,6 +453,7 @@ final class AccountService {
                 if !self.store.accountReady { await self.syncOnStart(); self.store.accountReady = self.syncedAccount == (await self.client.userID)?.uuidString }
                 else if self.dirty { await self.upload() } else { await self.pullIfChanged() }
                 await self.claimGifts()
+                await self.store.walletRefresh()
             }
         })
         // Owner: watch for new sign-ups

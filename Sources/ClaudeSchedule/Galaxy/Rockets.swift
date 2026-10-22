@@ -84,7 +84,8 @@ extension AppStore {
     var rocketsFromGroups: Int { groupWins.count * Self.groupWinRockets }
 
     var rocketBalance: Int {
-        Self.startingRockets + rocketGrant + rocketsFromStudy + rocketsFromLevels + rocketsFromBonuses + rocketsFromGroups - rocketsSpent
+        if let walletBalance { return walletBalance }
+        return Self.startingRockets + rocketGrant + rocketsFromStudy + rocketsFromLevels + rocketsFromBonuses + rocketsFromGroups - rocketsSpent
     }
 
     /// Record a weekly group win once; returns true if it's new
@@ -124,7 +125,7 @@ extension AppStore {
     }
 
     static let refundTickets = 3
-    var refundTicketsLeft: Int { max(0, Self.refundTickets - refundsUsed) }
+    var refundTicketsLeft: Int { walletRefundsLeft ?? max(0, Self.refundTickets - refundsUsed) }
 
     /// Give one bought copy back for its full price (uses a refund ticket).
     /// If every copy is in the galaxy, one is taken out.

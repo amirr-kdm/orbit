@@ -117,7 +117,7 @@ struct LevelPassView: View {
             }
             if !claimable.isEmpty {
                 Button("Claim All (\(claimable.count))") {
-                    withAnimation(.spring(duration: 0.4)) { claimable.forEach(store.claim(level:)) }
+                    Task { for lv in claimable { await store.walletClaim(level: lv) } }
                 }
                 .buttonStyle(.borderedProminent).tint(.orange)
             }
@@ -175,7 +175,7 @@ struct LevelPassView: View {
             // reward card
             Button {
                 if canTake {
-                    withAnimation(.spring(duration: 0.4)) { store.claim(level: lv); justClaimed = lv }
+                    Task { await store.walletClaim(level: lv); withAnimation(.spring(duration: 0.4)) { justClaimed = lv } }
                 } else if planet != nil {
                     preview = lv   // locked (or taken) planet: show a preview
                 }

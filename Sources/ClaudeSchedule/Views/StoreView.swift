@@ -177,10 +177,9 @@ private struct StoreDetail: View {
 
                 HStack {
                     Button {
-                        if store.buyPlanet(planet.id) {
-                            message = "\(planet.name) is yours! 🎉 Place it from My Galaxy → Your Store Planets."
-                        } else {
-                            message = "Not enough rockets yet."
+                        Task {
+                            if let err = await store.walletBuy(planet.id) { message = err }
+                            else { message = "\(planet.name) is yours! 🎉 Place it from My Galaxy → Your Store Planets." }
                         }
                     } label: {
                         Label(balance >= planet.price ? (owned > 0 ? "Buy Another" : "Buy") : "Need \((planet.price - balance).formatted()) more",
@@ -211,7 +210,10 @@ private struct StoreDetail: View {
         .frame(width: 760, height: 400)
         .confirmationDialog("Refund \(planet.name)?", isPresented: $confirmRefund) {
             Button("Refund for \(planet.price) rockets") {
-                if store.refund(planet.id) { message = "Refunded \(planet.price) rockets. \(store.refundTicketsLeft) tickets left." }
+                Task {
+                    if let err = await store.walletRefund(planet.id) { message = err }
+                    else { message = "Refunded \(planet.price) rockets. \(store.refundTicketsLeft) tickets left." }
+                }
             }
         } message: {
             Text("This uses 1 of your \(store.refundTicketsLeft) refund tickets. If the planet is in your galaxy, it's taken out.")

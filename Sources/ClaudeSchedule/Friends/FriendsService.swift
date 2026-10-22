@@ -374,14 +374,20 @@ final class FriendsService {
         let days = (0..<7).compactMap { Cal.persian.date(byAdding: .day, value: $0, to: lastWeek) }
         let myMinutes = Int(store.rewardTime(in: DateInterval(start: lastWeek, end: thisWeek)) / 60)
         guard myMinutes > 0 else { return }
-        var won: [String] = []
-        for g in groups where g.members.count >= 2 {
+        let candidates = groups.filter { g in
+            guard g.members.count >= 2 else { return false }
             let best = g.members.filter { $0 != me }
                 .map { id in days.reduce(0) { $0 + (people[id]?.minutes(on: $1) ?? 0) } }
                 .max() ?? 0
-            if myMinutes >= best, store.recordGroupWin(group: g.id, weekStart: lastWeek) { won.append(g.name) }
+            return myMinutes >= best
         }
-        if !won.isEmpty { groupPrize = "🏆 You studied the most last week in \(won.joined(separator: ", ")): +\(AppStore.groupWinRockets * won.count) rockets!" }
+        guard !candidates.isEmpty else { return }
+        // the server checks and pays it (once per group per week)
+        Task {
+            var won: [String] = []
+            for g in candidates where await store.walletGroupWin(group: g.id, weekStart: lastWeek) { won.append(g.name) }
+            if !won.isEmpty { groupPrize = "🏆 You studied the most last week in \(won.joined(separator: ", ")): +\(AppStore.groupWinRockets * won.count) rockets!" }
+        }
     }
 
     // MARK: Sync my data

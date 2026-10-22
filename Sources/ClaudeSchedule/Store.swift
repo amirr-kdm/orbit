@@ -215,6 +215,9 @@ final class AppStore {
 
     /// Called after every successful save (the cloud backup listens to this)
     @ObservationIgnored var onSaved: (() -> Void)?
+    /// The server wallet's balance and refund tickets (nil until this account's wallet is known — see Wallet.swift)
+    var walletBalance: Int?
+    var walletRefundsLeft: Int?
     /// True once the data on this device is known to belong to the signed-in account.
     /// Until then nothing built from it (rockets, stats, study minutes) is sent to the server.
     @ObservationIgnored var accountReady = false
