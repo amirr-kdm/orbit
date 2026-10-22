@@ -33,8 +33,8 @@ struct AboutView: View {
                     Text("Ideas, feedback or a bug? Message me — I read everything.")
                         .font(.callout).foregroundStyle(.secondary)
                     VStack(spacing: 8) {
-                        link("paperplane.fill", "Telegram", "@amirr_kdm", "https://t.me/amirr_kdm", Color(hex: "#2AABEE"))
-                        link("chevron.left.forwardslash.chevron.right", "GitHub", "amirr-kdm", "https://github.com/amirr-kdm", .primary)
+                        link("paperplane.fill", "Telegram", "@amirr_kdm", "https://t.me/amirr_kdm", Color(hex: "#2AABEE"), image: "telegram")
+                        link("chevron.left.forwardslash.chevron.right", "GitHub", "amirr-kdm", "https://github.com/amirr-kdm", .primary, image: "github")
                         if let li = Self.linkedIn {
                             link("person.crop.square.filled.and.at.rectangle", "LinkedIn", li.replacingOccurrences(of: "https://", with: ""), li, Color(hex: "#0A66C2"), image: "linkedin")
                         }
@@ -47,7 +47,7 @@ struct AboutView: View {
                     Text("NEWS & UPDATES").font(.caption.weight(.heavy)).tracking(1.5).foregroundStyle(.secondary)
                     Text("Join the Orbit channel on Telegram for new features, updates and tips. (The app also tells you when a new version is out.)")
                         .font(.callout).foregroundStyle(.secondary)
-                    link("megaphone.fill", "Orbit channel", "@orbitstudyplanner", "https://t.me/orbitstudyplanner", .orange)
+                    link("megaphone.fill", "Orbit channel", "@orbitstudyplanner", "https://t.me/orbitstudyplanner", .orange, image: "channel")
                         .padding(.top, 4)
                 }
 
@@ -56,7 +56,7 @@ struct AboutView: View {
                     Text("ORBIT CHALLENGES 🚩").font(.caption.weight(.heavy)).tracking(1.5).foregroundStyle(.secondary)
                     Text("The Orbiters' Telegram group: make friends with other Orbiters and plan challenges together.")
                         .font(.callout).foregroundStyle(.secondary)
-                    link("flag.checkered", "Orbit Challenges", "Join the group on Telegram", "https://t.me/+mgr1bVSj1xwxMmFk", .red)
+                    link("flag.checkered", "Orbit Challenges", "Join the group on Telegram", "https://t.me/+mgr1bVSj1xwxMmFk", .red, image: "flag")
                         .padding(.top, 4)
                 }
 

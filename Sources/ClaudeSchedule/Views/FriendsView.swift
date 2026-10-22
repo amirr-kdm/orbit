@@ -430,8 +430,11 @@ struct FriendDetailCard: View {
                         LevelBadge(level: card.profile.level ?? 1)
                     }
                     if let now = card.studyingNow {
-                        Label("Studying \(now)", systemImage: "circle.fill")
-                            .font(.caption).foregroundStyle(.green).labelStyle(CompactLabelStyle())
+                        HStack(spacing: 4) {
+                            Image(systemName: "circle.fill").font(.system(size: 7))
+                            Text("Studying \(now)").lineLimit(1).truncationMode(.tail)
+                        }
+                        .font(.caption).foregroundStyle(.green).help("Studying \(now)")
                     } else {
                         Label { Text(card.streak > 0 ? "\(card.streak)-day streak" : "No streak yet") } icon: { StreakIcon(size: 13) }
                             .font(.caption).foregroundStyle(.secondary)

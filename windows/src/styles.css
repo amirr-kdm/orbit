@@ -246,3 +246,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 /* Fight Club: the World Boss breathing and hopping on its page */
 @keyframes monster-idle { 0%,100% { transform: translateY(0) scale(1, 1) rotate(-2deg); } 50% { transform: translateY(-6px) scale(.98, 1.03) rotate(2deg); } }
 .monster-idle { animation: monster-idle 2.6s ease-in-out infinite; transform-origin: bottom center; }
+/* Narrow windows: the schedule scrolls sideways inside its card; calendar day numbers and buttons never spill */
+.sched-wrap { overflow-x: auto; }
+.cal-cell .row { min-width: 0; gap: 4px; }
+.cal-cell .row > .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.btn { white-space: nowrap; }
+.page > .row { flex-wrap: wrap; row-gap: 8px; }

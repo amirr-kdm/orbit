@@ -171,12 +171,12 @@ export default function Reports() {
         </Card>
         <Card title="Time by subject" icon="🥧" tint="#EC4899">
           {!subjects.length ? <Empty /> : (
-            <div className="row" style={{ gap: 20, alignItems: "center" }}>
+            <div className="row" style={{ gap: 20, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ position: "relative", width: 170, height: 170, flexShrink: 0 }}>
                 <svg width={170} height={170} viewBox="0 0 200 200">{arcs.map((a) => <path key={a.name} d={arc(a.a0, a.a1)} fill={a.color} stroke="var(--card)" strokeWidth={2} />)}</svg>
                 <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textAlign: "center" }}><div><b style={{ fontSize: 18 }}>{shortDuration(total)}</b><div className="small muted">{subjects.length} subjects</div></div></div>
               </div>
-              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>{subjects.slice(0, 7).map((v) => <Rank key={v.name} t={v} share={v.secs / Math.max(1, total)} pct />)}</div>
+              <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 10 }}>{subjects.slice(0, 7).map((v) => <Rank key={v.name} t={v} share={v.secs / Math.max(1, total)} pct />)}</div>
             </div>
           )}
         </Card>
@@ -244,7 +244,7 @@ const Rank = ({ t, share, pct }: { t: Total; share: number; pct?: boolean }) => 
   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
     <div className="row small" style={{ gap: 6 }}><span className="dot" style={{ background: t.color }} />
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.name}>{t.name}</span>
-      <b>{shortDuration(t.secs)}</b>{pct && <span className="muted" style={{ width: 36, textAlign: "right" }}>{Math.round(share * 100)}%</span>}</div>
+      <b style={{ flexShrink: 0 }}>{shortDuration(t.secs)}</b>{pct && <span className="muted" style={{ width: 36, flexShrink: 0, textAlign: "right" }}>{Math.round(share * 100)}%</span>}</div>
     <Meter v={share} tint={t.color} />
   </div>
 );
