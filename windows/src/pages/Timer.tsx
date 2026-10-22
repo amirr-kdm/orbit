@@ -39,7 +39,7 @@ export default function TimerPage() {
         <div style={{ position: "absolute", inset: 0, transition: "opacity .8s", opacity: rest ? 1 : 0, background: "linear-gradient(rgba(11,27,74,.85), rgba(31,95,58,.75))" }} />
       </div>
 
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 18, padding: 28, position: "relative" }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "18px 28px", position: "relative" }}>
         <div style={{ textAlign: "center", maxWidth: "100%" }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 3, color }}>{label.toUpperCase()}</div>
           <div style={{ fontSize: 30, fontWeight: 800, textShadow: "0 0 8px rgba(0,0,0,.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rest ? "Break time" : t.targetTitle ?? "Free study"}</div>
@@ -49,31 +49,31 @@ export default function TimerPage() {
           {(["stopwatch", "pomodoro"] as const).map((m) => <button key={m} style={{ color: "white", background: t.mode === m ? color : undefined, fontWeight: t.mode === m ? 600 : undefined }}
             disabled={t.active} onClick={() => t.setMode(m)}>{m === "stopwatch" ? "Stopwatch" : "Pomodoro"}</button>)}
         </div>
-        <div style={{ position: "relative", width: 330, height: 330, flexShrink: 0 }}>
+        <div style={{ position: "relative", width: "min(330px, 42vh)", aspectRatio: "1", flexShrink: 0 }}>
           <SolarDial time={t.display} spin={t.elapsed} progress={progress} tint={color} moving={t.running} rest={rest} />
-          <img src={breakUrl} alt="" style={{ position: "absolute", left: 90, top: 90, width: 150, height: 150, borderRadius: "50%", objectFit: "cover",
+          <img src={breakUrl} alt="" style={{ position: "absolute", left: "27%", top: "27%", width: "46%", height: "46%", borderRadius: "50%", objectFit: "cover",
             border: "2px solid rgba(126,224,129,.7)", boxShadow: "0 0 18px rgba(126,224,129,.5)", transition: "transform .5s, opacity .5s",
             transform: rest ? "scale(1)" : "scale(.6)", opacity: rest ? 1 : 0, pointerEvents: "none" }} />
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 56, fontWeight: 600, fontFamily: "ui-monospace, Consolas, monospace", fontVariantNumeric: "tabular-nums", lineHeight: 1.1,
+          <div style={{ fontSize: "min(56px, 7vh)", fontWeight: 600, fontFamily: "ui-monospace, Consolas, monospace", fontVariantNumeric: "tabular-nums", lineHeight: 1.1,
             textShadow: t.running ? `0 0 16px ${color}8C` : undefined }}>{clock(t.display)}</div>
           <div className="small" style={{ opacity: 0.6 }}>{subtitle}</div>
         </div>
 
         <div style={{ ...glass, width: "100%", maxWidth: 440, borderRadius: 16, padding: "4px 0" }}>
-          <div className="row" style={{ padding: "9px 14px", gap: 10 }}><span style={{ color, width: 18 }}>📖</span>
+          <div className="row" style={{ padding: "5px 14px", gap: 10 }}><span style={{ color, width: 18 }}>📖</span>
             <select disabled={t.active} style={field} value={t.target ? refKey(t.target) : ""} onChange={(e) => {
               const v = e.target.value; const item = todos.find((x) => refKey(x.ref) === v); t.setTarget(item ? item.ref : null);
             }}>
               <option value="">Free study</option>
               {todos.map((x) => <option key={refKey(x.ref)} value={refKey(x.ref)}>{x.isDone ? "✓ " : ""}{x.title} ({x.detail})</option>)}
             </select></div>
-          {!t.target && <div className="row" style={{ padding: "9px 14px", gap: 10, borderTop: "1px solid rgba(255,255,255,.08)" }}><span style={{ color, width: 18 }}>🏷</span>
+          {!t.target && <div className="row" style={{ padding: "5px 14px", gap: 10, borderTop: "1px solid rgba(255,255,255,.08)" }}><span style={{ color, width: 18 }}>🏷</span>
             <select style={field} value={t.categoryID ?? ""} onChange={(e) => t.setCategoryID(e.target.value || undefined)}>
               <option value="">None</option>{orderedCategories(data).map((c) => <option key={c.id} value={c.id}>{c.parentID ? "   " : ""}{categoryLabel(data, c.id)}</option>)}
             </select></div>}
-          <div className="row" style={{ padding: "9px 14px", gap: 10, borderTop: "1px solid rgba(255,255,255,.08)" }}><span style={{ color, width: 18 }}>✎</span>
+          <div className="row" style={{ padding: "5px 14px", gap: 10, borderTop: "1px solid rgba(255,255,255,.08)" }}><span style={{ color, width: 18 }}>✎</span>
             <input value={t.note} placeholder="Session note (e.g. chapter 3)" style={field} onChange={(e) => t.setNote(e.target.value)} /></div>
         </div>
 
@@ -179,7 +179,7 @@ function SolarDial({ time, spin, progress, tint, moving, rest }: { time: number;
     if (!moving) return;
     return frameLoop(draw, 20);
   }, [moving, time, progress, tint, rest]);
-  return <canvas ref={cv} style={{ width: 330, height: 330, display: "block" }} />;
+  return <canvas ref={cv} style={{ width: "100%", height: "100%", display: "block" }} />;
 }
 
 function ManualSession({ onClose }: { onClose: () => void }) {
