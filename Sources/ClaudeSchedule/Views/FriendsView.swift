@@ -111,7 +111,6 @@ struct FriendsView: View {
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                PageHeader(page: .friends, subtitle: "Study with friends and every Orbiter — weekly boards, groups and promises.")
                 HStack(alignment: .top, spacing: 14) {
                     myCodeCard
                     addFriendCard

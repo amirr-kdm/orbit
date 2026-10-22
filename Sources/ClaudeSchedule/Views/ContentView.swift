@@ -31,18 +31,6 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .about: "About"
         }
     }
-    /// The sidebar section a page sits in, and its colour (used by page headers)
-    var section: String { Self.sections.first { $0.items.contains(self) }?.title ?? "" }
-    var tint: Color {
-        switch section {
-        case "Plan": Color(hex: "#3B82F6")
-        case "Focus": Color(hex: "#F97316")
-        case "Rewards": Color(hex: "#8B5CF6")
-        case "Social": Color(hex: "#EC4899")
-        default: Color(hex: "#64748B")
-        }
-    }
-
     var icon: String {
         switch self {
         case .today: "checklist"

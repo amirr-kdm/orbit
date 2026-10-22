@@ -193,20 +193,26 @@ struct ChallengesPage: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            PageHeader(page: .challenges, subtitle: "Study together with every Orbiter for rockets. Everyone pays the entry fee; join until it starts.") {
-                Button { creating = true } label: { Label("New Challenge", systemImage: "plus") }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
-            }
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: "flag.checkered.2.crossed")
+                .font(.system(size: 26, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)))
             VStack(alignment: .leading, spacing: 4) {
+                Text("Challenges").font(.title.weight(.bold))
+                Text("Study together with every Orbit member for rockets. Everyone pays the entry fee and anyone can join until it starts.")
+                    .foregroundStyle(.secondary)
                 HStack(spacing: 6) {
                     rule("clock", "at least \(ChallengeRules.minHours)h of study")
                     rule("person.2", "\(ChallengeRules.minPeople)+ people, or everyone is refunded")
                     rule("gift", "all finish → fee back + bonus up to 100 🚀/h")
                     rule("arrow.triangle.swap", "some miss → their fees go to those who finished")
                 }
+                .padding(.top, 4)
             }
-            .padding(.leading, 64)
+            Spacer()
+            Button { creating = true } label: { Label("New Challenge", systemImage: "plus") }
+                .buttonStyle(.borderedProminent).controlSize(.large)
         }
     }
 

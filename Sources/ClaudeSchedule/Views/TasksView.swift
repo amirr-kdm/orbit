@@ -53,7 +53,6 @@ struct TasksView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            PageHeader(page: .tasks, subtitle: "One-off tasks and the to-dos from your weekly schedule — by day, week, list or graph.")
             topBar
             switch mode {
             case .day: dayView

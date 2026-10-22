@@ -71,9 +71,19 @@ struct WeeklyScheduleView: View {
 
     private func header(now: Date, today: Int, currentSlot: TimeSlot?, slots: [TimeSlot]) -> some View {
         return HStack(alignment: .center, spacing: 16) {
-            // Always today's date; the week bar below shows the week being viewed
-            PageHeader(page: .schedule, title: Fmt.dualDate(now),
-                       subtitle: "Today · \(Fmt.date(now, "EEEE", .gregorian)) · \(store.parity(ofWeek: now).title)")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("WEEKLY SCHEDULE")
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(2.2)
+                    .foregroundStyle(style.accent)
+                // Always today's date; the week bar below shows the week being viewed
+                Text(Fmt.dualDate(now))
+                    .font(font.font(size: 30, weight: .bold))
+                Text("Today · \(Fmt.date(now, "EEEE", .gregorian)) · \(store.parity(ofWeek: now).title)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
             ViewThatFits(in: .horizontal) { weekStats; Color.clear.frame(width: 0, height: 0) }
             nowCard(now: now, today: today, currentSlot: currentSlot, slots: slots)
         }

@@ -48,7 +48,6 @@ struct GalaxyPage: View {
         let progress = store.galaxyProgress()
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                PageHeader(page: .galaxy, subtitle: "Every 3 hours you study is a level. Collect planets and build solar systems.")
                 profileCard(progress)
                 galaxyPanel(progress)
                 collection(progress)

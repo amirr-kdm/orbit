@@ -1066,8 +1066,14 @@ struct FightClubPage: View {
     // MARK: Pieces
 
     private var header: some View {
-        PageHeader(page: .fightClub, title: "A monster attacks Orbit every week",
-                   subtitle: "Every Orbiter fights it together. Study to earn bullets, shoot it down before Friday ends.") {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FIGHT CLUB").font(.caption.weight(.heavy)).tracking(3).foregroundStyle(.red)
+                Text("A monster attacks Orbit every week").font(.system(size: 28, weight: .bold, design: .rounded))
+                Text("Every Orbiter fights it together. Study to earn bullets, shoot it down before Friday ends.")
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
             if let ship = PlanetPainter.bundleImage("fighter") {
                 Image(nsImage: ship).resizable().scaledToFit().frame(width: 84, height: 84)
                     .rotationEffect(.degrees(-12))

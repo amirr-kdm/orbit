@@ -96,7 +96,6 @@ struct ReportsView: View {
 
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                PageHeader(page: .reports, subtitle: "How much, what and when you studied — by week or month.")
                 hero(total: total, prevTotal: prevTotal, days: days, perDay: perDay, goal: goal)
 
                 HStack(spacing: 14) {

@@ -37,7 +37,11 @@ struct CalendarView: View {
         @Bindable var store = store
         return VStack(spacing: 12) {
             HStack(alignment: .center) {
-                PageHeader(page: .calendar, title: Fmt.date(anchor, "MMMM y", kind), subtitle: secondaryMonthTitle)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Fmt.date(anchor, "MMMM y", kind)).font(.title.weight(.bold))
+                    Text(secondaryMonthTitle).foregroundStyle(.secondary)
+                }
+                Spacer()
                 Picker("", selection: $store.settings.primaryCalendar) {
                     ForEach(CalendarKind.allCases) { Text($0.title).tag($0) }
                 }

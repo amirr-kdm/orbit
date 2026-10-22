@@ -27,8 +27,11 @@ struct TodayView: View {
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                PageHeader(page: .today, title: "To-do · \(Fmt.date(today, "EEEE", .gregorian))",
-                           subtitle: Fmt.dualDate(today) + ", " + Fmt.date(today, "y", .gregorian))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("To-do · \(Fmt.date(today, "EEEE", .gregorian))").font(.largeTitle.weight(.bold))
+                    Text(Fmt.dualDate(today) + ", " + Fmt.date(today, "y", .gregorian))
+                        .font(.title3).foregroundStyle(.secondary)
+                }
 
                 HStack(spacing: 14) {
                     HStack(spacing: 14) {
