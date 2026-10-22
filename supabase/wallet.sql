@@ -95,7 +95,8 @@ insert into public.store_prices (planet_id, price) values
 ('s5_taco', 870),
 ('s5_sushi', 900),
 ('s5_icecream', 920),
-('s5_burgersaturn', 1000)
+('s5_burgersaturn', 1000),
+('s5_duck', 890)
 on conflict (planet_id) do update set price = excluded.price;
 alter table public.store_prices enable row level security;
 drop policy if exists "prices read" on public.store_prices;

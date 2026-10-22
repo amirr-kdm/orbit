@@ -249,6 +249,8 @@ extension PlanetCatalog {
                   colors: ["#E9D5FF", "#C084FC", "#581C87"], accent: "#E9D5FF", glow: true, price: 920, image: "s5_icecream"),
         PlanetDef(id: "s5_burgersaturn", name: "Burger Saturn", level: 1, blurb: "The legendary burger with sparkling rings.",
                   colors: ["#FDE68A", "#A78BFA", "#4C1D95"], accent: "#FDE68A", glow: true, price: 1000, image: "s5_burgersaturn"),
+        PlanetDef(id: "s5_duck", name: "Duck Island", level: 1, blurb: "A sea world with a rubber duck and a tiny island.",
+                  colors: ["#BAE6FD", "#38BDF8", "#0C4A6E"], accent: "#FDE047", glow: true, price: 890, image: "s5_duck"),
         PlanetDef(id: "s4_spacecat", name: "Cosmo Cat", level: 1, blurb: "A Siamese astronaut floating calmly between the stars.",
                   colors: ["#BAE6FD", "#38BDF8", "#0C4A6E"], accent: "#7DD3FC", glow: true, price: 1000, image: "s4_spacecat"),
         PlanetDef(id: "s4_ufocat", name: "Kitty Cruiser", level: 1, blurb: "A cat at the controls of its own saucer. It moves!",
