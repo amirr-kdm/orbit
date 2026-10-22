@@ -756,6 +756,27 @@ struct ScheduleCellView: View {
                 shape.fill(.ultraThinMaterial)
                     .overlay(shape.fill(color.opacity(0.28)))
                     .overlay(shape.strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
+            case .paper:
+                // a sheet of ruled paper: faint blue lines, a coloured margin line on the left
+                shape.fill(Color(nsColor: .textBackgroundColor))
+                    .overlay {
+                        Canvas { ctx, size in
+                            var y: CGFloat = 14
+                            while y < size.height {
+                                ctx.stroke(Path { $0.move(to: CGPoint(x: 0, y: y)); $0.addLine(to: CGPoint(x: size.width, y: y)) },
+                                           with: .color(Color(hex: "#93C5FD").opacity(0.45)), lineWidth: 0.6)
+                                y += 14
+                            }
+                            ctx.stroke(Path { $0.move(to: CGPoint(x: 9, y: 0)); $0.addLine(to: CGPoint(x: 9, y: size.height)) },
+                                       with: .color(color.opacity(0.85)), lineWidth: 1.4)
+                        }
+                    }
+                    .clipShape(shape)
+                    .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
+            case .outline:
+                shape.fill(color.opacity(0.06))
+                    .overlay(shape.strokeBorder(color.opacity(0.9), lineWidth: 1))
+                    .shadow(color: color.opacity(0.35), radius: 4)
             case .grid:
                 Rectangle().fill(color.opacity(0.3))
             }

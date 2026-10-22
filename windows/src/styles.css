@@ -253,3 +253,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .btn { white-space: nowrap; }
 .page > .row { flex-wrap: wrap; row-gap: 8px; }
 .streak-pop { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+/* Midnight Black: pure black everywhere in dark mode */
+:root[data-theme="dark"][data-tpl="midnight"] { --bg: #000000; --card: #0A0A0B; --card2: #121214; --line: #232327; }
+:root[data-theme="dark"][data-tpl="midnight"] .sidebar { background: #000000; border-color: #1A1A1D; }

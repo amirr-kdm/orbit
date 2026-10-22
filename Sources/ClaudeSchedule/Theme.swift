@@ -130,6 +130,10 @@ enum CellFill {
     case glass
     /// Flat tint inside a hard grid (the original look)
     case grid
+    /// A sheet of ruled notebook paper with a coloured margin line
+    case paper
+    /// Thin coloured frame on the page, plain text (for the all-black theme)
+    case outline
 }
 
 struct TemplateStyle {
@@ -144,10 +148,13 @@ struct TemplateStyle {
     let baseTint: Color?
     /// Time-slot headers drawn as capsules
     let pillHeaders: Bool
+    /// How strongly `baseTint` covers the page in light and dark mode (nil: the original rule)
+    var baseOpacity: (light: Double, dark: Double)? = nil
 }
 
 enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
     case aurora, glass, pastel, neon, paper, sunset, forest, classic
+    case latte, notebook, midnight, matcha, lavender, ocean, ember, sakura
 
     var id: String { rawValue }
 
@@ -161,6 +168,14 @@ enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
         case .sunset: "Sunset"
         case .forest: "Forest"
         case .classic: "Classic Grid"
+        case .latte: "Latte"
+        case .notebook: "Notebook"
+        case .midnight: "Midnight Black"
+        case .matcha: "Matcha"
+        case .lavender: "Lavender Dusk"
+        case .ocean: "Deep Ocean"
+        case .ember: "Ember"
+        case .sakura: "Sakura"
         }
     }
 
@@ -174,6 +189,14 @@ enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
         case .sunset: "Warm oranges and pinks"
         case .forest: "Calm greens, earthy tones"
         case .classic: "The simple timetable grid"
+        case .latte: "Warm cream and coffee, cosy and calm"
+        case .notebook: "Ruled paper with a coloured margin line"
+        case .midnight: "Pure black, thin glowing frames"
+        case .matcha: "Soft sage greens, quiet and calm"
+        case .lavender: "Dusky purples over frosted glass"
+        case .ocean: "Deep blues, calm like the sea at night"
+        case .ember: "Glowing coals on a warm dark page"
+        case .sakura: "Cherry-blossom pinks, light and gentle"
         }
     }
 
@@ -209,6 +232,36 @@ enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
         case .classic:
             TemplateStyle(accent: .accentColor, fill: .grid, corner: 0, spacing: 0, shadow: false,
                           blobs: [], baseTint: nil, pillHeaders: false)
+        case .latte:
+            TemplateStyle(accent: Color(hex: "#A0522D"), fill: .tint, corner: 14, spacing: 9, shadow: false,
+                          blobs: [Color(hex: "#D4A373"), Color(hex: "#E9C46A"), Color(hex: "#F4A261")],
+                          baseTint: Color(hex: "#F3E9DC"), pillHeaders: true, baseOpacity: (1, 0.07))
+        case .notebook:
+            TemplateStyle(accent: Color(hex: "#2563EB"), fill: .paper, corner: 4, spacing: 7, shadow: true,
+                          blobs: [], baseTint: Color(hex: "#FBF8F1"), pillHeaders: false, baseOpacity: (1, 0.04))
+        case .midnight:
+            TemplateStyle(accent: Color(hex: "#71717A"), fill: .outline, corner: 10, spacing: 8, shadow: false,
+                          blobs: [], baseTint: .black, pillHeaders: true, baseOpacity: (0, 1))
+        case .matcha:
+            TemplateStyle(accent: Color(hex: "#6B8F4E"), fill: .tint, corner: 12, spacing: 9, shadow: false,
+                          blobs: [Color(hex: "#A3B18A"), Color(hex: "#DAD7CD"), Color(hex: "#588157")],
+                          baseTint: Color(hex: "#F1F3EC"), pillHeaders: true, baseOpacity: (1, 0.05))
+        case .lavender:
+            TemplateStyle(accent: Color(hex: "#8B5CF6"), fill: .glass, corner: 16, spacing: 9, shadow: true,
+                          blobs: [Color(hex: "#C4B5FD"), Color(hex: "#F9A8D4"), Color(hex: "#A5B4FC")],
+                          baseTint: nil, pillHeaders: true)
+        case .ocean:
+            TemplateStyle(accent: Color(hex: "#0284C7"), fill: .gradient, corner: 12, spacing: 8, shadow: true,
+                          blobs: [Color(hex: "#0EA5E9"), Color(hex: "#1E3A8A"), Color(hex: "#14B8A6")],
+                          baseTint: Color(hex: "#06142B"), pillHeaders: true, baseOpacity: (0.04, 1))
+        case .ember:
+            TemplateStyle(accent: Color(hex: "#DC2626"), fill: .gradient, corner: 12, spacing: 8, shadow: true,
+                          blobs: [Color(hex: "#B91C1C"), Color(hex: "#F59E0B"), Color(hex: "#7C2D12")],
+                          baseTint: Color(hex: "#1A0F0A"), pillHeaders: true, baseOpacity: (0.03, 1))
+        case .sakura:
+            TemplateStyle(accent: Color(hex: "#EC4899"), fill: .tint, corner: 16, spacing: 10, shadow: false,
+                          blobs: [Color(hex: "#FBCFE8"), Color(hex: "#FECDD3"), Color(hex: "#FDE68A")],
+                          baseTint: Color(hex: "#FFF5F7"), pillHeaders: true, baseOpacity: (1, 0.05))
         }
     }
 
@@ -223,6 +276,14 @@ enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
         case .sunset: "#F97316"
         case .forest: "#16A34A"
         case .classic: "#8E8E93"
+        case .latte: "#A0522D"
+        case .notebook: "#2563EB"
+        case .midnight: "#A1A1AA"
+        case .matcha: "#6B8F4E"
+        case .lavender: "#8B5CF6"
+        case .ocean: "#0284C7"
+        case .ember: "#DC2626"
+        case .sakura: "#EC4899"
         }
     }
 }
@@ -238,7 +299,8 @@ struct AmbientBackground: View {
                 Color(nsColor: .windowBackgroundColor)
                 if let base = style.baseTint {
                     // Paper is warm in light mode; Neon is deep navy in dark mode
-                    base.opacity(scheme == .dark ? (style.fill == .neon ? 1 : 0.06) : (style.fill == .neon ? 0.04 : 1))
+                    if let o = style.baseOpacity { base.opacity(scheme == .dark ? o.dark : o.light) }
+                    else { base.opacity(scheme == .dark ? (style.fill == .neon ? 1 : 0.06) : (style.fill == .neon ? 0.04 : 1)) }
                 }
                 ForEach(Array(style.blobs.enumerated()), id: \.offset) { i, color in
                     let positions: [CGPoint] = [CGPoint(x: 0.12, y: 0.08), CGPoint(x: 0.92, y: 0.9), CGPoint(x: 0.75, y: 0.1)]

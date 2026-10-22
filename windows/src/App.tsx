@@ -67,14 +67,17 @@ export default function App() {
       document.documentElement.dataset.theme = dark ? "dark" : "light";
       document.documentElement.style.setProperty("--accent", data.settings.accent);
       // the template's soft colour blobs behind every page, and a whole-app font
-      document.documentElement.style.setProperty("--ambient", ambient(templateOf(data.settings.template), dark) || "none");
+      // like the Mac app, the template's background shows behind the weekly schedule
+      document.documentElement.style.setProperty("--ambient", (tab === "schedule" && ambient(templateOf(data.settings.template), dark)) || "none");
+      // Midnight Black in dark mode: the whole app turns pure black
+      document.documentElement.dataset.tpl = templateOf(data.settings.template).id;
       const f = fontOf(data.settings.font);
       document.body.style.fontFamily = f.whole ? f.css : "";
     };
     apply();
     const mq = matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
-  }, [data.settings.appearance, data.settings.accent, data.settings.template, data.settings.font]);
+  }, [data.settings.appearance, data.settings.accent, data.settings.template, data.settings.font, tab]);
 
   useEffect(() => { document.title = timer.active ? `⏱ ${clock(timer.display)} · Orbit` : "Orbit"; }, [timer.active, timer.display]);
 
