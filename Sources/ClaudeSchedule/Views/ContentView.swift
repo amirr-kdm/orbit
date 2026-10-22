@@ -61,6 +61,7 @@ struct ContentView: View {
     @Environment(ChallengeService.self) private var challenges
     @Environment(FightClubService.self) private var fightClub
     @State private var showAdmin = false
+    @State private var showAbout = false
 
     var body: some View {
         @Bindable var router = router
@@ -87,6 +88,11 @@ struct ContentView: View {
                 page
             }
         }
+        // About opens as a small window over the current page (the page stays where it was)
+        .onChange(of: router.selection) { old, new in
+            if new == .about { showAbout = true; router.selection = old ?? .today }
+        }
+        .sheet(isPresented: $showAbout) { AboutView() }
         // Developer tool: CS_TEST_PASS=2 opens the Level Pass as if 2 hours were just studied
         .onAppear {
             if let h = ProcessInfo.processInfo.environment["CS_TEST_PASS"].flatMap(Double.init) {
@@ -153,7 +159,7 @@ struct ContentView: View {
             case .challenges: ChallengesPage()
             case .fightClub: FightClubPage()
             case .settings: SettingsView()
-            case .about: AboutView()
+            case .about: EmptyView()
             }
     }
 

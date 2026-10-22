@@ -2,8 +2,9 @@ import SwiftUI
 
 /// Who made Orbit and where to reach them
 struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
     /// Fill in to show a LinkedIn link
-    static let linkedIn: String? = nil
+    static let linkedIn: String? = "https://www.linkedin.com/in/amirreza-khadempir/"
 
     private var version: String {
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
@@ -13,17 +14,17 @@ struct AboutView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 22) {
+            VStack(spacing: 14) {
                 // app
                 VStack(spacing: 10) {
-                    Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 110, height: 110)
-                        .shadow(color: .purple.opacity(0.4), radius: 18, y: 6)
-                    Text("Orbit").font(.system(size: 34, weight: .heavy, design: .rounded))
+                    Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 84, height: 84)
+                        .shadow(color: .purple.opacity(0.4), radius: 14, y: 5)
+                    Text("Orbit").font(.system(size: 28, weight: .heavy, design: .rounded))
                     Text("Plan your week, study with focus, and watch your galaxy grow.")
                         .foregroundStyle(.secondary)
                     Text("Version \(version)").font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
                 }
-                .padding(.top, 20)
+                .padding(.top, 8)
 
                 // designer
                 card {
@@ -59,20 +60,20 @@ struct AboutView: View {
                         .padding(.top, 4)
                 }
 
-                Text("Made with ☕️ and a lot of study hours.")
-                    .font(.caption).foregroundStyle(.tertiary)
-                    .padding(.bottom, 24)
+                HStack {
+                    Text("Made with ☕️ and a lot of study hours.").font(.caption).foregroundStyle(.tertiary)
+                    Spacer()
+                    Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                }
             }
-            .frame(maxWidth: 560)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 24)
+            .padding(22)
         }
-        .navigationTitle("About")
+        .frame(width: 460, height: 640)
     }
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) { content() }
-            .padding(18)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
