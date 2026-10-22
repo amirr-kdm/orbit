@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case today, schedule, planner, timer, tasks, calendar, reports, galaxy, store, friends, challenges, fightClub, settings
+    case today, schedule, planner, timer, tasks, calendar, reports, galaxy, store, friends, challenges, fightClub, settings, about
 
     var id: String { rawValue }
 
@@ -11,7 +11,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         ("Focus", [.timer, .reports]),
         ("Rewards", [.galaxy, .store]),
         ("Social", [.friends, .challenges, .fightClub]),
-        ("App", [.settings]),
+        ("App", [.settings, .about]),
     ]
     var title: String {
         switch self {
@@ -28,6 +28,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .challenges: "Challenges"
         case .fightClub: "Fight Club"
         case .settings: "Settings"
+        case .about: "About"
         }
     }
     var icon: String {
@@ -45,6 +46,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .challenges: "flag.checkered"
         case .fightClub: "burst.fill"
         case .settings: "gearshape"
+        case .about: "info.circle"
         }
     }
 }
@@ -151,6 +153,7 @@ struct ContentView: View {
             case .challenges: ChallengesPage()
             case .fightClub: FightClubPage()
             case .settings: SettingsView()
+            case .about: AboutView()
             }
     }
 
