@@ -155,6 +155,7 @@ struct TemplateStyle {
 enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
     case aurora, glass, pastel, neon, paper, sunset, forest, classic
     case latte, notebook, midnight, matcha, lavender, ocean, ember, sakura
+    case slate, graphite, mocha, espresso, sand, parchment, nordic, olive
 
     var id: String { rawValue }
 
@@ -176,6 +177,14 @@ enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
         case .ocean: "Deep Ocean"
         case .ember: "Ember"
         case .sakura: "Sakura"
+        case .slate: "Slate"
+        case .graphite: "Graphite"
+        case .mocha: "Mocha"
+        case .espresso: "Espresso"
+        case .sand: "Desert Sand"
+        case .parchment: "Parchment"
+        case .nordic: "Nordic"
+        case .olive: "Olive Grove"
         }
     }
 
@@ -197,6 +206,14 @@ enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
         case .ocean: "Deep blues, calm like the sea at night"
         case .ember: "Glowing coals on a warm dark page"
         case .sakura: "Cherry-blossom pinks, light and gentle"
+        case .slate: "Cool greys, quiet and focused"
+        case .graphite: "Charcoal greys with silver frames"
+        case .mocha: "Milk chocolate and caramel"
+        case .espresso: "Dark roast browns, warm and deep"
+        case .sand: "Sun-warmed beige and terracotta"
+        case .parchment: "Old paper, sepia ink"
+        case .nordic: "Frosty blue-greys, calm like snow"
+        case .olive: "Olive greens and warm stone"
         }
     }
 
@@ -262,6 +279,38 @@ enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
             TemplateStyle(accent: Color(hex: "#EC4899"), fill: .tint, corner: 16, spacing: 10, shadow: false,
                           blobs: [Color(hex: "#FBCFE8"), Color(hex: "#FECDD3"), Color(hex: "#FDE68A")],
                           baseTint: Color(hex: "#FFF5F7"), pillHeaders: true, baseOpacity: (1, 0.05))
+        case .slate:
+            TemplateStyle(accent: Color(hex: "#475569"), fill: .tint, corner: 12, spacing: 8, shadow: false,
+                          blobs: [Color(hex: "#94A3B8"), Color(hex: "#CBD5E1"), Color(hex: "#64748B")],
+                          baseTint: Color(hex: "#EEF1F5"), pillHeaders: true, baseOpacity: (1, 0.05))
+        case .graphite:
+            TemplateStyle(accent: Color(hex: "#6B7280"), fill: .outline, corner: 10, spacing: 8, shadow: false,
+                          blobs: [Color(hex: "#4B5563"), Color(hex: "#9CA3AF")],
+                          baseTint: Color(hex: "#18181B"), pillHeaders: true, baseOpacity: (0.04, 1))
+        case .mocha:
+            TemplateStyle(accent: Color(hex: "#8B5E3C"), fill: .gradient, corner: 12, spacing: 8, shadow: true,
+                          blobs: [Color(hex: "#A47148"), Color(hex: "#D4A373"), Color(hex: "#6F4E37")],
+                          baseTint: Color(hex: "#F2E8DF"), pillHeaders: true, baseOpacity: (1, 0.06))
+        case .espresso:
+            TemplateStyle(accent: Color(hex: "#B07D4F"), fill: .gradient, corner: 12, spacing: 8, shadow: true,
+                          blobs: [Color(hex: "#6F4E37"), Color(hex: "#3E2723"), Color(hex: "#C08552")],
+                          baseTint: Color(hex: "#1C1410"), pillHeaders: true, baseOpacity: (0.03, 1))
+        case .sand:
+            TemplateStyle(accent: Color(hex: "#C2703D"), fill: .tint, corner: 14, spacing: 9, shadow: false,
+                          blobs: [Color(hex: "#E9C46A"), Color(hex: "#F4A261"), Color(hex: "#E76F51")],
+                          baseTint: Color(hex: "#F6EEDC"), pillHeaders: true, baseOpacity: (1, 0.06))
+        case .parchment:
+            TemplateStyle(accent: Color(hex: "#8B5A2B"), fill: .card, corner: 6, spacing: 7, shadow: true,
+                          blobs: [],
+                          baseTint: Color(hex: "#EFE3C8"), pillHeaders: false, baseOpacity: (1, 0.05))
+        case .nordic:
+            TemplateStyle(accent: Color(hex: "#5E81AC"), fill: .glass, corner: 14, spacing: 9, shadow: true,
+                          blobs: [Color(hex: "#88C0D0"), Color(hex: "#81A1C1"), Color(hex: "#D8DEE9")],
+                          baseTint: Color(hex: "#ECEFF4"), pillHeaders: true, baseOpacity: (1, 0.05))
+        case .olive:
+            TemplateStyle(accent: Color(hex: "#6B7B3A"), fill: .tint, corner: 12, spacing: 8, shadow: false,
+                          blobs: [Color(hex: "#9CA36B"), Color(hex: "#C2B280"), Color(hex: "#556B2F")],
+                          baseTint: Color(hex: "#F2F0E4"), pillHeaders: true, baseOpacity: (1, 0.05))
         }
     }
 
@@ -284,6 +333,14 @@ enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
         case .ocean: "#0284C7"
         case .ember: "#DC2626"
         case .sakura: "#EC4899"
+        case .slate: "#64748B"
+        case .graphite: "#9CA3AF"
+        case .mocha: "#8B5E3C"
+        case .espresso: "#9C6644"
+        case .sand: "#C2703D"
+        case .parchment: "#8B5A2B"
+        case .nordic: "#5E81AC"
+        case .olive: "#6B7B3A"
         }
     }
 }

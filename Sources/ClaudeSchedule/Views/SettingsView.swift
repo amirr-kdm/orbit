@@ -236,7 +236,7 @@ struct TemplateCard: View {
                                     let sample = Self.samples[row][col]
                                     ScheduleCellView(
                                         entry: sample.map { ScheduleEntry(weekday: row, slotID: UUID(), text: $0.0, kind: .fixed) },
-                                        colorHex: sample?.1, template: template, font: font, fontSize: 9,
+                                        colorHex: nil, template: template, font: font, fontSize: 9,   // the theme's own cell colour, so each card shows its look
                                         isTodayRow: row == 1, minHeight: 22, showBadge: false)
                                 }
                             }

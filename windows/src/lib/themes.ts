@@ -5,7 +5,8 @@ import { isLight } from "./model";
 /** How filled schedule cells are painted */
 export type CellFill = "gradient" | "tint" | "neon" | "card" | "glass" | "grid" | "paper" | "outline";
 export type TemplateID = "aurora" | "glass" | "pastel" | "neon" | "paper" | "sunset" | "forest" | "classic"
-  | "latte" | "notebook" | "midnight" | "matcha" | "lavender" | "ocean" | "ember" | "sakura";
+  | "latte" | "notebook" | "midnight" | "matcha" | "lavender" | "ocean" | "ember" | "sakura"
+  | "slate" | "graphite" | "mocha" | "espresso" | "sand" | "parchment" | "nordic" | "olive";
 
 export interface Template {
   id: TemplateID; title: string; subtitle: string; accent: string; fill: CellFill; corner: number; spacing: number; shadow: boolean;
@@ -36,6 +37,14 @@ export const TEMPLATES: Template[] = [
   { id: "ocean", title: "Deep Ocean", subtitle: "Deep blues, calm like the sea at night", accent: "#0284C7", fill: "gradient", corner: 12, spacing: 8, shadow: true, blobs: ["#0EA5E9", "#1E3A8A", "#14B8A6"], baseTint: "#06142B", base: [0.04, 1], cell: "#0284C7" },
   { id: "ember", title: "Ember", subtitle: "Glowing coals on a warm dark page", accent: "#DC2626", fill: "gradient", corner: 12, spacing: 8, shadow: true, blobs: ["#B91C1C", "#F59E0B", "#7C2D12"], baseTint: "#1A0F0A", base: [0.03, 1], cell: "#DC2626" },
   { id: "sakura", title: "Sakura", subtitle: "Cherry-blossom pinks, light and gentle", accent: "#EC4899", fill: "tint", corner: 16, spacing: 10, shadow: false, blobs: ["#FBCFE8", "#FECDD3", "#FDE68A"], baseTint: "#FFF5F7", base: [1, 0.05], cell: "#EC4899" },
+  { id: "slate", title: "Slate", subtitle: "Cool greys, quiet and focused", accent: "#475569", fill: "tint", corner: 12, spacing: 8, shadow: false, blobs: ["#94A3B8", "#CBD5E1", "#64748B"], baseTint: "#EEF1F5", base: [1, 0.05], cell: "#64748B" },
+  { id: "graphite", title: "Graphite", subtitle: "Charcoal greys with silver frames", accent: "#6B7280", fill: "outline", corner: 10, spacing: 8, shadow: false, blobs: ["#4B5563", "#9CA3AF"], baseTint: "#18181B", base: [0.04, 1], cell: "#9CA3AF" },
+  { id: "mocha", title: "Mocha", subtitle: "Milk chocolate and caramel", accent: "#8B5E3C", fill: "gradient", corner: 12, spacing: 8, shadow: true, blobs: ["#A47148", "#D4A373", "#6F4E37"], baseTint: "#F2E8DF", base: [1, 0.06], cell: "#8B5E3C" },
+  { id: "espresso", title: "Espresso", subtitle: "Dark roast browns, warm and deep", accent: "#B07D4F", fill: "gradient", corner: 12, spacing: 8, shadow: true, blobs: ["#6F4E37", "#3E2723", "#C08552"], baseTint: "#1C1410", base: [0.03, 1], cell: "#9C6644" },
+  { id: "sand", title: "Desert Sand", subtitle: "Sun-warmed beige and terracotta", accent: "#C2703D", fill: "tint", corner: 14, spacing: 9, shadow: false, blobs: ["#E9C46A", "#F4A261", "#E76F51"], baseTint: "#F6EEDC", base: [1, 0.06], cell: "#C2703D" },
+  { id: "parchment", title: "Parchment", subtitle: "Old paper, sepia ink", accent: "#8B5A2B", fill: "card", corner: 6, spacing: 7, shadow: true, blobs: [], baseTint: "#EFE3C8", base: [1, 0.05], cell: "#8B5A2B" },
+  { id: "nordic", title: "Nordic", subtitle: "Frosty blue-greys, calm like snow", accent: "#5E81AC", fill: "glass", corner: 14, spacing: 9, shadow: true, blobs: ["#88C0D0", "#81A1C1", "#D8DEE9"], baseTint: "#ECEFF4", base: [1, 0.05], cell: "#5E81AC" },
+  { id: "olive", title: "Olive Grove", subtitle: "Olive greens and warm stone", accent: "#6B7B3A", fill: "tint", corner: 12, spacing: 8, shadow: false, blobs: ["#9CA36B", "#C2B280", "#556B2F"], baseTint: "#F2F0E4", base: [1, 0.05], cell: "#6B7B3A" },
 ];
 export const templateOf = (id?: string) => TEMPLATES.find((t) => t.id === id) ?? TEMPLATES[0];
 

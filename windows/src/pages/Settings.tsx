@@ -38,7 +38,7 @@ export default function Settings() {
                   border: `2px solid ${on ? t.accent : "var(--line)"}`, background: "var(--card2)", display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ height: 74, borderRadius: 10, padding: 8, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: t.fill === "grid" ? 0 : 5,
                   backgroundColor: "var(--bg)", backgroundImage: ambient(t, dark) || undefined }}>
-                  {["#FF6B6B", undefined, "#69DB7C", "#4DABF7", "#FFD43B", undefined].map((c, i) => {
+                  {[t.cell, undefined, t.cell, t.cell, t.cell, undefined].map((c, i) => { // the theme's own cell colour, so each card shows its look
                     const filled = i !== 1 && i !== 5, look = cellLook(t, c, filled, dark);
                     return <div key={i} style={{ ...look.style, color: look.text, fontSize: 8, fontWeight: 700, display: "grid", placeItems: "center",
                       ...(filled ? {} : { border: t.fill === "grid" ? look.style.border : "1px dashed var(--line)" }) }}>{filled ? "Math" : ""}</div>;
