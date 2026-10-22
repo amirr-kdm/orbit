@@ -451,6 +451,8 @@ private struct StreakChip: View {
 
 struct AdminPanel: View {
     @Environment(AccountService.self) private var account
+    @Environment(FightClubService.self) private var fightClub
+    @State private var bossHours = 5
     @State private var tempPassword: (name: String, value: String)?
     @State private var confirmRemove: AccountService.AdminUser?
     @State private var giftTo: AccountService.AdminUser?
@@ -469,6 +471,23 @@ struct AdminPanel: View {
                 }
                 Text("Only you see this panel. \(members.count) member\(members.count == 1 ? "" : "s") · \(pending.count) waiting")
                     .font(.caption).foregroundStyle(.secondary)
+
+                // World Boss health for the next weeks
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("WORLD BOSS").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
+                    HStack {
+                        Stepper("\(bossHours) hours per member", value: $bossHours, in: 1...100)
+                        Spacer()
+                        Button("Save") { Task { await fightClub.setHoursPerMember(bossHours) } }
+                            .disabled(bossHours == fightClub.hoursPerMember)
+                    }
+                    Text("Next monster: \(members.count) members × \(bossHours)h = \(members.count * bossHours)h of health. Applies from next week; this week's stays as it is.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let e = fightClub.error { Text(e).font(.caption).foregroundStyle(.red) }
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.08)))
+                .onAppear { bossHours = fightClub.hoursPerMember }
 
                 Text("WAITING FOR APPROVAL").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
                 if pending.isEmpty { Text("No one is waiting.").font(.callout).foregroundStyle(.secondary) }

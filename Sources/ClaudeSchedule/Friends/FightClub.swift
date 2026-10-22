@@ -13,9 +13,12 @@ struct Boss: Decodable, Identifiable, Hashable {
     let monster: Int
     let status: String
     let created_at: Date
+    /// Set for the weekly World Boss (the Saturday its week starts)
+    var world_week: String? = nil
+    var isWorld: Bool { world_week != nil }
 
     /// Same as the server: 45 rockets per hour of the goal, +15% per monster level above 1
-    var pool: Int { Int((Double(hp) / 60 * 45 * (1 + 0.15 * Double(monster - 1))).rounded(.down)) }
+    var pool: Int { isWorld ? hp * 45 / 60 : Int((Double(hp) / 60 * 45 * (1 + 0.15 * Double(monster - 1))).rounded(.down)) }
     var isAlive: Bool { status == "alive" }
 }
 
@@ -89,8 +92,20 @@ final class FightClubService {
         }
     }
 
+    /// This week's World Boss (everyone's monster)
+    var worldBoss: Boss? { bosses.first { $0.isWorld && $0.world_week == Cal.dayKey(Cal.weekStart(Date())) } ?? bosses.first(where: \.isWorld) }
+    /// Usernames of World Boss fighters (they may not be friends)
+    private(set) var names: [UUID: String] = [:]
+    /// Admin setting: hours of health per member for the next World Bosses
+    private(set) var hoursPerMember = 5
+
     func load() async {
         guard await client.userID != nil else { return }
+        // make sure this week's World Boss exists (the first app to ask creates it)
+        struct Week: Encodable { let week_start: String }
+        _ = try? await client.rpc("world_boss", Week(week_start: Cal.dayKey(Cal.weekStart(Date()))))
+        struct Setting: Decodable { let hours_per_member: Int }
+        if let s = try? await client.select("boss_settings?select=hours_per_member", as: [Setting].self).first { hoursPerMember = s.hours_per_member }
         let since = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7 * 86400))
         do {
             let list = try await client.select("bosses?or=(status.eq.alive,deadline.gt.\(since))&order=created_at.desc", as: [Boss].self)
@@ -104,6 +119,7 @@ final class FightClubService {
             fighters = by
             invites = inv
             notifyNewInvites()
+            if let w = list.first(where: \.isWorld) { await loadNames(Set((by[w.id] ?? []).map(\.user_id))) }
         } catch {}
         // Developer tool: CS_TEST_BOSS=1 shows a pretend monster (local only, firing does nothing)
         if ProcessInfo.processInfo.environment["CS_TEST_BOSS"] != nil, let me = await client.userID {
@@ -205,6 +221,23 @@ final class FightClubService {
         }
     }
 
+    private func loadNames(_ ids: Set<UUID>) async {
+        let missing = ids.filter { names[$0] == nil }
+        guard !missing.isEmpty else { return }
+        struct Body: Encodable { let ids: [String] }
+        struct Row: Decodable { let id: UUID; let name: String }
+        guard let data = try? await client.rpc("boss_names", Body(ids: missing.map(\.uuidString))),
+              let rows = try? SupabaseClient.decoder.decode([Row].self, from: data) else { return }
+        for r in rows { names[r.id] = r.name }
+    }
+
+    /// Admin only: hours of health per member for the next World Bosses
+    func setHoursPerMember(_ h: Int) async {
+        struct Body: Encodable { let hours: Int }
+        await perform { _ = try await self.client.rpc("admin_set_boss_hours", Body(hours: h)) }
+        if error == nil { hoursPerMember = h }
+    }
+
     /// Bullets left for me
     func ammo(_ b: Boss, me: UUID?) -> Int {
         let f = self.me(b, me)
@@ -249,16 +282,11 @@ struct FightClubCard: View {
 
     var body: some View {
         let me = friends.me?.id
-        let list = fc.bosses.filter { b in fc.fighters(of: b).contains { $0.user_id == me } || b.id.uuidString.hasSuffix("B055") }
-        Card(title: "Your fights", systemImage: "burst.fill") {
-            HStack {
-                Text("Set a goal and a monster appears. Fight alone or invite friends or a whole group. Every minute you study is a bullet.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button { fc.error = nil; creating = true } label: { Label("Summon Monster", systemImage: "plus") }
-                    .buttonStyle(.borderedProminent).tint(.red)
-            }
-            if list.isEmpty { Text("No monsters yet — summon one!").font(.callout).foregroundStyle(.secondary) }
+        let list = fc.bosses.filter { b in !b.isWorld && (fc.fighters(of: b).contains { $0.user_id == me } || b.id.uuidString.hasSuffix("B055")) }
+        Card(title: "Your earlier monsters", systemImage: "burst.fill") {
+            Text("Monsters summoned before the World Boss — you can still finish them.")
+                .font(.caption).foregroundStyle(.secondary)
+            if list.isEmpty { Text("None left.").font(.callout).foregroundStyle(.secondary) }
             ForEach(list) { b in
                 Button { battle = b } label: {
                     HStack(spacing: 12) {
@@ -778,7 +806,7 @@ struct BattleView: View {
                 Spacer()
                 Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Escapes \(b.deadline.formatted(.relative(presentation: .named)))")
                     .font(.callout).foregroundStyle(.secondary)
-                if b.isAlive {
+                if b.isAlive && !b.isWorld {
                     let task = fc.task(for: b), cat = store.category(task?.categoryID)
                     Button { pickingSubject = true } label: {
                         if let cat { Label(store.categoryLabel(cat.id) ?? cat.name, systemImage: "book.fill") } else { Label("Pick a subject", systemImage: "book") }
@@ -787,7 +815,7 @@ struct BattleView: View {
                     .help(cat == nil ? "All your study counts until you pick a subject" : "Only study in this subject gives bullets · click to change")
                     Button { inviting = true } label: { Label("Invite", systemImage: "person.badge.plus") }
                 }
-                if b.creator == friends.me?.id {
+                if b.creator == friends.me?.id && !b.isWorld {
                     Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
                         .help("Delete this monster")
                 }
@@ -952,27 +980,111 @@ struct BattleView: View {
 /// Fight Club page: invitations and your fights
 struct FightClubPage: View {
     @Environment(FightClubService.self) private var fc
+    @Environment(FriendsService.self) private var friends
+    @State private var battle: Boss?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 14) {
-                    if let img = monsterImage(5) { Image(nsImage: img).resizable().scaledToFit().frame(width: 76, height: 76) }
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Fight Club").font(.largeTitle.weight(.bold))
-                        Text("Summon a monster for a study goal. Study to earn bullets, fire them from your ship, and share the rockets when it falls.")
+                        Text("Every week a World Boss attacks Orbit. Every minute any Orbiter studies is a bullet — beat it together before the week ends and share the rockets by damage.")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
                     if let ship = PlanetPainter.bundleImage("fighter") { Image(nsImage: ship).resizable().scaledToFit().frame(width: 70, height: 70) }
                 }
-                FightInvitesCard()
-                FightClubCard()
+                if let w = fc.worldBoss {
+                    worldCard(w)
+                    leaderboard(w)
+                } else {
+                    Card { ProgressView("Looking for this week's monster…").frame(maxWidth: .infinity, minHeight: 120) }
+                }
+                if fc.bosses.contains(where: { !$0.isWorld && $0.isAlive }) {
+                    FightClubCard()   // older monsters still being fought
+                }
                 if let e = fc.error { Text(e).font(.caption).foregroundStyle(.red) }
             }
             .padding(24)
         }
         .navigationTitle("Fight Club")
         .task { await fc.load() }
+        .sheet(item: $battle) { BattleView(bossID: $0.id) }
+    }
+
+    private func worldCard(_ b: Boss) -> some View {
+        let left = fc.healthLeft(b)
+        let me = friends.me?.id
+        let ammo = fc.ammo(b, me: me)
+        let people = fc.fighters(of: b).filter { $0.minutes > 0 || $0.damage > 0 }.count
+        return HStack(spacing: 24) {
+            ZStack {
+                Circle().fill(RadialGradient(colors: [Color.red.opacity(0.35), .clear], center: .center, startRadius: 10, endRadius: 120))
+                if let img = monsterImage(b.monster) {
+                    Image(nsImage: img).resizable().scaledToFit().frame(width: 170, height: 170)
+                        .saturation(b.isAlive ? 1 : 0).opacity(b.status == "escaped" ? 0.5 : 1)
+                }
+            }
+            .frame(width: 210, height: 210)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("WORLD BOSS · THIS WEEK").font(.caption.weight(.heavy)).tracking(2).foregroundStyle(.red)
+                    Spacer()
+                    Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Escapes \(b.deadline.formatted(.relative(presentation: .named)))")
+                        .font(.callout.weight(.semibold)).foregroundStyle(.secondary)
+                }
+                Text(b.title).font(.title.weight(.bold))
+                HStack(spacing: 8) {
+                    Image(systemName: "heart.fill").foregroundStyle(.red)
+                    ProgressView(value: Double(left), total: Double(max(1, b.hp))).tint(.red)
+                    Text("\(hm(left)) / \(hm(b.hp))").font(.callout.monospacedDigit().weight(.semibold))
+                }
+                HStack(spacing: 18) {
+                    stat("person.3.fill", "\(people)", "fighting")
+                    stat("bolt.horizontal.fill", "\(ammo)", "your bullets")
+                    stat("scope", "\(fc.me(b, me)?.damage ?? 0)", "your damage")
+                    stat("gift.fill", "\(b.pool) 🚀", "prize, split by damage")
+                }
+                Text("Health = Orbit's members × \(fc.hoursPerMember)h. Every minute you study this week (with the timer) is one bullet.")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button { battle = b } label: { Label(b.isAlive ? "Fight" : "View", systemImage: "scope").frame(width: 120) }
+                        .buttonStyle(.borderedProminent).tint(.red).controlSize(.large)
+                    if b.isAlive && ammo == 0 { Text("Study to earn bullets 📚").font(.callout).foregroundStyle(.secondary) }
+                }
+            }
+        }
+        .padding(20)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(LinearGradient(colors: [Color(hex: "#2A0A12"), Color(hex: "#0B1020")], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.red.opacity(0.3)))
+        .environment(\.colorScheme, .dark)
+    }
+
+    private func stat(_ icon: String, _ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Label(value, systemImage: icon).font(.headline.monospacedDigit())
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    private func leaderboard(_ b: Boss) -> some View {
+        let me = friends.me?.id
+        let list = fc.fighters(of: b).filter { $0.damage > 0 }.sorted { $0.damage > $1.damage }
+        let total = max(1, list.reduce(0) { $0 + $1.damage })
+        return Card(title: "Most damage this week", systemImage: "trophy.fill") {
+            if list.isEmpty { Text("No hits yet — be the first!").foregroundStyle(.secondary) }
+            ForEach(Array(list.enumerated()), id: \.element.user_id) { i, f in
+                let name = f.user_id == me ? "You" : (friends.people[f.user_id]?.profile.name ?? fc.names[f.user_id] ?? "Orbiter")
+                HStack(spacing: 10) {
+                    Text(i < 3 ? ["🥇", "🥈", "🥉"][i] : "\(i + 1)").frame(width: 28)
+                    Text(name).font(.headline).lineLimit(1).frame(width: 140, alignment: .leading)
+                    ProgressView(value: Double(f.damage), total: Double(total)).tint(f.user_id == me ? .orange : .red)
+                    Text("\(f.damage) dmg").font(.callout.monospacedDigit()).frame(width: 80, alignment: .trailing)
+                    Text("~\(b.pool * f.damage / total) 🚀").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 70, alignment: .trailing)
+                }
+            }
+        }
     }
 }
