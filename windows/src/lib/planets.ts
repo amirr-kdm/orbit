@@ -601,6 +601,14 @@ export function registerPicture(name: string, url: string) {
   const img = new Image(); img.src = url; PICTURES[name] = img;
 }
 
+/** Call `cb` once the planet's picture (every frame of it) has loaded; returns a function that cancels it */
+export function onPictureLoad(p: PlanetDef, cb: () => void): () => void {
+  if (!p.image) return () => {};
+  const imgs = Object.entries(PICTURES).filter(([k]) => k === p.image || k.startsWith(`${p.image}_`)).map(([, v]) => v).filter((i) => !i.complete);
+  imgs.forEach((i) => i.addEventListener("load", cb));
+  return () => imgs.forEach((i) => i.removeEventListener("load", cb));
+}
+
 function paintPicture(ctx: Ctx, p: PlanetDef, c: number, r: number, phase: number) {
   const accent = p.accent ?? "#FFFFFF";
   const g = ctx.createRadialGradient(c, c, r * 0.3, c, c, r * 1.6); g.addColorStop(0, rgba(accent, 0.45)); g.addColorStop(1, rgba(accent, 0));

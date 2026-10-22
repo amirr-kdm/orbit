@@ -13,7 +13,7 @@ export function frameLoop(cb: (t: number) => void, fps = 30) {
   raf = requestAnimationFrame(f);
   return () => cancelAnimationFrame(raf);
 }
-import { PlanetDef, paintPlanet, planetByID, paintSun, SUNS } from "./lib/planets";
+import { onPictureLoad, PlanetDef, paintPlanet, planetByID, paintSun, SUNS } from "./lib/planets";
 import { GalaxyData } from "./lib/friends";
 import { useStore } from "./lib/store";
 
@@ -29,8 +29,11 @@ export function PlanetCanvas({ planet, size = 64, animate = false, locked = fals
       paintPlanet(ctx, planet, size, animate ? performance.now() / 8000 : 0.1);
     };
     draw();
+    // a picture planet may still be loading: draw again once it arrives
+    const off = onPictureLoad(planet, draw);
     // Store pages show dozens of planets at once: keep each one's animation light
-    return animate ? frameLoop(draw, 15) : undefined;
+    const stop = animate ? frameLoop(draw, 15) : undefined;
+    return () => { off(); stop?.(); };
   }, [planet, size, animate]);
   return (
     <div style={{ position: "relative", width: size, height: size, opacity: locked ? 0.4 : 1, filter: locked ? "grayscale(1)" : undefined }}>
@@ -43,8 +46,11 @@ export function PlanetCanvas({ planet, size = 64, animate = false, locked = fals
 export function Avatar({ name, planet, size = 36, color = "#6b7280" }: { name: string; planet?: string | null; size?: number; color?: string }) {
   const p = planetByID(planet ?? undefined);
   if (p) return (
-    <div style={{ width: size, height: size, borderRadius: "50%", background: "#0b0d16", overflow: "hidden", display: "grid", placeItems: "center", flexShrink: 0 }}>
-      <PlanetCanvas planet={p} size={size * 1.25} />
+    // Same as the Mac app: a dark disc, with the planet (and its picture) drawn a quarter larger so nothing is cut off
+    <div style={{ position: "relative", width: size, height: size, borderRadius: "50%", background: "rgba(0,0,0,.85)", flexShrink: 0 }}>
+      <div style={{ position: "absolute", left: -size * 0.125, top: -size * 0.125, clipPath: "circle(50%)", pointerEvents: "none" }}>
+        <PlanetCanvas planet={p} size={size * 1.25} />
+      </div>
     </div>
   );
   return <div style={{ width: size, height: size, borderRadius: "50%", background: color, color: "white", display: "grid", placeItems: "center", fontWeight: 700, fontSize: size * 0.45, flexShrink: 0 }}>{name.slice(0, 1).toUpperCase()}</div>;
