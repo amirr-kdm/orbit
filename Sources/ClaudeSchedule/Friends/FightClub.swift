@@ -731,6 +731,8 @@ struct BattleView: View {
     @Environment(AppStore.self) private var store
     @State private var holdLeft = false
     @State private var holdRight = false
+    @State private var holdFire = false
+    @State private var spaceSeen = Date.distantPast
     @State private var lastShot = Date.distantPast
     /// Sent to the server but not answered yet: still counted, so health and bullets never jump back
     @State private var inFlightShots = 0
@@ -767,10 +769,15 @@ struct BattleView: View {
                 else { if left { holdLeft = true } else { holdRight = true } }
                 return .handled
             }
-            .onKeyPress(.space, phases: [.down, .repeat]) { _ in
-                guard Date().timeIntervalSince(lastShot) > 0.12 else { return .handled }
-                lastShot = Date()
-                shoot(b, ammo: ammo, left: left)
+            // Space: one shot per press; hold it for a steady stream (about 8 a second, no key-repeat delay)
+            .onKeyPress(.space, phases: [.down, .repeat, .up]) { press in
+                if press.phase == .up { holdFire = false; return .handled }
+                // while held the keyboard keeps repeating; each signal keeps the stream going a little longer
+                spaceSeen = Date()
+                if press.phase == .down {
+                    holdFire = true
+                    if Date().timeIntervalSince(lastShot) > 0.12 { lastShot = Date(); shoot(b, ammo: ammo, left: left) }
+                }
                 return .handled
             }
             .task { while !Task.isCancelled { try? await Task.sleep(for: .seconds(1.2)); await flush(b) } }
@@ -780,9 +787,18 @@ struct BattleView: View {
                     try? await Task.sleep(for: .milliseconds(16))
                     let dir: CGFloat = (holdRight ? 1 : 0) - (holdLeft ? 1 : 0)
                     if dir != 0 { shipX = min(0.96, max(0.04, shipX + dir * 0.011)) }
+                    // rapid fire while Space is held
+                    // (if the key's release is ever missed, the stream stops by itself once the repeats stop)
+                    if holdFire, Date().timeIntervalSince(spaceSeen) > 1.0 { holdFire = false }
+                    if holdFire, Date().timeIntervalSince(lastShot) > 0.12,
+                       let b = fc.bosses.first(where: { $0.id == bossID }) {
+                        lastShot = Date()
+                        shoot(b, ammo: max(0, fc.ammo(b, me: friends.me?.id) - pendingShots - inFlightShots),
+                              left: max(0, fc.healthLeft(b) - pendingHits - inFlightHits))
+                    }
                 }
             }
-            .onDisappear { Task { await flush(b) } }
+            .onDisappear { holdFire = false; Task { await flush(b) } }
         } else {
             Text("Loading…").frame(width: 300, height: 200).task { await fc.load() }
         }
