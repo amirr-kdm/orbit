@@ -13,6 +13,7 @@ struct StoreView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                PageHeader(page: .store, subtitle: "Spend the rockets you earn by studying on hand-made planets.")
                 wallet
                 HStack {
                     Text("Planet Store").font(.title2.weight(.bold))

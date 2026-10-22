@@ -1,29 +1,70 @@
 import SwiftUI
 
+/// The app's card: rounded, a soft border, and the title's icon in a tinted badge (same look on every page)
 struct Card<Content: View>: View {
     var title: String?
     var systemImage: String?
+    var tint: Color = .accentColor
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let title {
-                Label {
-                    Text(title)
-                } icon: {
-                    if let systemImage { Image(systemName: systemImage) }
+                HStack(spacing: 10) {
+                    if let systemImage {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(tint)
+                            .frame(width: 26, height: 26)
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint.opacity(0.16)))
+                    }
+                    Text(title).font(.headline)
                 }
-                .font(.headline)
             }
             content
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor))
-                .shadow(color: .black.opacity(0.06), radius: 3, y: 1)
+                .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
         )
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
+    }
+}
+
+/// The header every page starts with: the page's icon in its section colour, the section name,
+/// a big title and one line about the page. Extra controls go on the right.
+struct PageHeader<Trailing: View>: View {
+    let page: SidebarItem
+    var title: String? = nil
+    var subtitle: String? = nil
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: page.icon)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 50, height: 50)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(LinearGradient(colors: [page.tint, page.tint.opacity(0.65)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                .shadow(color: page.tint.opacity(0.35), radius: 8, y: 3)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(page.section.uppercased()).font(.caption2.weight(.heavy)).tracking(2).foregroundStyle(page.tint)
+                Text(title ?? page.title).font(.system(size: 26, weight: .bold, design: .rounded)).lineLimit(1)
+                if let subtitle { Text(subtitle).font(.callout).foregroundStyle(.secondary).lineLimit(2) }
+            }
+            Spacer(minLength: 12)
+            trailing
+        }
+    }
+}
+
+extension PageHeader where Trailing == EmptyView {
+    init(page: SidebarItem, title: String? = nil, subtitle: String? = nil) {
+        self.init(page: page, title: title, subtitle: subtitle) { EmptyView() }
     }
 }
 

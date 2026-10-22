@@ -8,6 +8,9 @@ struct SettingsView: View {
     var body: some View {
         @Bindable var store = store
         Form {
+            PageHeader(page: .settings, subtitle: "Look, schedule, timer and your task categories.")
+                .listRowBackground(Color.clear)
+                .padding(.vertical, 6)
             Section("Appearance") {
                 Picker("Mode", selection: $store.settings.appearance) {
                     ForEach(Appearance.allCases) { Label($0.title, systemImage: $0.icon).tag($0) }

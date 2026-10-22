@@ -188,6 +188,7 @@ private struct PlannerDetail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                PageHeader(page: .planner, subtitle: "Draft a week, brainstorm in notes, then add it to your schedule.")
                 header
                 if !planner.planHidden {
                     grid
