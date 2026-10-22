@@ -820,6 +820,15 @@ struct BattleView: View {
         return 0.5 + CGFloat(wander) * 0.33
     }
 
+    /// Half the monster's visible width on screen (its picture is fitted in a square, so a tall monster is
+    /// narrower than the square) — any bullet that touches the body or the arms counts, plus the bullet's own width
+    private func hitHalfWidth(_ b: Boss) -> CGFloat {
+        let size = monsterSize(b)
+        guard let img = monsterImage(b.monster), img.size.height > 0 else { return size * 0.4 }
+        let shown = size * min(1, img.size.width / img.size.height)
+        return shown / 2 + 4
+    }
+
     private func monsterSize(_ b: Boss) -> CGFloat { b.isWorld ? min(arenaSize.height * 0.5, 190) : min(arenaSize.height * 0.5, 120 + CGFloat(b.monster) * 18) }
 
     // MARK: Views
@@ -987,7 +996,7 @@ struct BattleView: View {
         let w = arenaSize.width
         // where the monster will be when the bullet gets there
         let target = monsterX(b, left, at: t + Self.flight) * w
-        let hit = abs(shipX * w - target) < monsterSize(b) * 0.32
+        let hit = abs(shipX * w - target) < hitHalfWidth(b)
         bullets.append(Bullet(x: shipX, t0: t, hit: hit))
         pendingShots += 1
         if hit { pendingHits += 1 }
