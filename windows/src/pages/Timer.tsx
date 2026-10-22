@@ -4,6 +4,7 @@ import { addDays, clock, duration, startOfDay, time } from "../lib/dates";
 import { uid } from "../lib/model";
 import { categoryLabel, categoryOf, orderedCategories, refKey, sessionsIn, studyOn, subjectOf, todosOn, useStore } from "../lib/store";
 import { useTimer } from "../lib/timer";
+import launchUrl from "../assets/timer-launch.png";
 import breakUrl from "../assets/timer-break.png";
 import earthUrl from "../assets/timer-earth.png";
 
@@ -34,8 +35,14 @@ export default function TimerPage() {
     <div style={{ display: "flex", height: "100%", minHeight: "100vh", color: "white", position: "relative", overflow: "hidden", background: "#05060C" }}>
       {/* night sky with a pale glow from the launch pad that grows as today's study climbs toward the goal; a calm green night on a break */}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-        <div style={{ position: "absolute", inset: 0, backgroundImage: STARFIELD }} />
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(transparent 50%, rgba(201,195,168,${0.1 + 0.15 * lift}))`, transition: "background 1.2s" }} />
+        {/* the launch picture behind the dial, fitted to the height, rising a little as today's study climbs */}
+        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, right: 320, overflow: "hidden" }}>
+          <img src={launchUrl} alt="" style={{ position: "absolute", height: "112%", left: "50%", top: 0,
+            transform: `translate(-50%, ${6 + 8 * (0.5 - lift)}%)`, transition: "transform 1.2s ease-in-out",
+            WebkitMaskImage: "linear-gradient(90deg, transparent 0, black 18%, black 82%, transparent 100%)",
+            maskImage: "linear-gradient(90deg, transparent 0, black 18%, black 82%, transparent 100%)" }} />
+        </div>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.2), rgba(0,0,0,.55))" }} />
         <div style={{ position: "absolute", inset: 0, transition: "opacity .8s", opacity: rest ? 1 : 0, background: "linear-gradient(rgba(11,27,74,.85), rgba(31,95,58,.75))" }} />
       </div>
 
