@@ -168,15 +168,15 @@ struct ChallengesPage: View {
         TimelineView(.periodic(from: .now, by: 30)) { tl in
             let now = tl.date
             let upcoming = all.filter { $0.isOpen && !$0.started(now) }
-            let live = all.filter { $0.isOpen && $0.started(now) }
-            let done = all.filter { !$0.isOpen }
+            let live = all.filter { $0.isOpen && $0.started(now) && !$0.ended(now) }
+            let done = all.filter { !$0.isOpen || $0.ended(now) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     if all.isEmpty {
                         Card { Text("No challenges yet — start one with New Challenge.").foregroundStyle(.secondary) }
                     }
-                    section("Open to join", "person.badge.plus", .blue, upcoming, now)
+                    section("Upcoming · join until it starts", "calendar.badge.clock", .blue, upcoming, now)
                     section("Running now", "flame.fill", .orange, live, now)
                     section("Finished", "checkmark.seal.fill", .green, done, now)
                     if let e = service.error { Text(e).font(.caption).foregroundStyle(.red) }

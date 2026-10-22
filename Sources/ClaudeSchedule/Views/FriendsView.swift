@@ -94,7 +94,7 @@ struct FriendsView: View {
 
     private var privacyNote: some View {
         Label {
-            Text("Only daily totals are shared: minutes studied, to-dos done, top subjects and what you're studying right now. Your schedule, tasks and notes stay on this Mac. No email or password needed.")
+            Text("Every Orbiter sees only your name, planet, level and hours this week. Friends and groups also see to-dos done, top subjects and what you're studying right now. Your schedule, tasks and notes stay on this Mac.")
         } icon: {
             Image(systemName: "lock.shield")
         }
@@ -125,14 +125,17 @@ struct FriendsView: View {
                 PromisesCard()
 
                 Picker("", selection: $tab) {
+                    Text("All Orbiters").tag(2)
                     Text("Friends (\(friends.friends.count))").tag(0)
                     Text("Groups (\(friends.groups.count))").tag(1)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 320)
+                .frame(width: 420)
 
-                if tab == 1 {
+                if tab == 2 {
+                    AllOrbitersSection()
+                } else if tab == 1 {
                     GroupsSection(mine: mine, accent: accent) { viewingGalaxy = $0 }
                 } else {
                 if !studying.isEmpty {
@@ -662,5 +665,74 @@ struct StudyBreakdown: View {
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.04)))
+    }
+}
+
+
+/// Every Orbit member's study time this week. Only names, planets, levels and hours —
+/// what someone studies stays private until you're friends.
+private struct AllOrbitersSection: View {
+    @Environment(FriendsService.self) private var friends
+    @Environment(AppStore.self) private var store
+
+    var body: some View {
+        let list = friends.orbiters
+        let top = max(1, list.first?.minutes ?? 1)
+        let me = friends.me?.id
+        Card(title: "All Orbiters · this week", systemImage: "globe.americas.fill") {
+            Text("Everyone using Orbit, ranked by study time this week. You see hours only — add someone as a friend to see what they study.")
+                .font(.caption).foregroundStyle(.secondary)
+            if list.isEmpty {
+                ProgressView().frame(maxWidth: .infinity, minHeight: 60)
+            }
+            ForEach(Array(list.enumerated()), id: \.element.id) { i, o in
+                HStack(spacing: 12) {
+                    Text(i < 3 ? ["🥇", "🥈", "🥉"][i] : "\(i + 1)")
+                        .font(i < 3 ? .title3 : .callout.weight(.bold).monospacedDigit())
+                        .frame(width: 30)
+                    Avatar(name: o.name, color: .accentColor, size: 34, planet: o.avatar)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(o.id == me ? "\(o.name) (you)" : o.name).font(.headline).lineLimit(1)
+                            if let lv = o.level {
+                                Text("LV \(lv)").font(.caption2.weight(.heavy))
+                                    .padding(.horizontal, 6).padding(.vertical, 1)
+                                    .background(Capsule().fill(Color.accentColor.opacity(0.2)))
+                            }
+                        }
+                        ProgressView(value: Double(o.minutes), total: Double(top))
+                            .tint(o.id == me ? .orange : .accentColor)
+                    }
+                    Text(o.minutes > 0 ? Fmt.duration(TimeInterval(o.minutes * 60)) : "—")
+                        .font(.callout.weight(.semibold).monospacedDigit())
+                        .frame(width: 70, alignment: .trailing)
+                    friendButton(o.id, me: me).frame(width: 130, alignment: .trailing)
+                }
+                .padding(.vertical, 4)
+                if i < list.count - 1 { Divider() }
+            }
+        }
+        .task { await friends.loadOrbiters() }
+    }
+
+    @ViewBuilder
+    private func friendButton(_ id: UUID, me: UUID?) -> some View {
+        if id == me {
+            EmptyView()
+        } else if friends.isFriend(id) {
+            Label("Friend", systemImage: "person.fill.checkmark").font(.caption).foregroundStyle(.green)
+        } else if friends.incoming.contains(id) {
+            HStack(spacing: 4) {
+                Button("Accept") { Task { await friends.respond(to: id, accept: true) } }.buttonStyle(.borderedProminent)
+                Button("Decline") { Task { await friends.respond(to: id, accept: false) } }
+            }
+            .controlSize(.small)
+        } else if friends.outgoing.contains(id) {
+            Button("Requested ✕") { Task { await friends.cancelRequest(to: id) } }
+                .controlSize(.small).help("Cancel the request")
+        } else {
+            Button { Task { await friends.sendRequest(to: id) } } label: { Label("Add Friend", systemImage: "person.badge.plus") }
+                .controlSize(.small)
+        }
     }
 }

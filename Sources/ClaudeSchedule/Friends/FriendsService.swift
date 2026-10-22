@@ -242,6 +242,26 @@ final class FriendsService {
         await refresh()
     }
 
+    // MARK: All Orbiters
+
+    /// Every member's week, for the All Orbiters board: name, planet, level and minutes only
+    struct Orbiter: Decodable, Identifiable, Equatable {
+        let id: UUID
+        let name: String
+        let avatar: String?
+        let level: Int?
+        let minutes: Int
+    }
+    private(set) var orbiters: [Orbiter] = []
+
+    func loadOrbiters() async {
+        struct Body: Encodable { let week_start: String }
+        guard hasSession,
+              let data = try? await client.rpc("orbiters_board", Body(week_start: Cal.dayKey(Cal.weekStart(Date())))),
+              let list = try? SupabaseClient.decoder.decode([Orbiter].self, from: data) else { return }
+        orbiters = list
+    }
+
     // MARK: Friend requests
 
     func isFriend(_ id: UUID) -> Bool { friends.contains { $0.id == id } }
