@@ -8,11 +8,7 @@ struct TimerView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                PageHeader(page: .timer, subtitle: "Stopwatch or Pomodoro — every minute counts.")
-                    .padding(.horizontal, 24).padding(.top, 20)
-                timerPanel.frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            timerPanel.frame(maxWidth: .infinity)
             sessionsPanel
                 .frame(width: 320)
                 .background(.ultraThinMaterial)
