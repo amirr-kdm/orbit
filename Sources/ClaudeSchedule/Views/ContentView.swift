@@ -62,6 +62,9 @@ struct ContentView: View {
     @Environment(FightClubService.self) private var fightClub
     @State private var showAdmin = false
     @State private var showAbout = false
+    @Environment(\.colorScheme) private var scheme
+    /// Midnight Black in dark mode: the whole app turns pure black (sidebar and pages)
+    private var allBlack: Bool { store.settings.template == .midnight && scheme == .dark }
 
     var body: some View {
         @Bindable var router = router
@@ -76,6 +79,8 @@ struct ContentView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 210)
+            .scrollContentBackground(allBlack ? .hidden : .automatic)
+            .background(allBlack ? Color.black : Color.clear)
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
                     if timer.isActive { miniTimer }
@@ -87,6 +92,7 @@ struct ContentView: View {
                 banners
                 page
             }
+            .background(allBlack ? Color.black : Color.clear)
         }
         // About opens as a small window over the current page (the page stays where it was)
         .onChange(of: router.selection) { old, new in
