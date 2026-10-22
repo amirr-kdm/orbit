@@ -27,8 +27,9 @@ export default function Galaxy() {
   return (
     <div className="page">
       <div className="card row" style={{ gap: 18 }}>
-        <div style={{ width: 96, height: 96, borderRadius: "50%", background: "#0b0d16", display: "grid", placeItems: "center", border: "3px solid var(--accent)", overflow: "hidden" }}>
-          {avatar ? <PlanetCanvas planet={avatar} size={110} animate /> : <span style={{ fontSize: 34 }}>🪐</span>}
+        {/* same as the Mac app: a dark disc with the planet drawn on it at the same size (pictures may spill a little past the edge) */}
+        <div style={{ position: "relative", width: 96, height: 96, flexShrink: 0, borderRadius: "50%", background: "rgba(0,0,0,.85)", display: "grid", placeItems: "center" }}>
+          {avatar ? <div style={{ position: "absolute", inset: 0 }}><PlanetCanvas planet={avatar} size={96} animate /></div> : <span style={{ fontSize: 34 }}>🪐</span>}
         </div>
         <div style={{ flex: 1 }}>
           <div className="row"><h2 style={{ margin: 0 }}>{friends.me?.name ?? "You"}</h2><LevelBadge level={p.level} /><span className="spacer" />
