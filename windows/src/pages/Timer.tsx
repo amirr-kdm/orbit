@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Modal, Ring } from "../components";
 import { addDays, clock, duration, startOfDay, time } from "../lib/dates";
 import { uid } from "../lib/model";
-import { refKey, sessionsIn, studyOn, subjectOf, todosOn, useStore } from "../lib/store";
+import { refKey, sessionsIn, studyOn, subjectOf, todosOn, useStore, categoryLabel, orderedCategories } from "../lib/store";
 import { useTimer } from "../lib/timer";
 
 export default function TimerPage() {
@@ -47,7 +47,7 @@ export default function TimerPage() {
             </select>
             {!t.target && <><span className="muted">Category</span>
               <select value={t.categoryID ?? ""} onChange={(e) => t.setCategoryID(e.target.value || undefined)}>
-                <option value="">None</option>{data.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="">None</option>{orderedCategories(data).map((c) => <option key={c.id} value={c.id}>{c.parentID ? "   " : ""}{categoryLabel(data, c.id)}</option>)}
               </select></>}
             <span className="muted">Note</span>
             <input value={t.note} placeholder="e.g. chapter 3" onChange={(e) => t.setNote(e.target.value)} />
@@ -95,15 +95,15 @@ function ManualSession({ onClose }: { onClose: () => void }) {
       <h3 style={{ marginTop: 0 }}>Log a session</h3>
       <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: 10, alignItems: "center" }}>
         <span>What</span><input value={subject} placeholder="e.g. Math 2" onChange={(e) => setSubject(e.target.value)} />
-        <span>Category</span><select value={cat ?? ""} onChange={(e) => setCat(e.target.value || undefined)}><option value="">None</option>{data.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <span>Category</span><select value={cat ?? ""} onChange={(e) => setCat(e.target.value || undefined)}><option value="">None</option>{orderedCategories(data).map((c) => <option key={c.id} value={c.id}>{c.parentID ? "   " : ""}{categoryLabel(data, c.id)}</option>)}</select>
         <span>Started</span><input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
         <span>Minutes</span><input type="number" min={1} max={720} value={mins} onChange={(e) => setMins(+e.target.value)} />
       </div>
       <div className="row" style={{ marginTop: 16 }}><span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button>
         <button className="btn primary" onClick={() => {
           const c = data.categories.find((x) => x.id === cat);
-          actions.addSession({ id: uid(), categoryID: cat, subject: subject || c?.name || "Free study", colorHex: c?.colorHex ?? "#8E8E93",
-            start: new Date(start).toISOString(), duration: mins * 60, note: "" });
+          actions.addSession({ id: uid(), categoryID: cat, subject: subject || categoryLabel(data, cat) || "Free study", colorHex: c?.colorHex ?? "#8E8E93",
+            start: new Date(start).toISOString(), duration: mins * 60, note: "", isManual: true });
           onClose();
         }}>Log</button></div>
     </Modal>

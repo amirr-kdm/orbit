@@ -36,7 +36,7 @@ struct AboutView: View {
                         link("paperplane.fill", "Telegram", "@amirr_kdm", "https://t.me/amirr_kdm", Color(hex: "#2AABEE"))
                         link("chevron.left.forwardslash.chevron.right", "GitHub", "amirr-kdm", "https://github.com/amirr-kdm", .primary)
                         if let li = Self.linkedIn {
-                            link("person.crop.square.filled.and.at.rectangle", "LinkedIn", li.replacingOccurrences(of: "https://", with: ""), li, Color(hex: "#0A66C2"))
+                            link("person.crop.square.filled.and.at.rectangle", "LinkedIn", li.replacingOccurrences(of: "https://", with: ""), li, Color(hex: "#0A66C2"), image: "linkedin")
                         }
                     }
                     .padding(.top, 4)
@@ -48,6 +48,15 @@ struct AboutView: View {
                     Text("Join the Orbit channel on Telegram for new features, updates and tips. (The app also tells you when a new version is out.)")
                         .font(.callout).foregroundStyle(.secondary)
                     link("megaphone.fill", "Orbit channel", "@orbitstudyplanner", "https://t.me/orbitstudyplanner", .orange)
+                        .padding(.top, 4)
+                }
+
+                // challenges group
+                card {
+                    Text("ORBIT CHALLENGES 🚩").font(.caption.weight(.heavy)).tracking(1.5).foregroundStyle(.secondary)
+                    Text("The Orbiters' Telegram group: make friends with other Orbiters and plan challenges together.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    link("flag.checkered", "Orbit Challenges", "Join the group on Telegram", "https://t.me/+mgr1bVSj1xwxMmFk", .red)
                         .padding(.top, 4)
                 }
 
@@ -68,7 +77,7 @@ struct AboutView: View {
             }
             .padding(22)
         }
-        .frame(width: 460, height: 640)
+        .frame(width: 460, height: 720)
     }
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -79,12 +88,19 @@ struct AboutView: View {
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
     }
 
-    private func link(_ icon: String, _ title: String, _ handle: String, _ url: String, _ tint: Color) -> some View {
+    private func link(_ icon: String, _ title: String, _ handle: String, _ url: String, _ tint: Color, image: String? = nil) -> some View {
         Link(destination: URL(string: url)!) {
             HStack(spacing: 12) {
-                Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tint == .primary ? Color.gray : tint))
+                Group {
+                    if let image, let img = PlanetPainter.bundleImage(image) {
+                        Image(nsImage: img).resizable().scaledToFill().frame(width: 34, height: 34)
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    } else {
+                        Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                            .frame(width: 34, height: 34)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tint == .primary ? Color.gray : tint))
+                    }
+                }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.headline)
                     Text(handle).font(.caption).foregroundStyle(.secondary)

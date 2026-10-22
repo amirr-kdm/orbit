@@ -66,6 +66,10 @@ export default function Galaxy() {
                 {Object.entries(SUNS).map(([k, v]) => <option key={k} value={k} disabled={v.level > p.level}>{v.name}{v.level > p.level ? ` — level ${v.level}` : ""}</option>)}
               </select>
               <select value={sys.name} onChange={(e) => actions.updateSystem(sys.id, (s) => { s.name = e.target.value; })}>{SYSTEM_NAMES.map((n) => <option key={n}>{n}</option>)}</select>
+              {data.solarSystems.length > 1 && <button className="btn small danger" title="Delete this solar system" onClick={() => {
+                const n = data.galaxy.filter((g) => g.systemID === sys.id).length;
+                if (confirm(`Delete ${sys.name}?${n ? ` Its ${n} planet${n > 1 ? "s" : ""} move to your other systems.` : ""}`)) { actions.deleteSystem(sys.id); setFocused(null); }
+              }}>🗑</button>}
             </> : (
               <select value="" onChange={(e) => { if (!e.target.value) return; const id = actions.createSystem(e.target.value as SunType); setTarget(id); setFocused(id); show("✨ A new solar system was born!"); }}>
                 <option value="">＋ New solar system…</option>

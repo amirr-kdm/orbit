@@ -1,357 +1,281 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Avatar, frameLoop, Modal } from "../components";
-import { dayNum, monthNum, yearNum } from "../lib/dates";
-import { Boss, bossLevel, bossPool, useFightClub } from "../lib/fightclub";
+import { useEffect, useRef, useState } from "react";
+import { Avatar, frameLoop } from "../components";
+import { Boss, isWorld, prizeOf, useFightClub } from "../lib/fightclub";
 import { useFriends } from "../lib/friends";
-import { useStore } from "../lib/store";
+import { categoryLabel, useStore } from "../lib/store";
 import { RocketIcon } from "./Store";
+import { OrbiterProfile } from "./Orbiters";
 import m1 from "../assets/boss1.png";
 import m2 from "../assets/boss2.png";
 import m3 from "../assets/boss3.png";
 import m4 from "../assets/boss4.png";
 import m5 from "../assets/boss5.png";
+import m6 from "../assets/boss6.png";
+import m7 from "../assets/boss7.png";
+import grave from "../assets/boss-grave.png";
+import slayer from "../assets/badge-slayer.png";
 import fighter from "../assets/fighter.png";
 
-const MONSTERS = [m1, m2, m3, m4, m5];
-export const monsterImg = (n: number) => MONSTERS[Math.min(5, Math.max(1, n)) - 1];
+const MONSTERS = [m1, m2, m3, m4, m5, m6, m7];
+export const monsterImg = (n: number) => MONSTERS[Math.min(7, Math.max(1, n)) - 1];
 const hm = (m: number) => { const h = Math.floor(m / 60), r = m % 60; return h === 0 ? `${r}m` : r === 0 ? `${h}h` : `${h}h ${r}m`; };
 const rel = (d: Date) => {
   const m = Math.round((d.getTime() - Date.now()) / 60000), a = Math.abs(m);
   const t = a < 60 ? `${a}m` : a < 1440 ? `${Math.round(a / 60)}h` : `${Math.round(a / 1440)}d`;
   return m >= 0 ? `in ${t}` : `${t} ago`;
 };
-const persianDate = (d: Date) => d.toLocaleDateString("en-US-u-ca-persian", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-const persianShort = (d: Date) => `${d.toLocaleDateString("en-US-u-ca-persian", { weekday: "long", day: "numeric", month: "long" })} · ${d.toTimeString().slice(0, 5)}`;
+const RED = "linear-gradient(#FF4D4D, #B91C1C)";
+const panel: React.CSSProperties = { padding: 18, borderRadius: 18, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.06)" };
 
+/** Fight Club: this week's World Boss for every Orbiter */
 export default function FightClubPage() {
   const fc = useFightClub();
-  const f = useFriends();
-  const [summoning, setSummoning] = useState(false);
-  const [joining, setJoining] = useState<Boss | null>(null);
   const [battle, setBattle] = useState<string | null>(null);
+  const [showing, setShowing] = useState<string | null>(null);
   useEffect(() => { fc.load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const mine = fc.bosses.filter((b) => (fc.fighters[b.id] ?? []).some((x) => x.user_id === fc.me));
-  const invites = fc.invites.filter((i) => i.user_id === fc.me);
+  const w = fc.worldBoss;
+  const older = fc.bosses.filter((b) => !isWorld(b) && b.status === "alive" && (fc.fighters[b.id] ?? []).some((x) => x.user_id === fc.me));
 
   return (
-    <div className="page">
+    <div className="page" style={{ color: "white", background: "#0B0F1E", minHeight: "100%" }}>
       <div className="row" style={{ gap: 14 }}>
-        <img src={m5} alt="" style={{ width: 76 }} />
-        <div style={{ flex: 1 }}><h1 style={{ margin: 0 }}>Fight Club</h1>
-          <div className="muted">Summon a monster for a study goal. Study to earn bullets, fire them from your ship, and share the rockets when it falls.</div></div>
-        <img src={fighter} alt="" style={{ width: 70 }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 3, color: "#EF4444" }}>FIGHT CLUB</div>
+          <h1 style={{ margin: "2px 0" }}>A monster attacks Orbit every week</h1>
+          <div style={{ opacity: 0.65 }}>Every Orbiter fights it together. Study to earn bullets, shoot it down before Friday ends.</div>
+        </div>
+        <img src={fighter} alt="" style={{ width: 84, transform: "rotate(-12deg)", filter: "drop-shadow(0 0 12px rgba(34,211,238,.4))" }} />
       </div>
 
-      {invites.length > 0 && (
-        <div className="card">
-          <h3>✉️ Invitations</h3>
-          {invites.map((i) => {
-            const b = fc.bosses.find((x) => x.id === i.boss_id); if (!b) return null;
-            return (
-              <div key={i.boss_id} className="row" style={{ gap: 12, padding: "6px 0" }}>
-                <img src={monsterImg(b.monster)} alt="" style={{ width: 44 }} />
-                <div style={{ flex: 1 }}>
-                  <b>{f.people[i.from_user]?.profile.name ?? "A friend"} invites you to fight “{b.title}”</b>
-                  <div className="small muted">LV {b.monster} · {hm(b.hp)} of health · {bossPool(b.hp)} 🚀 prize · due {rel(new Date(b.deadline))}</div>
-                </div>
-                <button className="btn" disabled={fc.busy} onClick={() => fc.answer(b.id, false)}>Decline</button>
-                <button className="btn primary" style={{ background: "#DC2626" }} disabled={fc.busy} onClick={() => setJoining(b)}>Join the Fight</button>
-              </div>
-            );
-          })}
+      {w ? <>
+        <Hero b={w} onFight={() => setBattle(w.id)} />
+        <div className="row" style={{ gap: 12, alignItems: "stretch" }}>
+          {([["⏱", "#22D3EE", "1 · Study", "Every minute you study with the timer this week is one bullet."],
+            ["🎯", "#EF4444", "2 · Fight", "Fly with ← →, fire with Space. Only hits do damage."],
+            ["🏆", "#FACC15", "3 · Share", "Beat it before Friday ends: 1,000 🚀 split by damage."]] as const).map(([icon, tint, title, text]) => (
+            <div key={title} className="row" style={{ ...panel, flex: 1, padding: 14, alignItems: "flex-start", gap: 12 }}>
+              <span style={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", background: `${tint}26`, flexShrink: 0 }}>{icon}</span>
+              <div><b>{title}</b><div className="small" style={{ opacity: 0.65 }}>{text}</div></div>
+            </div>
+          ))}
+        </div>
+        <div className="row" style={{ gap: 16, alignItems: "flex-start" }}>
+          <Leaderboard b={w} onOpen={setShowing} />
+          <Graveyard current={w} />
+        </div>
+      </> : (
+        <div style={{ minHeight: 300, display: "grid", placeItems: "center", opacity: 0.65 }}>
+          {fc.error ?? "Looking for this week's monster…"}
         </div>
       )}
 
-      <div className="card">
-        <div className="row"><h3 style={{ margin: 0 }}>💥 Your fights</h3><span className="spacer" />
-          <button className="btn primary" style={{ background: "#DC2626" }} onClick={() => { fc.setError(null); setSummoning(true); }}>＋ Summon monster</button></div>
-        <div className="small muted" style={{ margin: "4px 0 10px" }}>Set a goal and a monster appears. Fight alone or invite friends or a whole group. Every minute you study is a bullet.</div>
-        {!mine.length && <div className="muted">No monsters yet — summon one!</div>}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {mine.map((b) => {
-            const left = fc.healthLeft(b);
-            return (
-              <div key={b.id} className="row" style={{ gap: 12, padding: 10, borderRadius: 12, cursor: "pointer", background: "color-mix(in srgb, var(--text) 5%, transparent)" }}
-                onClick={() => setBattle(b.id)}
-                onContextMenu={(e) => { e.preventDefault(); if (b.creator === fc.me && confirm(`Delete “${b.title}”? It disappears for everyone fighting it.`)) fc.remove(b); }}>
-                <img src={monsterImg(b.monster)} alt="" style={{ width: 54, filter: b.status === "alive" ? undefined : "grayscale(1)" }} />
-                <div style={{ flex: 1 }}>
-                  <div className="row"><b>{b.title}</b><span className="badge" style={{ background: "#DC262640", color: "inherit" }}>LV {b.monster}</span>
-                    <span className="small muted">{b.status === "defeated" ? "Defeated 🏆" : b.status === "escaped" ? "Escaped 💨" : `Due ${rel(new Date(b.deadline))}`}</span>
-                    <span className="spacer" /><span className="small muted">👥 {(fc.fighters[b.id] ?? []).length}</span></div>
-                  <div className="progress" style={{ margin: "6px 0" }}><div style={{ width: `${(left / b.hp) * 100}%`, background: "#DC2626" }} /></div>
-                  <div className="small muted">{hm(left)} of {hm(b.hp)} health left · {bossPool(b.hp)} 🚀 prize</div>
-                </div>
-                <span className="muted">›</span>
-              </div>
-            );
-          })}
+      {older.length > 0 && (
+        <div style={panel}>
+          <b>Older monsters you're still fighting</b>
+          {older.map((b) => (
+            <div key={b.id} className="row" style={{ gap: 12, padding: "8px 0", cursor: "pointer" }} onClick={() => setBattle(b.id)}>
+              <img src={monsterImg(b.monster)} alt="" style={{ width: 44 }} />
+              <div style={{ flex: 1 }}><b>{b.title}</b><div className="small" style={{ opacity: 0.6 }}>{hm(fc.healthLeft(b))} of {hm(b.hp)} left · escapes {rel(new Date(b.deadline))}</div></div>
+              <span>›</span>
+            </div>
+          ))}
         </div>
-        {fc.error && <div className="small" style={{ color: "#ef4444", marginTop: 6 }}>{fc.error}</div>}
-      </div>
+      )}
+      {fc.error && w && <div className="small" style={{ color: "#ef4444" }}>{fc.error}</div>}
 
-      {joining && <SubjectModal boss={joining} joining onClose={() => setJoining(null)} />}
-      {summoning && <SummonModal onClose={() => setSummoning(false)} onCreated={(id) => { setSummoning(false); setBattle(id); }} />}
       {battle && <Battle bossID={battle} onClose={() => setBattle(null)} />}
+      {showing && <OrbiterProfile userID={showing} onClose={() => setShowing(null)} />}
     </div>
   );
 }
 
-/** Which subject shoots at the monster (one of your categories) */
-function SubjectPicker({ value, onChange }: { value?: string; onChange: (id: string) => void }) {
-  const { data } = useStore();
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div className="small muted" style={{ fontWeight: 700 }}>SUBJECT · only study in it gives bullets</div>
-      <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
-        {data.categories.map((c) => (
-          <button key={c.id} className="btn small" onClick={() => onChange(c.id)}
-            style={{ borderRadius: 99, background: value === c.id ? c.colorHex + "59" : undefined, outline: value === c.id ? `1.5px solid ${c.colorHex}` : undefined }}>
-            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 99, background: c.colorHex, marginRight: 5 }} />{c.name}
-          </button>
-        ))}
-      </div>
-      {!data.categories.length && <div className="small" style={{ color: "#f59e0b" }}>Add a category in Settings first.</div>}
-    </div>
-  );
-}
-
-/** Joining a fight (or an older one without a subject): pick the subject that counts */
-function SubjectModal({ boss, joining, onClose }: { boss: Boss; joining: boolean; onClose: () => void }) {
+function Hero({ b, onFight }: { b: Boss; onFight: () => void }) {
   const fc = useFightClub();
-  const [cat, setCat] = useState(fc.taskFor(boss)?.categoryID);
+  const left = fc.healthLeft(b), ammo = fc.ammo(b), alive = b.status === "alive";
+  const mine = (fc.fighters[b.id] ?? []).find((x) => x.user_id === fc.me);
+  const people = (fc.fighters[b.id] ?? []).filter((x) => x.minutes > 0 || x.damage > 0).length;
+  const share = left / Math.max(1, b.hp);
+  const chip = (icon: string, value: string, label: string) => (
+    <div style={{ padding: "8px 12px", borderRadius: 12, background: "rgba(255,255,255,.06)" }}>
+      <b>{icon} {value}</b><div className="small" style={{ opacity: 0.6 }}>{label}</div></div>
+  );
   return (
-    <Modal onClose={onClose} width={520}>
-      <h3 style={{ marginTop: 0 }}>💥 {joining ? `Join the fight against “${boss.title}”` : `Subject for “${boss.title}”`}</h3>
-      <SubjectPicker value={cat} onChange={setCat} />
-      <div className="small muted" style={{ marginTop: 10 }}>A task “💥 {boss.title}” is added to your Tasks. Study it with the timer to earn bullets.</div>
-      {fc.error && <div className="small" style={{ color: "#ef4444" }}>{fc.error}</div>}
-      <div className="row" style={{ marginTop: 12 }}><span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" style={{ background: "#DC2626" }} disabled={!cat || fc.busy} onClick={async () => {
-          if (!cat) return;
-          if (joining && !(await fc.answer(boss.id, true))) return;
-          fc.setSubject(cat, boss); onClose();
-        }}>{joining ? "Join the Fight" : "Save"}</button></div>
-    </Modal>
+    <div className="row" style={{ gap: 28, padding: 24, borderRadius: 26, border: "1px solid rgba(239,68,68,.35)",
+      background: "linear-gradient(135deg, rgba(42,10,18,.92), rgba(11,16,32,.92))", flexWrap: "wrap" }}>
+      <div style={{ width: 260, height: 260, display: "grid", placeItems: "center", position: "relative",
+        background: `radial-gradient(circle, rgba(239,68,68,${alive ? 0.45 : 0.15}), transparent 60%)` }}>
+        {alive ? <img className="monster-idle" src={monsterImg(b.monster)} alt="" style={{ width: 210, height: 210, objectFit: "contain" }} />
+          : <img src={grave} alt="" style={{ width: 200, height: 200, objectFit: "cover", borderRadius: 28 }} />}
+        <div style={{ position: "absolute", bottom: 8, width: 150, height: 18, borderRadius: "50%", background: "rgba(0,0,0,.45)", filter: "blur(6px)" }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 320, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="row">
+          <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: 2, color: b.status === "defeated" ? "#22C55E" : "#EF4444" }}>
+            {b.status === "defeated" ? "DEFEATED 🏆" : b.status === "escaped" ? "ESCAPED 💨" : "WORLD BOSS · ALIVE"}</span>
+          <span className="spacer" />{alive && <Countdown end={new Date(b.deadline)} />}
+        </div>
+        <div style={{ fontSize: 30, fontWeight: 900 }}>{b.title}</div>
+        <div>
+          <div style={{ height: 16, borderRadius: 99, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+            <div style={{ width: `${share * 100}%`, height: "100%", borderRadius: 99, background: "linear-gradient(90deg,#FF4D4D,#B91C1C)", boxShadow: "0 0 8px rgba(239,68,68,.6)" }} /></div>
+          <div className="row" style={{ marginTop: 6, fontWeight: 600 }}><span style={{ color: "#EF4444" }}>❤️ {hm(left)} of {hm(b.hp)} health left</span><span className="spacer" />
+            <span style={{ opacity: 0.6 }}>{Math.round((1 - share) * 100)}% down</span></div>
+        </div>
+        <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+          {chip("👥", String(people), "fighting")}{chip("⚡", String(ammo), "your bullets")}
+          {chip("🎯", String(mine?.damage ?? 0), "your damage")}{chip("🎁", "1,000 🚀", "prize")}
+        </div>
+        <div className="row" style={{ gap: 12 }}>
+          <button onClick={onFight} style={{ width: 170, height: 44, borderRadius: 99, border: "none", color: "white", fontWeight: 700, fontSize: 15,
+            background: RED, boxShadow: "0 0 14px rgba(239,68,68,.55)", cursor: "pointer" }}>🎯 {alive ? "Fight" : "View the fight"}</button>
+          <span style={{ opacity: 0.65 }}>{alive ? (ammo > 0 ? "Hold Space for rapid fire" : "No bullets yet — study with the timer to reload") : "A new monster arrives on Saturday."}</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
-/** Tap friends' avatars and whole groups */
-function InvitePicker({ friends, groups, setFriends, setGroups, taken = [] }: {
-  friends: string[]; groups: string[]; setFriends: (v: string[]) => void; setGroups: (v: string[]) => void; taken?: string[];
-}) {
+function Countdown({ end }: { end: Date }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 30_000); return () => clearInterval(t); }, []);
+  const s = Math.max(0, Math.floor((end.getTime() - Date.now()) / 1000));
+  return (
+    <span className="row" style={{ gap: 6 }}>⏳{([[Math.floor(s / 86400), "d"], [Math.floor((s % 86400) / 3600), "h"], [Math.floor((s % 3600) / 60), "m"]] as const).map(([v, u]) => (
+      <b key={u} style={{ padding: "3px 8px", borderRadius: 7, background: "rgba(255,255,255,.08)" }}>{v}{u}</b>))}<span className="small" style={{ opacity: 0.6 }}>left</span></span>
+  );
+}
+
+function Leaderboard({ b, onOpen }: { b: Boss; onOpen: (id: string) => void }) {
+  const fc = useFightClub();
   const f = useFriends();
-  const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const list = (fc.fighters[b.id] ?? []).filter((x) => x.damage > 0).sort((a, c) => c.damage - a.damage);
+  const total = Math.max(1, list.reduce((a, x) => a + x.damage, 0));
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {!f.friends.length && !f.groups.length && <div className="small muted">Add friends or join a group to fight together — or just fight alone.</div>}
-      {f.friends.length > 0 && <><div className="small muted" style={{ fontWeight: 700 }}>FRIENDS</div>
-        <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
-          {f.friends.map((x) => {
-            const on = friends.includes(x.profile.id), done = taken.includes(x.profile.id);
-            return (
-              <button key={x.profile.id} disabled={done} onClick={() => setFriends(toggle(friends, x.profile.id))}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 6, borderRadius: 10, border: "none", width: 76,
-                  background: on ? "rgba(220,38,38,.18)" : "transparent", opacity: done ? 0.5 : 1, color: "inherit" }}>
-                <span style={{ position: "relative" }}><Avatar name={x.profile.name} planet={x.profile.avatar} size={40} />
-                  {(on || done) && <span style={{ position: "absolute", right: -4, bottom: -4 }}>✅</span>}</span>
-                <span className="small" style={{ maxWidth: 70, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.profile.name}</span>
-                {done && <span className="small muted">already in</span>}
-              </button>
-            );
-          })}
-        </div></>}
-      {f.groups.length > 0 && <><div className="small muted" style={{ fontWeight: 700 }}>WHOLE GROUP</div>
-        <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
-          {f.groups.map((g) => {
-            const on = groups.includes(g.id);
-            return <button key={g.id} className="btn" onClick={() => setGroups(toggle(groups, g.id))}
-              style={{ borderRadius: 99, background: on ? "rgba(220,38,38,.25)" : undefined }}>{on ? "✓" : "👥"} {g.name} · {g.members.length}</button>;
-          })}
-        </div></>}
+    <div style={{ ...panel, flex: 1 }}>
+      <b style={{ color: "#FACC15" }}>🏆 Most damage this week</b>
+      {!list.length && <div style={{ opacity: 0.6, padding: "20px 0", textAlign: "center" }}>No hits yet — be the first!</div>}
+      {list.map((x, i) => {
+        const isMe = x.user_id === fc.me;
+        const name = isMe ? "You" : f.people[x.user_id]?.profile.name ?? fc.names[x.user_id] ?? "Orbiter";
+        return (
+          <div key={x.user_id} className="row" style={{ gap: 10, padding: "6px 0", cursor: "pointer" }} onClick={() => onOpen(x.user_id)}>
+            <span style={{ width: 26, textAlign: "center" }}>{i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>
+            <Avatar name={isMe ? f.me?.name ?? name : name} planet={isMe ? f.me?.avatar ?? undefined : f.people[x.user_id]?.profile.avatar ?? undefined} size={30} color="#EF4444" />
+            <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</b>
+            {i === 0 && <img src={slayer} alt="" title="Top damage" style={{ height: 22 }} />}
+            <span className="spacer" />
+            <div style={{ textAlign: "right" }}><b>{x.damage} dmg</b><div className="small" style={{ opacity: 0.6 }}>~{Math.floor(prizeOf(b) * x.damage / total)} 🚀</div></div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-type Due = "tonight" | "tomorrow" | "days3" | "week" | "custom";
-const TIMES: [string, number, number][] = [["Noon", 12, 0], ["6 PM", 18, 0], ["9 PM", 21, 0], ["Midnight", 23, 59]];
-
-/** Next ~420 days with their Persian date — year → month → day pickers come from this */
-function usePersianDays() {
-  return useMemo(() => {
-    const out: { date: Date; y: number; m: number; d: number }[] = [];
-    const t = new Date(); t.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 420; i++) { const d = new Date(t); d.setDate(t.getDate() + i); out.push({ date: d, y: yearNum(d, "persian"), m: monthNum(d, "persian"), d: dayNum(d, "persian") }); }
-    return out;
-  }, []);
-}
-const MONTHS = ["Farvardin", "Ordibehesht", "Khordad", "Tir", "Mordad", "Shahrivar", "Mehr", "Aban", "Azar", "Dey", "Bahman", "Esfand"];
-
-function SummonModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+/** Earlier weeks' monsters and how they ended */
+function Graveyard({ current }: { current: Boss }) {
   const fc = useFightClub();
-  const days = usePersianDays();
-  const [title, setTitle] = useState("");
-  const [cat, setCat] = useState<string>();
-  const [hours, setHours] = useState(5);
-  const [due, setDue] = useState<Due>("days3");
-  const [pick, setPick] = useState(() => days[5]);
-  const [time, setTime] = useState<[number, number]>([23, 59]);
-  const [customTime, setCustomTime] = useState(false);
-  const [friends, setFriends] = useState<string[]>([]);
-  const [groups, setGroups] = useState<string[]>([]);
-
-  const deadline = useMemo(() => {
-    const now = new Date(), tonight = new Date(); tonight.setHours(23, 59, 0, 0);
-    const plus = (n: number) => new Date(tonight.getTime() + n * 86400_000);
-    if (due === "tonight") return now.getTime() + 7200_000 > tonight.getTime() ? plus(1) : tonight;
-    if (due === "tomorrow") return plus(1);
-    if (due === "days3") return plus(3);
-    if (due === "week") return plus(7);
-    const d = new Date(pick.date); d.setHours(time[0], time[1], 0, 0); return d;
-  }, [due, pick, time]);
-  const tooSoon = deadline.getTime() < Date.now() + 1800_000;
-  const level = bossLevel(hours * 60), pool = bossPool(hours * 60);
-  const years = [...new Set(days.map((x) => x.y))];
-  const months = [...new Set(days.filter((x) => x.y === pick.y).map((x) => x.m))];
-  const dayList = days.filter((x) => x.y === pick.y && x.m === pick.m);
-  const choose = (y: number, m: number, d: number) => setPick(days.find((x) => x.y === y && x.m === m && x.d === d) ?? days.find((x) => x.y === y && x.m === m) ?? days.find((x) => x.y === y) ?? days[0]);
-  const preset = TIMES.find((t) => t[1] === time[0] && t[2] === time[1]);
-
+  const past = fc.bosses.filter((b) => isWorld(b) && b.id !== current.id);
   return (
-    <Modal onClose={onClose} width={620}>
-      <h3 style={{ marginTop: 0 }}>💥 Summon a monster</h3>
-      <div className="row" style={{ alignItems: "flex-start", gap: 18 }}>
-        <div style={{ width: 150, textAlign: "center" }}>
-          <img src={monsterImg(level)} alt="" style={{ width: 70 + level * 14 }} />
-          <div><span className="badge" style={{ background: "#DC262640", color: "inherit" }}>Level {level}</span></div>
-          <div className="small" style={{ fontWeight: 600, marginTop: 4 }}>{pool} 🚀 prize</div>
+    <div style={{ ...panel, width: 280 }}>
+      <b style={{ color: "#F97316" }}>🌙 Graveyard</b>
+      {!past.length && <div style={{ textAlign: "center", padding: "10px 0" }}><img src={grave} alt="" style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 14, opacity: 0.85 }} />
+        <div className="small" style={{ opacity: 0.6 }}>Beaten monsters rest here.</div></div>}
+      {past.map((p) => (
+        <div key={p.id} className="row" style={{ gap: 10, padding: "6px 0" }}>
+          <img src={monsterImg(p.monster)} alt="" style={{ width: 40, height: 40, objectFit: "contain", filter: "grayscale(1)" }} />
+          <div><b className="small">{p.title}</b><div className="small" style={{ color: p.status === "defeated" ? "#22C55E" : undefined, opacity: p.status === "defeated" ? 1 : 0.6 }}>
+            {p.status === "defeated" ? "Defeated 🏆" : p.status === "escaped" ? "Escaped 💨" : "Still alive"}</div></div>
         </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
-          <input placeholder="Goal, e.g. Finish chapter 5" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <SubjectPicker value={cat} onChange={setCat} />
-          <div className="small muted" style={{ fontWeight: 700 }}>HOW MUCH STUDY</div>
-          <div className="row" style={{ gap: 6 }}>
-            {[2, 5, 10, 20].map((h) => <button key={h} className="btn small" style={{ background: hours === h ? "#DC2626" : undefined, color: hours === h ? "white" : undefined }} onClick={() => setHours(h)}>{h}h</button>)}
-            <b style={{ width: 70, textAlign: "right" }}>{hm(Math.round(hours * 60))}</b>
-            <input type="number" min={0.5} max={100} step={0.5} value={hours} onChange={(e) => setHours(Math.max(0.5, +e.target.value))} style={{ width: 64 }} />
-          </div>
-          <div className="small muted" style={{ fontWeight: 700 }}>DEADLINE</div>
-          <div className="seg">{([["tonight", "Tonight"], ["tomorrow", "Tomorrow"], ["days3", "3 days"], ["week", "A week"], ["custom", "Pick…"]] as [Due, string][]).map(([k, t]) =>
-            <button key={k} className={due === k ? "on" : ""} onClick={() => setDue(k)}>{t}</button>)}</div>
-          {due === "custom" && <>
-            <div className="small muted">📅 Today is {persianDate(new Date())}</div>
-            <div className="row" style={{ gap: 6 }}>
-              <select value={pick.y} onChange={(e) => choose(+e.target.value, pick.m, pick.d)}>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select>
-              <select value={pick.m} onChange={(e) => choose(pick.y, +e.target.value, pick.d)}>{months.map((m) => <option key={m} value={m}>{m} · {MONTHS[m - 1]}</option>)}</select>
-              <select value={pick.d} onChange={(e) => choose(pick.y, pick.m, +e.target.value)}>{dayList.map((x) => <option key={x.d} value={x.d}>{x.d}</option>)}</select>
-            </div>
-            <div className="row" style={{ gap: 6 }}>
-              {TIMES.map(([t, h, m]) => { const on = !customTime && preset?.[0] === t;
-                return <button key={t} className="btn small" style={{ background: on ? "#DC2626" : undefined, color: on ? "white" : undefined }} onClick={() => { setCustomTime(false); setTime([h, m]); }}>{t}</button>; })}
-              <button className="btn small" style={{ background: customTime || !preset ? "#DC2626" : undefined, color: customTime || !preset ? "white" : undefined }} onClick={() => setCustomTime(true)}>Custom</button>
-            </div>
-            {(customTime || !preset) && <div className="row" style={{ gap: 6 }}>Time
-              <select value={time[0]} onChange={(e) => setTime([+e.target.value, time[1]])}>{Array.from({ length: 24 }, (_, i) => <option key={i} value={i}>{String(i).padStart(2, "0")}</option>)}</select>:
-              <select value={time[1]} onChange={(e) => setTime([time[0], +e.target.value])}>{Array.from({ length: 12 }, (_, i) => i * 5).concat(time[1] % 5 ? [time[1]] : []).map((m) => <option key={m} value={m}>{String(m).padStart(2, "0")}</option>)}</select></div>}
-          </>}
-          <div className="small muted">Escapes {persianShort(deadline)} · {rel(deadline)}</div>
-          {tooSoon && <div className="small" style={{ color: "#ef4444" }}>That's too soon — pick a time at least 30 minutes from now.</div>}
-        </div>
-      </div>
-      <hr style={{ border: "none", borderTop: "1px solid var(--line)", margin: "14px 0" }} />
-      <b>{friends.length || groups.length ? "Invites go out when you summon" : "Fight alone, or tap friends and groups to invite them"}</b>
-      <div style={{ marginTop: 8 }}><InvitePicker friends={friends} groups={groups} setFriends={setFriends} setGroups={setGroups} /></div>
-      <div className="small muted" style={{ marginTop: 10 }}>Each minute you study the subject after it appears is one bullet — a task for it is added to your Tasks. Only hits count. If the deadline comes first, it escapes and nobody wins.</div>
-      {fc.error && <div className="small" style={{ color: "#ef4444" }}>{fc.error}</div>}
-      <div className="row" style={{ marginTop: 12 }}><span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" style={{ background: "#DC2626" }} disabled={fc.busy || tooSoon || !cat} onClick={async () => {
-          const id = await fc.create(title || "Study goal", Math.round(hours * 60), deadline);
-          if (!id) return;
-          if (cat) fc.setSubject(cat, { id, title: title || "Study goal", deadline: deadline.toISOString(), hp: Math.round(hours * 60) });
-          await fc.load();
-          if (friends.length || groups.length) await fc.sendInvites({ id } as Boss, friends, groups);
-          onCreated(id);
-        }}>{friends.length || groups.length ? "Summon & Invite" : "Summon & Fight Alone"}</button></div>
-    </Modal>
-  );
-}
-
-function InviteModal({ boss, onClose }: { boss: Boss; onClose: () => void }) {
-  const fc = useFightClub();
-  const [friends, setFriends] = useState<string[]>([]);
-  const [groups, setGroups] = useState<string[]>([]);
-  const taken = [...(fc.fighters[boss.id] ?? []).map((x) => x.user_id), ...fc.invites.filter((i) => i.boss_id === boss.id).map((i) => i.user_id)];
-  return (
-    <Modal onClose={onClose} width={480}>
-      <h3 style={{ marginTop: 0 }}>Invite to fight “{boss.title}”</h3>
-      <InvitePicker friends={friends} groups={groups} setFriends={setFriends} setGroups={setGroups} taken={taken} />
-      <div className="row" style={{ marginTop: 12 }}><span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" style={{ background: "#DC2626" }} disabled={fc.busy || (!friends.length && !groups.length)} onClick={async () => { await fc.sendInvites(boss, friends, groups); onClose(); }}>Send invites</button></div>
-    </Modal>
+      ))}
+    </div>
   );
 }
 
 const FLIGHT = 550; // ms from ship to monster height
+const W = 760, H = 420;
 
-/** The fight: a living monster drifts and dodges; hold ← → (or A D) to fly, Space to fire. Only hits count. */
+/** The fight: fly with ← → (A D), Space to fire, hold Space for rapid fire. Only hits count. */
 function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
   const fc = useFightClub();
   const f = useFriends();
+  const { data } = useStore();
   const b = fc.bosses.find((x) => x.id === bossID);
   const cv = useRef<HTMLCanvasElement>(null);
-  const state = useRef({ shipX: 0.5, left: false, right: false, bullets: [] as { x: number; t0: number; hit: boolean }[], shots: 0, hits: 0, last: 0 });
+  // shots/hits: fired but not sent yet; flyShots/flyHits: sent, no answer yet — both still counted,
+  // so health and bullets never jump back
+  const state = useRef({ shipX: 0.5, left: false, right: false, fire: false, fireSeen: 0, bullets: [] as { x: number; t0: number; hit: boolean }[],
+    shots: 0, hits: 0, flyShots: 0, flyHits: 0, last: 0, flushing: false });
   const [, force] = useState(0);
-  const [inviting, setInviting] = useState(false);
-  const [picking, setPicking] = useState(false);
-  const { data } = useStore();
   const start = useRef(performance.now());
   const monsterEl = useRef(new Image());
   const shipEl = useRef(new Image());
+  // The monster's pace for this visit: fixed, so its path never jumps when its health changes
+  const fixedPace = useRef<number | null>(null);
+  const [aspect, setAspect] = useState(1);
   useEffect(() => { shipEl.current.src = fighter; }, []);
-  useEffect(() => { if (b) monsterEl.current.src = monsterImg(b.monster); }, [b?.monster]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const W = 760, H = 420;
-  const left = b ? Math.max(0, fc.healthLeft(b) - state.current.hits) : 0;
-  const ammo = b ? Math.max(0, fc.ammo(b) - state.current.shots) : 0;
-  const size = b ? Math.min(H * 0.5, 120 + b.monster * 18) : 120;
-  const pace = () => (b ? 0.55 + 0.12 * b.monster + 0.9 * (1 - left / Math.max(1, b.hp)) : 1);
-  const monsterX = (t: number) => { const p = pace(); return 0.5 + (Math.sin(t * p) * 0.7 + Math.sin(t * p * 2.3 + 1.1) * 0.25 + Math.sin(t * p * 0.37 + 2) * 0.2) * 0.33; };
-
-  // keyboard
   useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      const s = state.current;
-      if (e.key === "ArrowLeft" || e.key === "a") s.left = true;
-      if (e.key === "ArrowRight" || e.key === "d") s.right = true;
-      if (e.key === " ") { e.preventDefault(); shoot(); }
-    };
-    const up = (e: KeyboardEvent) => { if (e.key === "ArrowLeft" || e.key === "a") state.current.left = false; if (e.key === "ArrowRight" || e.key === "d") state.current.right = false; };
-    window.addEventListener("keydown", down); window.addEventListener("keyup", up);
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
-  });
+    if (!b) return;
+    monsterEl.current.onload = () => setAspect(Math.min(1, monsterEl.current.naturalWidth / Math.max(1, monsterEl.current.naturalHeight)));
+    monsterEl.current.src = monsterImg(b.monster);
+  }, [b?.monster]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const s0 = state.current;
+  const left = b ? Math.max(0, fc.healthLeft(b) - s0.hits - s0.flyHits) : 0;
+  const ammo = b ? Math.max(0, fc.ammo(b) - s0.shots - s0.flyShots) : 0;
+  const size = b ? (isWorld(b) ? Math.min(H * 0.5, 190) : Math.min(H * 0.5, 120 + b.monster * 18)) : 120;
+  const pace = () => fixedPace.current ?? (b ? 0.55 + 0.12 * b.monster + 0.9 * (1 - left / Math.max(1, b.hp)) : 1);
+  if (b && fixedPace.current === null) fixedPace.current = pace();
+  const monsterX = (t: number) => { const p = pace(); return 0.5 + (Math.sin(t * p) * 0.7 + Math.sin(t * p * 2.3 + 1.1) * 0.25 + Math.sin(t * p * 0.37 + 2) * 0.2) * 0.33; };
+  // any bullet touching the visible body or arms counts (a tall picture is narrower than its square), plus the bullet's width
+  const hitHalf = size * aspect / 2 + 4;
+
+  const latest = useRef({ b, left, ammo }); latest.current = { b, left, ammo };
   const shoot = () => {
+    const { b, left, ammo } = latest.current;
     if (!b || b.status !== "alive" || ammo <= 0 || left <= 0) return;
     const s = state.current, now = performance.now();
     if (now - s.last < 120) return;
     s.last = now;
     const t = (now - start.current) / 1000;
     const target = monsterX(t + FLIGHT / 1000) * W;
-    const hit = Math.abs(s.shipX * W - target) < size * 0.32;
+    const hit = Math.abs(s.shipX * W - target) < hitHalf;
     s.bullets.push({ x: s.shipX, t0: now, hit });
     s.shots++; if (hit) s.hits++;
     force((n) => n + 1);
   };
 
+  // keyboard: hold ← → (A D) to fly; Space fires, hold it for a steady stream
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      const s = state.current;
+      if (e.key === "ArrowLeft" || e.key === "a") s.left = true;
+      if (e.key === "ArrowRight" || e.key === "d") s.right = true;
+      if (e.key === " ") { e.preventDefault(); s.fireSeen = performance.now(); if (!e.repeat) { s.fire = true; shoot(); } }
+      if (e.key === "Escape") onClose();
+    };
+    const up = (e: KeyboardEvent) => {
+      const s = state.current;
+      if (e.key === "ArrowLeft" || e.key === "a") s.left = false;
+      if (e.key === "ArrowRight" || e.key === "d") s.right = false;
+      if (e.key === " ") s.fire = false;
+    };
+    const blur = () => { const s = state.current; s.left = s.right = s.fire = false; };
+    window.addEventListener("keydown", down); window.addEventListener("keyup", up); window.addEventListener("blur", blur);
+    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", blur); };
+  });
+
   // send what was fired every 1.2 s (and when closing)
   useEffect(() => {
     const flush = async () => {
-      const s = state.current; if (!b || !s.shots) return;
-      const shots = s.shots, hits = s.hits; s.shots = 0; s.hits = 0;
-      await fc.fire(b, shots, hits); force((n) => n + 1);
+      const s = state.current, b = latest.current.b; if (!b || !s.shots || s.flushing) return;
+      s.flushing = true;
+      const shots = s.shots, hits = s.hits; s.shots = 0; s.hits = 0; s.flyShots = shots; s.flyHits = hits;
+      await fc.fire(b, shots, hits);
+      s.flyShots = 0; s.flyHits = 0; s.flushing = false; force((n) => n + 1);
     };
     const t = setInterval(flush, 1200);
-    return () => { clearInterval(t); flush(); };
+    return () => { clearInterval(t); state.current.fire = false; flush(); };
   }, [b?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // draw loop
@@ -359,12 +283,15 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
     // capped at 60 fps (fast monitors would draw 144+), paused in the background
     const stop = frameLoop((now) => draw(now), 60);
     function draw(now: number) {
-      const c = cv.current; if (!c || !b) return;
+      const c = cv.current, b = latest.current.b; if (!c || !b) return;
       const s = state.current, ctx = c.getContext("2d")!, dpr = devicePixelRatio || 1;
       if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
       const dir = (s.right ? 1 : 0) - (s.left ? 1 : 0);
       if (dir) s.shipX = Math.min(0.96, Math.max(0.04, s.shipX + dir * 0.011));
+      // rapid fire while Space is held (if the key's release is ever missed, it stops once the repeats stop)
+      if (s.fire && now - s.fireSeen > 1000) s.fire = false;
+      if (s.fire) shoot();
       const t = (now - start.current) / 1000, p = pace(), alive = b.status === "alive";
       const mx = alive ? monsterX(t) * W : W / 2, my = size / 2 + 16;
       const hitNow = s.bullets.some((x) => x.hit && now - (x.t0 + FLIGHT) >= 0 && now - (x.t0 + FLIGHT) < 180);
@@ -376,8 +303,12 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
       ctx.scale(2 - breath, breath);
       ctx.globalAlpha = b.status === "defeated" ? 0.35 : 1;
       if (b.status === "defeated") ctx.filter = "grayscale(1)";
-      if (monsterEl.current.complete) ctx.drawImage(monsterEl.current, -size / 2, -size, size, size);
-      if (hitNow) { ctx.globalCompositeOperation = "source-atop"; ctx.fillStyle = "rgba(255,60,60,.45)"; ctx.fillRect(-size / 2, -size, size, size); }
+      const img = monsterEl.current;
+      if (img.complete && img.naturalWidth) {
+        const k = Math.min(size / img.naturalWidth, size / img.naturalHeight), iw = img.naturalWidth * k, ih = img.naturalHeight * k;
+        ctx.drawImage(img, -iw / 2, -ih, iw, ih);
+        if (hitNow) { ctx.globalCompositeOperation = "source-atop"; ctx.fillStyle = "rgba(255,60,60,.45)"; ctx.fillRect(-iw / 2, -ih, iw, ih); }
+      }
       ctx.restore();
       // bullets and hits
       const shipY = H - 56;
@@ -402,21 +333,17 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
   });
 
   if (!b) return null;
-  const task = fc.taskFor(b), subject = data.categories.find((c) => c.id === task?.categoryID);
+  const task = fc.taskFor(b), subject = task?.categoryID ? categoryLabel(data, task.categoryID) : undefined;
+  const pending = s0.hits + s0.flyHits;
   const people = (fc.fighters[b.id] ?? []).filter((x) => x.damage > 0).sort((a, c) => c.damage - a.damage);
-  const total = Math.max(1, people.reduce((a, x) => a + x.damage, 0) + state.current.hits);
-  const pool = bossPool(b.hp);
+  const total = Math.max(1, people.reduce((a, x) => a + x.damage, 0) + pending);
+  const pool = prizeOf(b);
   return (
     <div className="modal-bg" onMouseDown={onClose}>
       <div className="modal" style={{ width: 800, padding: 0, background: "#070B1A", color: "white", overflow: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
         <div style={{ padding: 16 }}>
-          <div className="row"><h2 style={{ margin: 0 }}>{b.title}</h2><span className="badge" style={{ background: "#DC262660" }}>LV {b.monster}</span><span className="spacer" />
+          <div className="row"><h2 style={{ margin: 0 }}>{b.title}</h2>{!isWorld(b) && <span className="badge" style={{ background: "#DC262660" }}>LV {b.monster}</span>}<span className="spacer" />
             <span className="small" style={{ opacity: 0.7 }}>{b.status === "defeated" ? "Defeated 🏆" : b.status === "escaped" ? "Escaped 💨" : `Escapes ${rel(new Date(b.deadline))}`}</span>
-            {b.status === "alive" && <button className="btn small" style={subject ? undefined : { background: "#f59e0b", color: "black" }}
-              title={subject ? "Only study in this subject gives bullets · click to change" : "All your study counts until you pick a subject"}
-              onClick={() => setPicking(true)}>📚 {subject?.name ?? "Pick a subject"}</button>}
-            {b.status === "alive" && <button className="btn small" onClick={() => setInviting(true)}>👤＋ Invite</button>}
-            {b.creator === fc.me && <button className="btn small danger" title="Delete this monster" onClick={() => { if (confirm(`Delete “${b.title}”? It disappears for everyone fighting it.`)) { fc.remove(b); onClose(); } }}>🗑</button>}
             <button className="btn small primary" onClick={onClose}>Done</button></div>
           <div className="row" style={{ marginTop: 8 }}>❤️<div className="progress" style={{ flex: 1 }}><div style={{ width: `${(left / b.hp) * 100}%`, background: "#DC2626" }} /></div><b>{left} / {b.hp}</b></div>
         </div>
@@ -424,7 +351,7 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
           {b.status === "alive" && ammo === 0 && <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", background: "rgba(0,0,0,.6)", padding: "6px 12px", borderRadius: 99, fontWeight: 600 }}>Out of bullets — study to reload 📚</div>}</div>
         <div className="row" style={{ padding: 16, alignItems: "flex-start", gap: 20 }}>
           <div style={{ flex: 1 }}>
-            <div className="row" style={{ gap: 6 }}><span>⚡</span><b>{ammo} bullets</b><span className="small" style={{ opacity: 0.6 }}>· 1 per minute {subject ? `of ${subject.name}` : "studied"} since it appeared</span></div>
+            <div className="row" style={{ gap: 6 }}><span>⚡</span><b>{ammo} bullets</b><span className="small" style={{ opacity: 0.6 }}>· 1 per minute {subject ? `of ${subject}` : "studied"} since it appeared</span></div>
             <div style={{ display: "flex", gap: 2, margin: "6px 0" }}>{Array.from({ length: 30 }, (_, i) => <span key={i} style={{ width: 5, height: 16, borderRadius: 3, background: i < Math.min(30, ammo) ? "#FACC15" : "rgba(255,255,255,.1)" }} />)}
               {ammo > 30 && <span className="small" style={{ opacity: 0.6 }}>+{ammo - 30}</span>}</div>
             <div className="small" style={{ opacity: 0.6 }}>{b.status === "alive" ? "Hold ← → (or A D) to fly · Space to fire (hold for rapid fire) · only hits count" : "This fight is over."}</div>
@@ -432,13 +359,11 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
           </div>
           <div style={{ width: 240 }}>
             <div className="small" style={{ fontWeight: 700, opacity: 0.7 }}>Damage · prize {pool} <RocketIcon size={13} /></div>
-            {!people.length && !state.current.hits && <div className="small" style={{ opacity: 0.5 }}>No hits yet</div>}
-            {people.slice(0, 5).map((x) => { const isMe = x.user_id === fc.me, dmg = x.damage + (isMe ? state.current.hits : 0);
-              return <div key={x.user_id} className="row small"><span>{isMe ? "You" : f.people[x.user_id]?.profile.name ?? "Member"}</span><span className="spacer" /><span style={{ opacity: 0.7 }}>{dmg} · ~{Math.floor(pool * dmg / total)} 🚀</span></div>; })}
+            {!people.length && !pending && <div className="small" style={{ opacity: 0.5 }}>No hits yet</div>}
+            {people.slice(0, 5).map((x) => { const isMe = x.user_id === fc.me, dmg = x.damage + (isMe ? pending : 0);
+              return <div key={x.user_id} className="row small"><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isMe ? "You" : f.people[x.user_id]?.profile.name ?? fc.names[x.user_id] ?? "Member"}</span><span className="spacer" /><span style={{ opacity: 0.7 }}>{dmg} · ~{Math.floor(pool * dmg / total)} 🚀</span></div>; })}
           </div>
         </div>
-        {inviting && <InviteModal boss={b} onClose={() => setInviting(false)} />}
-        {picking && <SubjectModal boss={b} joining={false} onClose={() => setPicking(false)} />}
       </div>
     </div>
   );

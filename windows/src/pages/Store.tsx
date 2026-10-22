@@ -4,7 +4,7 @@ import { Modal, PlanetCanvas } from "../components";
 import { PlanetDef } from "../lib/planets";
 import { RARITY_COLOR, Rarity, rarityOf, STORE, REWARDS } from "../lib/storePlanets";
 import {
-  BONUS_TIERS, GROUP_WIN_ROCKETS, ownedCount, placedCount, progress, REFUND_TICKETS, ROCKETS_PER_LEVEL, unplacedCount,
+  BONUS_TIERS, GROUP_WIN_ROCKETS, ownedCount, placedCount, progress, REFUND_TICKETS, refundsLeft, ROCKETS_PER_LEVEL, unplacedCount,
   useStore, wallet, weekBonuses, weeklyBonus,
 } from "../lib/store";
 import rocketIcon from "../assets/rocket.png";
@@ -85,7 +85,7 @@ function StoreDetail({ planet, onClose }: { planet: PlanetDef; onClose: () => vo
   const { data, actions } = useStore();
   const nav = useNav();
   const [msg, setMsg] = useState<string | null>(null);
-  const w = wallet(data), owned = ownedCount(data, planet.id), left = REFUND_TICKETS - data.refundsUsed;
+  const w = wallet(data), owned = ownedCount(data, planet.id), left = refundsLeft(data);
   const r = rarityOf(planet.price!);
   return (
     <Modal onClose={onClose} width={760}>
@@ -98,13 +98,13 @@ function StoreDetail({ planet, onClose }: { planet: PlanetDef; onClose: () => vo
           <div className="row" style={{ gap: 6 }}><RocketIcon size={24} /><b style={{ fontSize: 22 }}>{planet.price}</b><span className="muted">· you have {w.balance}</span></div>
           {owned > 0 && <div style={{ color: "#22C55E" }}>✓ You own {owned}{unplacedCount(data, planet.id) ? ` · ${unplacedCount(data, planet.id)} not in your galaxy` : ""}</div>}
           <div className="row">
-            <button className="btn primary" disabled={w.balance < planet.price!} onClick={() => { actions.buyPlanet(planet.id); setMsg(`${planet.name} is yours! 🎉 Place it from My Galaxy → Your Store Planets.`); }}>
+            <button className="btn primary" disabled={w.balance < planet.price!} onClick={async () => { const err = await actions.buyPlanet(planet.id); setMsg(err ?? `${planet.name} is yours! 🎉 Place it from My Galaxy → Your Store Planets.`); }}>
               {w.balance >= planet.price! ? (owned ? "🛒 Buy another" : "🛒 Buy") : `🔒 Need ${planet.price! - w.balance} more`}</button>
             {owned > 0 && <>
               <button className="btn" onClick={() => { nav.go("galaxy"); onClose(); }}>Go to My Galaxy</button>
               <button className="btn" disabled={left <= 0} onClick={() => {
                 if (confirm(`Refund ${planet.name} for ${planet.price} rockets? This uses 1 of your ${left} refund tickets. If it's in your galaxy, it's taken out.`)) {
-                  actions.refund(planet.id); setMsg(`Refunded ${planet.price} rockets.`);
+                  actions.refund(planet.id).then((err) => setMsg(err ?? `Refunded ${planet.price} rockets.`));
                 }
               }}>🎟 Refund</button>
             </>}

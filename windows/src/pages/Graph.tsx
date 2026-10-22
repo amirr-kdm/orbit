@@ -3,7 +3,7 @@ import { frameLoop } from "../components";
 import { useNav } from "../App";
 import { addDays, duration, fullDate, monthDay, monthDays, shiftMonth, startOfDay, WEEKDAYS, weekStart } from "../lib/dates";
 import { AppData, RECURRENCE_TITLE } from "../lib/model";
-import { applies, categoryOf, isDone, isSkipped, scheduleRows, slotOf, slotTitle, titleOf, TodoRef, useStore } from "../lib/store";
+import { applies, categoryOf, isDone, isInside, isSkipped, scheduleRows, slotOf, slotTitle, titleOf, TodoRef, useStore } from "../lib/store";
 import { useTimer } from "../lib/timer";
 
 type Period = "all" | "day" | "week" | "month";
@@ -36,7 +36,7 @@ function build(d: AppData, catFilter: string, showDone: boolean, days: Date[] | 
     if (!hubs.has(id)) { const c = categoryOf(d, cat); hubs.set(id, { id, title: c?.name ?? "No category", color: c?.colorHex ?? "#8E8E93", hub: true, schedule: false, done: false, skipped: false }); }
     return id;
   };
-  const ok = (cat?: string) => !catFilter || cat === catFilter;
+  const ok = (cat?: string) => !catFilter || isInside(d, cat, catFilter);
   const first = days?.[0], end = days ? addDays(days[days.length - 1], 1) : undefined;
 
   for (const t of d.tasks) {

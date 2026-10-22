@@ -239,8 +239,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 @keyframes sys-out { to { transform: scale(.25); opacity: 0; } }
 
 /* Streak chip + hover card */
-.streak-chip { position: relative; display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 99px; background: rgba(234,179,8,.15); font-size: 13px; }
+.streak-chip { position: relative; display: inline-flex; flex-shrink: 0; white-space: nowrap; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 99px; background: rgba(234,179,8,.15); font-size: 13px; }
 .streak-chip:hover { background: rgba(234,179,8,.28); }
-.streak-pop { display: none; position: absolute; bottom: 130%; right: 0; width: 250px; flex-direction: column; gap: 6px; padding: 12px; border-radius: 12px;
+.streak-pop { display: none; position: fixed; width: 260px; box-sizing: border-box; flex-direction: column; gap: 6px; padding: 12px; border-radius: 12px;
   background: var(--card); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0,0,0,.35); z-index: 50; text-align: left; font-weight: 400; }
-.streak-chip:hover .streak-pop { display: flex; }
+/* Fight Club: the World Boss breathing and hopping on its page */
+@keyframes monster-idle { 0%,100% { transform: translateY(0) scale(1, 1) rotate(-2deg); } 50% { transform: translateY(-6px) scale(.98, 1.03) rotate(2deg); } }
+.monster-idle { animation: monster-idle 2.6s ease-in-out infinite; transform-origin: bottom center; }

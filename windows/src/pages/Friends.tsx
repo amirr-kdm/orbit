@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { GroupChallenges, PromiseModal, Promises } from "./Challenges";
+import { PromiseModal, Promises } from "./Challenges";
 import { StreakIcon, Avatar, GalaxyMap, LevelBadge, Modal, SystemCanvas } from "../components";
 import { dayKey, duration, isToday, shortDuration, WEEKDAYS_SHORT, weekDays, weekdayIndex } from "../lib/dates";
 import { FriendCard, minutesOn, streak, studyingNow, supabaseConfigured, useFriends, weekMinutes, weekSubjects } from "../lib/friends";
 import { SUNS } from "../lib/planets";
 import { GROUP_WIN_ROCKETS } from "../lib/store";
 import { RocketIcon } from "./Store";
+import { AllOrbiters } from "./Orbiters";
 import { useStore } from "../lib/store";
 
 export default function Friends() {
@@ -78,11 +79,12 @@ export default function Friends() {
       )}
 
       <div className="seg" style={{ alignSelf: "flex-start" }}>
+        <button className={tab === 2 ? "on" : ""} onClick={() => setTab(2)}>All Orbiters</button>
         <button className={tab === 0 ? "on" : ""} onClick={() => setTab(0)}>Friends ({f.friends.length})</button>
         <button className={tab === 1 ? "on" : ""} onClick={() => setTab(1)}>Groups ({f.groups.length})</button>
       </div>
 
-      {tab === 1 ? <Groups mine={mine} onGalaxy={setGalaxy} /> : <>
+      {tab === 2 ? <AllOrbiters /> : tab === 1 ? <Groups mine={mine} onGalaxy={setGalaxy} /> : <>
       {live.length > 0 && (
         <div className="card"><h3>📡 Studying right now</h3>
           {live.map((x) => <div key={x.profile.id} className="row" style={{ padding: "4px 0" }}><Avatar name={x.profile.name} planet={x.profile.avatar} size={28} color="#22C55E" />
@@ -119,7 +121,7 @@ export default function Friends() {
 
       </>}
 
-      <div className="row small muted"><span>🔒 Only daily totals are shared. Your schedule, tasks and notes stay on this computer.</span><span className="spacer" />
+      <div className="row small muted"><span>🔒 Every Orbiter sees only your name, planet, level and hours this week. Friends and groups also see to-dos done, top subjects and what you're studying right now. Your schedule, tasks and notes stay on this computer.</span><span className="spacer" />
         {f.lastSync && <span>Synced {f.lastSync.toTimeString().slice(0, 5)}</span>}
         <button className="btn small" onClick={f.refresh}>↻ Refresh</button>
         <button className="btn small danger" onClick={() => confirm("Delete your Friends profile? Your shared stats and friendships are removed from the server.") && f.deleteProfile()}>Delete my profile</button>
@@ -138,17 +140,17 @@ function Breakdown({ card, onGalaxy }: { card: FriendCard; onGalaxy: () => void 
   return (
     <div style={{ margin: "10px 0 4px 42px", background: "var(--card2)", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="row" style={{ alignItems: "flex-start", gap: 24 }}>
-        <div style={{ flex: 1 }}><b className="small">This week</b>
+        <div style={{ flex: 1, minWidth: 0 }}><b className="small">This week</b>
           {!week.length && <div className="small muted">Nothing logged yet this week.</div>}
-          {week.map((s) => <div key={s.name} className="row small" style={{ padding: "3px 0" }}><span className="dot" style={{ background: s.color }} /><span style={{ width: 150 }}>{s.name}</span>
+          {week.map((s) => <div key={s.name} className="row small" style={{ padding: "3px 0" }}><span className="dot" style={{ background: s.color }} /><span style={{ width: 150, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.name}>{s.name}</span>
             <div className="progress" style={{ flex: 1 }}><div style={{ width: `${(s.minutes / tot) * 100}%`, background: s.color }} /></div>
             <b style={{ width: 64, textAlign: "right" }}>{duration(s.minutes * 60)}</b><span className="muted" style={{ width: 36, textAlign: "right" }}>{Math.round((s.minutes / tot) * 100)}%</span></div>)}
         </div>
-        <div style={{ width: 220 }}><b className="small">Today</b>
+        <div style={{ width: 240, flexShrink: 0, minWidth: 0, overflow: "hidden" }}><b className="small">Today</b>
           {!today?.subjects.length && <div className="small muted">Nothing yet today.</div>}
-          {today?.subjects.map((s) => <div key={s.name} className="row small"><span className="dot" style={{ background: s.color }} />{s.name}<span className="spacer" />{duration(s.minutes * 60)}</div>)}
+          {today?.subjects.map((s) => <div key={s.name} className="row small"><span className="dot" style={{ background: s.color }} /><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.name}>{s.name}</span><span className="spacer" />{duration(s.minutes * 60)}</div>)}
           {today && today.todos_total > 0 && <div className="small muted">☑ {today.todos_done}/{today.todos_total} to-dos done</div>}
-          {studyingNow(card) && <div className="small" style={{ color: "#22C55E" }}>● Studying {studyingNow(card)} now</div>}
+          {studyingNow(card) && <div className="small" style={{ color: "#22C55E", overflowWrap: "anywhere" }}>● Studying {studyingNow(card)} now</div>}
         </div>
       </div>
       <div className="row" style={{ gap: 6 }}>
@@ -252,7 +254,6 @@ function Groups({ mine, onGalaxy }: { mine: FriendCard | null; onGalaxy: (c: Fri
             </div>
           ))}
         </div>}
-        {g && <GroupChallenges group={g} />}
       </>}
     </div>
   );

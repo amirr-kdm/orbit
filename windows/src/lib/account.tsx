@@ -5,6 +5,7 @@ import { AppData } from "./model";
 import { accountData, sharedClient as client, supabaseConfigured, useFriends } from "./friends";
 import { defaultData } from "./model";
 import { useStore } from "./store";
+import { walletLive } from "./wallet";
 
 export type AccountState = "noServer" | "loading" | "signedOut" | "needsUpgrade" | "pending" | "approved";
 export interface Profile { id: string; name: string; username?: string | null; approved?: boolean; is_admin?: boolean }
@@ -66,7 +67,7 @@ function friendly(m: string): string {
 }
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
-  const { data, replaceAll, update } = useStore();
+  const { data, replaceAll, update, actions } = useStore();
   const friends = useFriends();
   const [state, setState] = useState<AccountState>(supabaseConfigured ? "loading" : "noServer");
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -163,18 +164,20 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const claimGifts = useCallback(async () => {
     if (stateRef.current !== "approved" || restoring.current || !accountData.ready) return;
     try {
-      const gifts: { id: string; amount: number; reason?: string | null }[] = await client.get("rocket_gifts?select=id,amount,reason");
+      const gifts: { id: string; amount: number; reason?: string | null; ref?: string | null }[] = await client.get("rocket_gifts?select=id,amount,reason,ref");
       const known = dataRef.current.claimedGifts ?? [];
       if (!gifts.some((g) => !known.includes(g.id))) return;
-      // Tell about rockets received (paying a fee is your own action, so it stays quiet)
-      for (const g of gifts.filter((x) => !known.includes(x.id) && x.amount > 0)) {
+      // Tell about rockets received (buying, refunds, level rewards and fees are your own actions, so they stay quiet)
+      for (const g of gifts.filter((x) => !known.includes(x.id) && x.amount > 0 && !x.ref?.startsWith("refund:") && !x.ref?.startsWith("level:"))) {
         setGiftNotice(g.reason ? `${g.reason} (+${g.amount} 🚀)` : `You got ${g.amount} rockets from the Orbit admin! 🚀`);
         notify(g.reason ? `+${g.amount} 🚀 rockets` : `You got ${g.amount} 🚀 rockets!`, g.reason ?? "A gift from the Orbit admin. Spend them in the Store.");
       }
       update((d) => {
         const claimed = d.claimedGifts ?? (d.claimedGifts = []);
-        for (const g of gifts) if (!claimed.includes(g.id)) { claimed.push(g.id); d.rocketGrant += g.amount; }
+        // with a server wallet the balance already includes them; before that, they're added here
+        for (const g of gifts) if (!claimed.includes(g.id)) { claimed.push(g.id); if (!walletLive()) d.rocketGrant += g.amount; }
       });
+      if (walletLive()) await actions.walletRefresh();
     } catch { /* offline — try again later */ }
   }, [update]);
 
@@ -197,7 +200,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(approvedKey(s.userID), p.approved ? "1" : "0");
       if (p.approved) { setState("approved"); stateRef.current = "approved"; 
         // Bring this account's data down first, so nothing from another account is sent under its name
-        await syncOnStart(); accountData.ready = meta().account === s.userID; await friends.reload(); setTimeout(claimGifts, 1000);
+        await syncOnStart(); accountData.ready = meta().account === s.userID; await friends.reload(); setTimeout(async () => { await claimGifts(); await actions.walletRefresh(); }, 1000);
       }
       else setState("pending");
     } catch {
@@ -237,7 +240,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
           if (rows[0] && differs(new Date(rows[0].updated_at).getTime(), meta().at) && !meta().dirty) await download(s.userID);
         } catch { /* offline */ }
       }
-      claimGifts();
+      await claimGifts();
+      await actions.walletRefresh();
     }, 60_000);
     return () => clearInterval(t);
   }, [state, upload, claimGifts, syncOnStart, download]);

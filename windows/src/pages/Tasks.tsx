@@ -3,7 +3,7 @@ import { useNav } from "../App";
 import { Modal, MenuItem, useContextMenu } from "../components";
 import { addDays, isToday, monthDay, startOfDay, WEEKDAYS, WEEKDAYS_SHORT, weekDays, weekdayIndex, weekStart } from "../lib/dates";
 import { RECURRENCE_BADGE, TaskItem } from "../lib/model";
-import { categoryOf, parity, scheduleRows, ScheduleRow, slotTitle, tasksOn, titleOf, useStore } from "../lib/store";
+import { categoryOf, parity, scheduleRows, ScheduleRow, slotTitle, tasksOn, titleOf, useStore, categoryLabel, orderedCategories, isInside, entryColor } from "../lib/store";
 import { useTimer } from "../lib/timer";
 import Graph from "./Graph";
 
@@ -21,8 +21,8 @@ export default function Tasks() {
 
   useEffect(() => { if (nav.focusDay) { setAnchor(nav.focusDay); setMode("day"); nav.clearFocus(); } }, [nav]);
 
-  const matchTask = (t: TaskItem) => !catFilter || t.categoryID === catFilter;
-  const matchRow = (r: ScheduleRow) => !catFilter || r.entry.categoryID === catFilter;
+  const matchTask = (t: TaskItem) => !catFilter || isInside(data, t.categoryID, catFilter);
+  const matchRow = (r: ScheduleRow) => !catFilter || isInside(data, r.entry.categoryID, catFilter);
   const inbox = data.tasks.filter((t) => !t.dueDate && !t.isDone && matchTask(t));
   const shift = (n: number) => setAnchor(addDays(anchor, mode === "day" ? n : n * 7));
 
@@ -37,7 +37,7 @@ export default function Tasks() {
           <span className="badge" style={{ background: parity(data, anchor) === "even" ? "var(--accent)" : "#F97316" }}>{parity(data, anchor) === "even" ? "EVEN WEEK" : "ODD WEEK"}</span>
         </>}
         <span className="spacer" />
-        <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}><option value="">All categories</option>{data.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}><option value="">All categories</option>{orderedCategories(data).map((c) => <option key={c.id} value={c.id}>{c.parentID ? "   " : ""}{categoryLabel(data, c.id)}</option>)}</select>
         <button className="btn primary" onClick={() => setEditing({ id: "", title: "", notes: "", priority: 1, hasTime: false, estimatedMinutes: 30, isDone: false, createdAt: new Date().toISOString(), categoryID: catFilter || undefined, dueDate: mode === "list" ? undefined : startOfDay(anchor).toISOString() })}>＋ New task</button>
       </div>
 
@@ -110,7 +110,7 @@ function OccCard({ r }: { r: ScheduleRow }) {
   const c = categoryOf(data, r.entry.categoryID);
   const ref = { kind: "schedule" as const, id: r.entry.id };
   return (
-    <div className="bcard" draggable style={{ ["--c" as string]: r.entry.colorHex ?? c?.colorHex ?? "var(--accent)" }}
+    <div className="bcard" draggable style={{ ["--c" as string]: entryColor(data, r.entry) ?? c?.colorHex ?? "var(--accent)" }}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", `occ:${r.entry.id}|${r.date.getTime()}`)} title="Drag to another day to move just this session"
       onContextMenu={(e) => menu.open(e, [{ label: r.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone(ref, r.date) },
         { label: r.isSkipped ? "Bring back to to-do" : "Skip (won't do)", onClick: () => actions.setSkipped(ref, r.date, !r.isSkipped) },
@@ -198,7 +198,7 @@ export function TaskEditor({ task, onClose }: { task: TaskItem; onClose: () => v
       <h3 style={{ marginTop: 0 }}>{isNew ? "New task" : "Edit task"}</h3>
       <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 10, alignItems: "center" }}>
         <span>Title</span><input autoFocus value={t.title} onChange={(e) => setT({ ...t, title: e.target.value })} />
-        <span>Category</span><select value={t.categoryID ?? ""} onChange={(e) => setT({ ...t, categoryID: e.target.value || undefined })}><option value="">None</option>{data.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <span>Category</span><select value={t.categoryID ?? ""} onChange={(e) => setT({ ...t, categoryID: e.target.value || undefined })}><option value="">None</option>{orderedCategories(data).map((c) => <option key={c.id} value={c.id}>{c.parentID ? "   " : ""}{categoryLabel(data, c.id)}</option>)}</select>
         <span>Priority</span><div className="seg">{([0, 1, 2] as const).map((p) => <button key={p} className={t.priority === p ? "on" : ""} onClick={() => setT({ ...t, priority: p })}>{["Low", "Medium", "High"][p]}</button>)}</div>
         <span>Date</span><div className="row"><input type={t.hasTime ? "datetime-local" : "date"} value={dateVal} onChange={(e) => setT({ ...t, dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined })} />
           <label className="row small"><input type="checkbox" checked={t.hasTime} onChange={(e) => setT({ ...t, hasTime: e.target.checked })} /> time</label></div>

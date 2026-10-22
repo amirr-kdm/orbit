@@ -6,7 +6,8 @@ export type Recurrence = "weekly" | "even" | "odd" | "once";
 export type SunType = "yellow" | "red" | "blue" | "white" | "binary" | "pulsar";
 export type Appearance = "system" | "light" | "dark";
 
-export interface Category { id: string; name: string; colorHex: string }
+/** `parentID` is set for a subcategory (one level only), e.g. IELTS › Speaking */
+export interface Category { id: string; name: string; colorHex: string; parentID?: string }
 
 export interface TaskItem {
   id: string;
@@ -55,6 +56,8 @@ export interface StudySession {
   start: string; // ISO
   duration: number; // seconds
   note: string;
+  /** Logged by hand: shown in reports and the calendar, but earns no rewards */
+  isManual?: boolean;
 }
 
 export interface PlacedPlanet { id: string; planetID: string; addedAt: string; systemID?: string }
@@ -72,6 +75,8 @@ export interface Settings {
   evenWeekAnchor: string;
   /** Colours offered for schedule and planner cells (add your own, delete any) */
   cellPalette: string[];
+  /** To-dos that have a category take its colour (otherwise each cell keeps its own colour) */
+  categoryColors?: boolean;
 }
 
 /** A rich-text note inside a planner (HTML) */

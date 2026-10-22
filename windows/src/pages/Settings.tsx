@@ -1,6 +1,6 @@
 import { slotTime } from "../lib/dates";
 import { Appearance } from "../lib/model";
-import { useStore } from "../lib/store";
+import { orderedCategories, useStore } from "../lib/store";
 
 const ACCENTS = ["#5B7CFA", "#0EA5E9", "#E879F9", "#22D3EE", "#C2410C", "#F97316", "#16A34A", "#E11D48"];
 const toTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -51,13 +51,21 @@ export default function Settings() {
       </div>
 
       <div className="card"><div className="row"><h3 style={{ margin: 0 }}>🏷 Task categories</h3><span className="spacer" /><button className="btn small" onClick={actions.addCategory}>＋ Add</button></div>
-        {data.categories.map((c) => (
-          <div key={c.id} className="list-row">
+        <div className="small muted" style={{ margin: "4px 0 6px" }}>A category can have subcategories one level down (e.g. IELTS › Speaking). Filters and reports by a category include its subcategories.</div>
+        {orderedCategories(data).map((c) => (
+          <div key={c.id} className="list-row" style={{ paddingLeft: c.parentID ? 28 : undefined }}>
+            {c.parentID && <span className="muted">↳</span>}
             <input type="color" value={c.colorHex} style={{ width: 36, padding: 2 }} onChange={(e) => actions.updateCategory({ ...c, colorHex: e.target.value.toUpperCase() })} />
             <input value={c.name} style={{ flex: 1 }} onChange={(e) => actions.updateCategory({ ...c, name: e.target.value })} />
-            <button className="icon-btn" onClick={() => confirm(`Delete “${c.name}”? Its tasks keep their data, just without a category.`) && actions.deleteCategory(c.id)}>🗑</button>
+            {!c.parentID && <button className="btn small" title="Add a subcategory" onClick={() => actions.addSubcategory(c.id)}>＋ Sub</button>}
+            <button className="icon-btn" onClick={() => confirm(c.parentID ? `Delete “${c.name}”? Its items move up to the parent category.`
+              : `Delete “${c.name}”? Its tasks keep their data, just without a category; its subcategories become categories.`) && actions.deleteCategory(c.id)}>🗑</button>
           </div>
         ))}
+        <label className="row" style={{ marginTop: 10, gap: 8, cursor: "pointer" }}>
+          <input type="checkbox" checked={!!s.categoryColors} onChange={(e) => set((x) => { x.categoryColors = e.target.checked; })} />
+          <span><b>To-dos use their category's colour</b><div className="small muted">Schedule, planner, Today, Tasks, the calendar, reports and Friends show a to-do in its category's colour. Classes keep their own colour.</div></span>
+        </label>
       </div>
 
       <div className="card"><h3>💾 Data</h3>

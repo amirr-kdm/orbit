@@ -14,6 +14,8 @@ import Galaxy from "./pages/Galaxy";
 import StorePage from "./pages/Store";
 import Friends from "./pages/Friends";
 import FightClubPage from "./pages/FightClub";
+import ChallengesPage from "./pages/Challenges";
+import About from "./pages/About";
 import Settings from "./pages/Settings";
 import iconUrl from "./icon.png";
 import { useAccount } from "./lib/account";
@@ -23,7 +25,7 @@ import { FREEZES_PER_MONTH } from "./lib/streak";
 import { AdminPanel, LoginPage, PendingPage, ProfileModal } from "./pages/Account";
 import { Avatar, StreakIcon } from "./components";
 
-export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "fightClub" | "settings";
+export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "fightClub" | "challenges" | "settings";
 const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
   { id: "today", title: "Today", icon: "☀️", section: "Plan" },
   { id: "schedule", title: "Weekly Schedule", icon: "🗓️", section: "Plan" },
@@ -35,6 +37,7 @@ const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
   { id: "galaxy", title: "My Galaxy", icon: "✨", section: "Rewards" },
   { id: "store", title: "Store", icon: "🛍️", section: "Rewards" },
   { id: "friends", title: "Friends", icon: "👥", section: "Social" },
+  { id: "challenges", title: "Challenges", icon: "🏁", section: "Social" },
   { id: "fightClub", title: "Fight Club", icon: "💥", section: "Social" },
   { id: "settings", title: "Settings", icon: "⚙️", section: "App" },
 ];
@@ -51,6 +54,7 @@ export default function App() {
   const account = useAccount();
   const [showAdmin, setShowAdmin] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const update = useUpdateCheck();
   const [updateHidden, setUpdateHidden] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -70,7 +74,7 @@ export default function App() {
   useEffect(() => { document.title = timer.active ? `⏱ ${clock(timer.display)} · Orbit` : "Orbit"; }, [timer.active, timer.display]);
 
   const nav: Nav = { tab, go: (t, d) => { setTab(t); setFocusDay(d); }, focusDay, clearFocus: () => setFocusDay(undefined) };
-  const Page = { today: Today, schedule: Schedule, planner: PlannerPage, timer: TimerPage, tasks: Tasks, calendar: Calendar, reports: Reports, galaxy: Galaxy, store: StorePage, friends: Friends, fightClub: FightClubPage, settings: Settings }[tab];
+  const Page = { today: Today, schedule: Schedule, planner: PlannerPage, timer: TimerPage, tasks: Tasks, calendar: Calendar, reports: Reports, galaxy: Galaxy, store: StorePage, friends: Friends, fightClub: FightClubPage, challenges: ChallengesPage, settings: Settings }[tab];
 
   // Accounts: log in, upgrade an old profile, or wait for the owner's approval
   if (account.state === "loading") return <div className="space-login" />;
@@ -89,6 +93,7 @@ export default function App() {
               <span className="ico">{t.icon}</span>{t.title}
             </button>
           </React.Fragment>))}
+          <button className="nav" onClick={() => setShowAbout(true)}><span className="ico">ℹ️</span>About</button>
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
             {timer.active && (
               <div className="mini-timer" onClick={() => nav.go("timer")}>
@@ -131,6 +136,7 @@ export default function App() {
           <Page />
         </main>
         {showAdmin && account.isAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+        {showAbout && <About onClose={() => setShowAbout(false)} />}
         {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
         {passMoment && <LevelPass key={passMoment.id} fromHours={passMoment.from} onClose={() => setPassMoment(null)} />}
       </div>
@@ -142,10 +148,17 @@ export default function App() {
 function StreakChip() {
   const { data } = useStore();
   const info = myStreak(data);
+  // The popup is placed on the window (not inside the narrow sidebar), kept fully on screen
+  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
+  const show = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect(), w = 260;
+    setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - w - 8)), bottom: window.innerHeight - r.top + 8 });
+  };
   return (
-    <span className="streak-chip" onClick={(e) => e.stopPropagation()}>
+    <span className="streak-chip" onClick={(e) => e.stopPropagation()}
+      onMouseEnter={(e) => show(e.currentTarget)} onMouseLeave={() => setPos(null)}>
       <StreakIcon size={15} /><b>{info.days}</b>
-      <span className="streak-pop">
+      <span className="streak-pop" style={pos ? { display: "flex", left: pos.left, bottom: pos.bottom } : undefined}>
         <b><StreakIcon size={18} /> {info.days}-day streak</b>
         <span>{Array.from({ length: FREEZES_PER_MONTH }, (_, i) => <span key={i} style={{ opacity: i < info.freezesLeft ? 1 : 0.3 }}>❄️</span>)} {info.freezesLeft} of {FREEZES_PER_MONTH} freezes left this month</span>
         <span className="small muted">Miss a day and a freeze is used automatically, so your streak survives. You get 3 new ones every month.</span>

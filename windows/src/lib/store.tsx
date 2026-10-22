@@ -6,6 +6,7 @@ import {
 import { addDays, dayKey, minuteOfDay, sameDay, startOfDay, weekDays, weekStart, weekdayIndex, weeksBetween } from "./dates";
 import { PLANETS, unlockLevel } from "./planets";
 import { STORE } from "./storePlanets";
+import { walletBuy, walletClaim, walletRefresh, walletRefund } from "./wallet";
 
 const KEY = "orbit-data-v1";
 
@@ -55,6 +56,19 @@ export function entryAt(d: AppData, weekday: number, slotID: string, date: Date)
 const isShown = (d: AppData, e: ScheduleEntry, date: Date) => entryAt(d, e.weekday, e.slotID, date)?.id === e.id;
 export const titleOf = (e: ScheduleEntry) => e.text.split("\n")[0].trim();
 export const categoryOf = (d: AppData, id?: string) => d.categories.find((c) => c.id === id);
+/** "IELTS › Speaking" for a subcategory, just the name otherwise */
+export const categoryLabel = (d: AppData, id?: string) => {
+  const c = categoryOf(d, id); if (!c) return undefined;
+  const p = categoryOf(d, c.parentID); return p ? `${p.name} › ${c.name}` : c.name;
+};
+/** Categories in display order: each one followed by its subcategories */
+export const orderedCategories = (d: AppData) =>
+  d.categories.filter((c) => !c.parentID || !categoryOf(d, c.parentID)).flatMap((c) => [c, ...d.categories.filter((s) => s.parentID === c.id)]);
+/** Is `id` this category or one of its subcategories? */
+export const isInside = (d: AppData, id: string | undefined, filter: string) => id === filter || (!!id && categoryOf(d, id)?.parentID === filter);
+/** The colour a schedule cell shows: its category's colour for to-dos when that setting is on, else its own */
+export const entryColor = (d: AppData, e: ScheduleEntry) =>
+  d.settings.categoryColors && e.kind === "todo" && categoryOf(d, e.categoryID) ? categoryOf(d, e.categoryID)!.colorHex : e.colorHex;
 export const slotOf = (d: AppData, id: string) => d.settings.timeSlots.find((s) => s.id === id);
 export const slotTitle = (s: TimeSlot) => {
   const f = (m: number) => (m % 60 === 0 ? `${m / 60}` : `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`);
@@ -111,14 +125,14 @@ export function todosOn(d: AppData, day: Date): TodoItem[] {
     const cat = categoryOf(d, r.entry.categoryID);
     return {
       ref: { kind: "schedule" as const, id: r.entry.id }, title: titleOf(r.entry),
-      detail: slotTitle(r.slot) + (cat ? ` · ${cat.name}` : ""), color: r.entry.colorHex ?? cat?.colorHex ?? "#5B7CFA",
+      detail: slotTitle(r.slot) + (cat ? ` · ${categoryLabel(d, cat.id)}` : ""), color: entryColor(d, r.entry) ?? cat?.colorHex ?? "#5B7CFA",
       isDone: r.isDone, sortMinute: r.slot.startMinute, isSkipped: r.isSkipped,
     };
   });
   const tasks = tasksOn(d, day).map((t) => {
     const cat = categoryOf(d, t.categoryID);
     return {
-      ref: { kind: "task" as const, id: t.id }, title: t.title, detail: cat?.name ?? "Task",
+      ref: { kind: "task" as const, id: t.id }, title: t.title, detail: categoryLabel(d, t.categoryID) ?? "Task",
       color: cat?.colorHex ?? "#8E8E93", isDone: t.isDone, isSkipped: t.isSkipped,
       sortMinute: t.hasTime && t.dueDate ? minuteOfDay(new Date(t.dueDate)) : 9999,
     };
@@ -131,10 +145,21 @@ export function sessionsIn(d: AppData, from: Date, to: Date): StudySession[] {
 }
 export const studyTime = (d: AppData, from: Date, to: Date) => sessionsIn(d, from, to).reduce((a, s) => a + s.duration, 0);
 export const studyOn = (d: AppData, day: Date) => studyTime(d, startOfDay(day), addDays(startOfDay(day), 1));
+/** Study that earns rewards (levels, rockets, streak, leaderboards, challenges, Fight Club): timed sessions only */
+export const rewardTime = (d: AppData, from: Date, to: Date) => sessionsIn(d, from, to).filter((s) => !s.isManual).reduce((a, s) => a + s.duration, 0);
+export const rewardOn = (d: AppData, day: Date) => rewardTime(d, startOfDay(day), addDays(startOfDay(day), 1));
+const entryOf = (d: AppData, id?: string) => d.schedule.find((e) => e.id === id);
+/** Hex of the colour a session shows (follows the category-colour setting) */
+export function subjectHex(d: AppData, s: StudySession): string {
+  const c = categoryOf(d, s.categoryID);
+  if (d.settings.categoryColors && c && entryOf(d, s.scheduleEntryID)?.kind !== "fixed") return c.colorHex;
+  return s.colorHex || "#8E8E93";
+}
 
 export function subjectOf(d: AppData, s: StudySession): { name: string; color: string } {
-  if (s.subject) return { name: s.subject, color: s.colorHex || "#8E8E93" };
   const c = categoryOf(d, s.categoryID);
+  if (d.settings.categoryColors && c && entryOf(d, s.scheduleEntryID)?.kind !== "fixed") return { name: s.subject || c.name, color: c.colorHex };
+  if (s.subject) return { name: s.subject, color: s.colorHex || "#8E8E93" };
   return c ? { name: c.name, color: c.colorHex } : { name: "Unsorted", color: "#8E8E93" };
 }
 
@@ -191,9 +216,9 @@ export const HOURS_PER_LEVEL = 3;
 export interface Progress { level: number; totalHours: number; weekHours: number; credits: number }
 
 export function progress(d: AppData, now = new Date()): Progress {
-  const total = d.sessions.reduce((a, s) => a + s.duration, 0) / 3600;
+  const total = d.sessions.filter((s) => !s.isManual).reduce((a, s) => a + s.duration, 0) / 3600;
   const cw = weekStart(now);
-  const weekHours = studyTime(d, cw, new Date(now.getTime() + 1000)) / 3600;
+  const weekHours = rewardTime(d, cw, new Date(now.getTime() + 1000)) / 3600;
   // One level for every 3 hours studied in total, straight away
   const level = Math.min(MAX_LEVEL, 1 + Math.floor(total / HOURS_PER_LEVEL));
   return { level, totalHours: total, weekHours, credits: Math.max(0, level - d.galaxy.length) };
@@ -211,7 +236,7 @@ export function weekBonuses(d: AppData, now = new Date()): { start: Date; hours:
   if (first === undefined) return [];
   const cur = weekStart(now), out = [];
   for (let w = weekStart(new Date(first)); w < cur; w = addDays(w, 7)) {
-    const hours = studyTime(d, w, addDays(w, 7)) / 3600;
+    const hours = rewardTime(d, w, addDays(w, 7)) / 3600;
     out.push({ start: w, hours, rockets: weeklyBonus(hours) });
   }
   return out;
@@ -223,15 +248,19 @@ export const ROCKETS_PER_LEVEL = 25;
 /** Levels 10, 20 … 60 also give a special planet */
 export const levelPlanet = (level: number) => (level > 0 && level % 10 === 0 ? `lv_t${level / 10}` : null);
 export const canClaim = (d: AppData, level: number) => level >= 1 && level <= progress(d).level && !(d.claimedLevels ?? []).includes(level);
-export const totalHours = (d: AppData) => d.sessions.reduce((a, s) => a + s.duration, 0) / 3600;
+export const totalHours = (d: AppData) => d.sessions.filter((s) => !s.isManual).reduce((a, s) => a + s.duration, 0) / 3600;
 
 export interface Wallet { study: number; levels: number; bonuses: number; groups: number; spent: number; balance: number }
+/** The server wallet (lib/wallet.tsx) once it's known for this account — then it is the balance */
+export const serverWallet: { balance: number | null; refundsLeft: number | null } = { balance: null, refundsLeft: null };
+export const refundsLeft = (d: AppData) => serverWallet.refundsLeft ?? Math.max(0, REFUND_TICKETS - d.refundsUsed);
 export function wallet(d: AppData): Wallet {
   const study = Math.floor(d.sessions.filter((s) => new Date(s.start) < LEVEL_PASS_START).reduce((a, s) => a + s.duration, 0) / 3600 * ROCKETS_PER_HOUR);
   const levels = (d.claimedLevels ?? []).length * ROCKETS_PER_LEVEL;
   const bonuses = weekBonuses(d).reduce((a, b) => a + b.rockets, 0);
   const groups = d.groupWins.length * GROUP_WIN_ROCKETS;
   const spent = d.purchases.reduce((a, p) => a + p.price, 0);
+  if (serverWallet.balance !== null) return { study, levels, bonuses, groups, spent, balance: serverWallet.balance };
   return { study, levels, bonuses, groups, spent, balance: STARTING_ROCKETS + d.rocketGrant + study + levels + bonuses + groups - spent };
 }
 export const ownedCount = (d: AppData, id: string) => d.purchases.filter((p) => p.planetID === id).length;
@@ -250,7 +279,7 @@ interface Store {
   /** Replace everything (restoring a cloud backup) */
   replaceAll: (d: AppData) => void;
   update: (fn: (d: AppData) => void) => void;
-  actions: ReturnType<typeof makeActions>;
+  actions: ReturnType<typeof withWallet>;
   /** Set after a study session is saved: the Level Pass opens and the ship flies from → to (hours) */
   passMoment: { from: number; to: number; id: number } | null;
   setPassMoment: (m: { from: number; to: number; id: number } | null) => void;
@@ -358,15 +387,23 @@ function makeActions(update: Store["update"]) {
     deleteSession: (id: string) => update((d) => { d.sessions = d.sessions.filter((s) => s.id !== id); }),
 
     // categories & settings
+    addSubcategory: (parent: string) => update((d) => {
+      const p = d.categories.find((c) => c.id === parent);
+      if (p) d.categories.push({ id: uid(), name: "New subcategory", colorHex: p.colorHex, parentID: parent });
+    }),
     addCategory: () => update((d) => {
       const pal = ["#4F7CF7", "#F28C38", "#2BB673", "#E5484D", "#9B6BDF", "#14B8C4", "#D9A21B", "#E255A1"];
       d.categories.push({ id: uid(), name: "New category", colorHex: pal[d.categories.length % pal.length] });
     }),
     updateCategory: (c: Category) => update((d) => { const i = d.categories.findIndex((x) => x.id === c.id); if (i >= 0) d.categories[i] = c; }),
+    /** Deleting a subcategory moves its items up to the parent; deleting a category keeps its subcategories as categories */
     deleteCategory: (id: string) => update((d) => {
+      const parent = d.categories.find((c) => c.id === id)?.parentID;
       d.categories = d.categories.filter((c) => c.id !== id);
-      d.tasks.forEach((t) => { if (t.categoryID === id) t.categoryID = undefined; });
-      d.schedule.forEach((e) => { if (e.categoryID === id) e.categoryID = undefined; });
+      d.categories.forEach((c) => { if (c.parentID === id) c.parentID = undefined; });
+      d.tasks.forEach((t) => { if (t.categoryID === id) t.categoryID = parent; });
+      d.schedule.forEach((e) => { if (e.categoryID === id) e.categoryID = parent; });
+      d.sessions.forEach((s) => { if (s.categoryID === id) s.categoryID = parent; });
     }),
     resetSlots: () => update((d) => { d.schedule = []; d.settings.timeSlots = defaultSlots(); }),
     addSlot: () => update((d) => {
@@ -468,7 +505,33 @@ function makeActions(update: Store["update"]) {
       update((d) => { d.solarSystems.push({ id, name: SYSTEM_NAMES[d.solarSystems.length % SYSTEM_NAMES.length], sun }); });
       return id;
     },
+    /** Removes a system (the last one can't be removed); its planets move to systems with room */
+    deleteSystem: (id: string) => update((d) => {
+      if (d.solarSystems.length < 2) return;
+      d.solarSystems = d.solarSystems.filter((s) => s.id !== id);
+      for (const g of d.galaxy) if (g.systemID === id) {
+        const room = d.solarSystems.find((s) => d.galaxy.filter((x) => x.systemID === s.id).length < 8);
+        if (room) g.systemID = room.id;
+        else { const nid = uid(); d.solarSystems.push({ id: nid, name: SYSTEM_NAMES[d.solarSystems.length % SYSTEM_NAMES.length], sun: "yellow" }); g.systemID = nid; }
+      }
+    }),
     updateSystem: (id: string, fn: (s: SolarSystem) => void) => update((d) => { const s = d.solarSystems.find((x) => x.id === id); if (s) fn(s); }),
+  };
+}
+
+/** Rockets go through the server wallet once it exists (lib/wallet.ts); a saved session opens the Level Pass */
+function withWallet(a: ReturnType<typeof makeActions>, get: () => AppData, update: Store["update"],
+                    setPassMoment: (m: { from: number; to: number; id: number } | null) => void) {
+  return { ...a,
+    buyPlanet: (id: string) => walletBuy(id, get, update, () => a.buyPlanet(id)),
+    refund: (id: string) => walletRefund(id, get, update, () => a.refund(id)),
+    claimLevel: (lv: number) => walletClaim(lv, get, update, () => a.claimLevel(lv)),
+    walletRefresh: () => walletRefresh(get, update),
+    addSession: (s: StudySession) => {
+      const before = totalHours(get());
+      a.addSession(s);
+      if (s.duration >= 60) setPassMoment({ from: before, to: before + s.duration / 3600, id: Date.now() });
+    },
   };
 }
 
@@ -492,12 +555,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [passMoment, setPassMoment] = useState<Store["passMoment"]>(null);
   const dataRef = useRef(data); dataRef.current = data;
   const actions = useMemo(() => {
-    const a = makeActions(update);
-    return { ...a, addSession: (s: StudySession) => {
-      const before = totalHours(dataRef.current);
-      a.addSession(s);
-      if (s.duration >= 60) setPassMoment({ from: before, to: before + s.duration / 3600, id: Date.now() });
-    } };
+    return withWallet(makeActions(update), () => dataRef.current, update, setPassMoment);
   }, [update]);
   const replaceAll = useCallback((d: AppData) => {
     const def = defaultData();

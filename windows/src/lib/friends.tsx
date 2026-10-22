@@ -3,8 +3,9 @@ import { computeStreak } from "./streak";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppData } from "./model";
 import { addDays, dayKey, startOfDay, weekDays } from "./dates";
-import { GROUP_WIN_ROCKETS, progress, sessionsIn, subjectOf, todosOn, useStore, wallet } from "./store";
+import { categoryOf, GROUP_WIN_ROCKETS, progress, sessionsIn, subjectHex, subjectOf, todosOn, useStore, wallet } from "./store";
 import { weekStart } from "./dates";
+import { walletGroupWin, walletLive } from "./wallet";
 
 const URL_ = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? "";
 const KEY_ = (import.meta.env.VITE_SUPABASE_KEY as string | undefined) ?? "";
@@ -134,11 +135,15 @@ export const sharedClient = new Client();
 
 function localStat(d: AppData, day: Date, userID: string): DailyStat {
   const s0 = startOfDay(day);
-  const sessions = sessionsIn(d, s0, addDays(s0, 1));
+  // what friends see (leaderboards, group prizes): timed study only
+  const sessions = sessionsIn(d, s0, addDays(s0, 1)).filter((s) => !s.isManual);
   const todos = todosOn(d, day);
   const subj = new Map<string, SubjectStat>();
   for (const s of sessions) {
-    const { name, color } = subjectOf(d, s);
+    // grouped by category (a subcategory counts under its parent); study without one shows as itself
+    let { name } = subjectOf(d, s), color = subjectHex(d, s);
+    const c = categoryOf(d, s.categoryID);
+    if (c) { const top = categoryOf(d, c.parentID) ?? c; name = top.name; color = top.colorHex; }
     const cur = subj.get(name) ?? { name, minutes: 0, color };
     cur.minutes += Math.floor(s.duration / 60); subj.set(name, cur);
   }
@@ -182,7 +187,7 @@ interface Friends {
 const Ctx = createContext<Friends | null>(null);
 
 export function FriendsProvider({ children }: { children: React.ReactNode }) {
-  const { data, actions } = useStore();
+  const { data, actions, update } = useStore();
   const client = sharedClient;
   const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [people, setPeople] = useState<Record<string, FriendCard>>({});
@@ -238,7 +243,7 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
       // Last week's group prize: whoever studied the most (ties included) wins 100 rockets, once per group per week
       const last = addDays(weekStart(new Date()), -7);
       const days = Array.from({ length: 7 }, (_, i) => addDays(last, i));
-      const myLastWeek = Math.floor(sessionsIn(dataRef.current, last, addDays(last, 7)).reduce((a, s) => a + s.duration, 0) / 60);
+      const myLastWeek = Math.floor(sessionsIn(dataRef.current, last, addDays(last, 7)).filter((s) => !s.isManual).reduce((a, s) => a + s.duration, 0) / 60);
       if (myLastWeek > 0 && accountData.ready) {
         const keys: string[] = [], won: string[] = [];
         for (const g of groupList) {
@@ -250,7 +255,12 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
           const key = `${g.id}|${dayKey(last)}`;
           if (myLastWeek >= best && !dataRef.current.groupWins.includes(key)) { keys.push(key); won.push(g.name); }
         }
-        if (keys.length) { actions.recordGroupWins(keys); setGroupPrize(`🏆 You studied the most last week in ${won.join(", ")}: +${GROUP_WIN_ROCKETS * keys.length} rockets!`); }
+        if (keys.length && walletLive()) {
+          // the server works the winner out itself and pays once
+          let paid = 0;
+          for (const k of keys) if (await walletGroupWin(k.split("|")[0], last, () => dataRef.current, update)) paid++;
+          if (paid) setGroupPrize(`🏆 You studied the most last week: +${GROUP_WIN_ROCKETS * paid} rockets!`);
+        } else if (keys.length) { actions.recordGroupWins(keys); setGroupPrize(`🏆 You studied the most last week in ${won.join(", ")}: +${GROUP_WIN_ROCKETS * keys.length} rockets!`); }
       }
       setLastSync(new Date());
     });
@@ -351,6 +361,6 @@ export function useFriends(): Friends {
 
 /** My streak from my own study history (freezes included) */
 export function myStreak(d: AppData) {
-  const days = new Set(d.sessions.map((s) => dayKey(new Date(s.start))));
+  const days = new Set(d.sessions.filter((s) => !s.isManual).map((s) => dayKey(new Date(s.start))));
   return computeStreak((day) => days.has(dayKey(day)));
 }

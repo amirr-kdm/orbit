@@ -2,7 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAccount } from "./account";
 import { accountData, sharedClient as client } from "./friends";
-import { studyTime, useStore, wallet } from "./store";
+import { rewardTime, useStore, wallet } from "./store";
 
 export interface Challenge {
   id: string; kind: "group" | "promise"; group_id: string | null; creator: string; friend: string | null;
@@ -14,7 +14,10 @@ const GRACE = 3600_000;
 
 interface Challenges {
   list: Challenge[]; members: Record<string, ChallengeMember[]>; error: string | null; busy: boolean;
-  create: (group: string, title: string, minutes: number, fee: number, start: Date, end: Date) => Promise<boolean>;
+  /** Usernames of people in open-to-all challenges (they may not be friends) */
+  names: Record<string, string>;
+  /** Open to every Orbit member (no group) */
+  create: (title: string, minutes: number, fee: number, start: Date, end: Date) => Promise<boolean>;
   promise: (friend: string, minutes: number, stake: number, end: Date) => Promise<boolean>;
   join: (c: Challenge) => Promise<void>; leave: (c: Challenge) => Promise<void>; cancel: (c: Challenge) => Promise<void>;
   setError: (e: string | null) => void;
@@ -28,6 +31,8 @@ export function ChallengesProvider({ children }: { children: React.ReactNode }) 
   const [members, setMembers] = useState<Record<string, ChallengeMember[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const namesRef = useRef(names); namesRef.current = names;
   const dataRef = useRef(data); dataRef.current = data;
 
   /** Open ones, plus anything finished in the last week */
@@ -42,6 +47,11 @@ export function ChallengesProvider({ children }: { children: React.ReactNode }) 
         for (const r of rows) (by[r.challenge_id] ??= []).push(r);
       }
       setList(l); setMembers(by);
+      const missing = [...new Set(Object.values(by).flat().map((m) => m.user_id))].filter((id) => !namesRef.current[id]);
+      if (missing.length) {
+        try { const rows: { id: string; name: string }[] = await client.rpc("challenge_names", { ids: missing }); setNames((n) => ({ ...n, ...Object.fromEntries(rows.map((x) => [x.id, x.name])) })); }
+        catch { /* ignore */ }
+      }
       return { l, by };
     } catch { return undefined; }
   }, []);
@@ -55,7 +65,7 @@ export function ChallengesProvider({ children }: { children: React.ReactNode }) 
       const start = new Date(c.starts_at).getTime(), end = new Date(c.ends_at).getTime();
       const mine = (got.by[c.id] ?? []).some((m) => m.user_id.toLowerCase() === me);
       if (c.status === "open" && mine && accountData.ready && now >= start && now <= end + GRACE) {
-        const minutes = Math.floor(studyTime(dataRef.current, new Date(start), new Date(Math.min(now, end))) / 60);
+        const minutes = Math.floor(rewardTime(dataRef.current, new Date(start), new Date(Math.min(now, end))) / 60);
         try { await client.rpc("report_challenge", { c: c.id, minutes }); } catch { /* offline */ }
       }
       if (c.status === "open" && now >= end + GRACE) { try { await client.rpc("settle_challenge", { c: c.id }); settled = true; } catch { /* later */ } }
@@ -81,8 +91,8 @@ export function ChallengesProvider({ children }: { children: React.ReactNode }) 
   };
 
   const value: Challenges = {
-    list, members, error, busy, setError,
-    create: (g, title, minutes, fee, start, end) => perform(fee, () => client.rpc("create_challenge", { g, title, target_minutes: minutes, fee, starts_at: start.toISOString(), ends_at: end.toISOString() })),
+    list, members, error, busy, setError, names,
+    create: (title, minutes, fee, start, end) => perform(fee, () => client.rpc("create_challenge", { g: null, title, target_minutes: minutes, fee, starts_at: start.toISOString(), ends_at: end.toISOString() })),
     promise: (friend, minutes, stake, end) => perform(stake, () => client.rpc("create_promise", { to_friend: friend, target_minutes: minutes, stake, ends_at: end.toISOString() })),
     join: async (c) => { await perform(c.fee, () => client.rpc("join_challenge", { c: c.id })); },
     leave: async (c) => { await perform(0, () => client.rpc("leave_challenge", { c: c.id })); },
@@ -99,3 +109,12 @@ export function useChallenges(): Challenges {
 
 /** "6h", "1h 30m" */
 export const hm = (m: number) => { const h = Math.floor(m / 60), r = m % 60; return h === 0 ? `${r}m` : r === 0 ? `${h}h` : `${h}h ${r}m`; };
+
+/** The rules (the server checks the same: supabase/challenges.sql) */
+export const RULES = {
+  minHours: 4, minPeople: 2,
+  /** Entry fee: at least 50 rockets per hour of the goal (4h → 200, 5h → 250 …) */
+  minFee: (hours: number) => hours * 50,
+  /** Everyone finished: fee back plus as much again, at most 100 rockets per hour of the goal */
+  bonus: (fee: number, minutes: number) => Math.min(fee, Math.floor(minutes * 100 / 60)),
+};

@@ -65,7 +65,7 @@ export default function LevelPass({ fromHours, onClose }: { fromHours?: number; 
             ))}
           </div>
           <span className="row" style={{ gap: 6, fontWeight: 700 }}><RocketIcon size={18} /> {wallet(data).balance.toLocaleString()}</span>
-          {claimable.length > 0 && <button className="btn primary" style={{ background: "#F97316" }} onClick={() => claimable.forEach(actions.claimLevel)}>Claim All ({claimable.length})</button>}
+          {claimable.length > 0 && <button className="btn primary" style={{ background: "#F97316" }} onClick={async () => { for (const lv of claimable) await actions.claimLevel(lv); }}>Claim All ({claimable.length})</button>}
           <button className="btn" onClick={onClose}>Done</button>
         </div>
         <div ref={box} className="space" style={{ height: 330, borderRadius: 0, cursor: "grab", userSelect: "none" }}

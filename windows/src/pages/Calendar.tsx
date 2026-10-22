@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNav } from "../App";
 import { QuickAdd } from "../components";
 import { addDays, dayNum, duration, fullDate, isToday, monthDays, monthName, monthDay, sameDay, shiftMonth, shortDuration, startOfDay, WEEKDAYS, weekdayIndex, yearNum } from "../lib/dates";
-import { categoryOf, parity, scheduleRows, sessionsIn, slotTitle, studyOn, subjectOf, tasksOn, titleOf, useStore } from "../lib/store";
+import { categoryOf, parity, scheduleRows, sessionsIn, slotTitle, studyOn, subjectOf, tasksOn, titleOf, useStore, entryColor } from "../lib/store";
 
 export default function Calendar() {
   const { data, update, actions } = useStore();
@@ -37,7 +37,7 @@ export default function Calendar() {
             {Array.from({ length: lead }, (_, i) => <div key={"e" + i} />)}
             {days.map((d) => {
               const td = scheduleRows(data, d, ["todo"]), fx = scheduleRows(data, d, ["fixed"]), tk = tasksOn(data, d);
-              const lines = [...td.map((r) => ({ id: r.entry.id, t: titleOf(r.entry), c: r.entry.colorHex ?? categoryOf(data, r.entry.categoryID)?.colorHex ?? "var(--accent)", done: r.isDone })),
+              const lines = [...td.map((r) => ({ id: r.entry.id, t: titleOf(r.entry), c: entryColor(data, r.entry) ?? categoryOf(data, r.entry.categoryID)?.colorHex ?? "var(--accent)", done: r.isDone })),
                 ...tk.map((t) => ({ id: t.id, t: t.title, c: categoryOf(data, t.categoryID)?.colorHex ?? "#8E8E93", done: t.isDone }))];
               const done = lines.filter((l) => l.done).length, st = studyOn(data, d);
               return (

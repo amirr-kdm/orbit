@@ -3,7 +3,7 @@ import { useNav } from "../App";
 import { CellPalette, useContextMenu, MenuItem } from "../components";
 import { addDays, dualDate, minuteOfDay, monthDay, WEEKDAYS, weekdayIndex, weekStart } from "../lib/dates";
 import { EntryKind, isLight, Recurrence, RECURRENCE_BADGE, RECURRENCE_TITLE, ScheduleEntry } from "../lib/model";
-import { categoryOf, currentSlot, entryAt, isDone, parity, slotTitle, titleOf, useStore } from "../lib/store";
+import { categoryOf, currentSlot, entryAt, isDone, parity, slotTitle, titleOf, useStore, categoryLabel, orderedCategories, entryColor } from "../lib/store";
 import { useTimer } from "../lib/timer";
 
 type Key = { day: number; slot: string };
@@ -61,7 +61,7 @@ export default function Schedule() {
       { header: "Type" }, ...(["fixed", "todo"] as EntryKind[]).map((kind) => ({ label: `${e.kind === kind ? "✓ " : ""}${kind === "fixed" ? "Fixed" : "To-do"}`, onClick: () => actions.updateEntry(e.id, (x) => { x.kind = kind; }) })),
       { header: "Repeat" }, ...(Object.keys(RECURRENCE_TITLE) as Recurrence[]).map((r) => ({ label: `${e.recurrence === r ? "✓ " : ""}${RECURRENCE_TITLE[r]}`, onClick: () => actions.setRecurrence(e.id, r, viewDate) })),
       { header: "Category" }, { label: `${!e.categoryID ? "✓ " : ""}No category`, onClick: () => actions.updateEntry(e.id, (x) => { x.categoryID = undefined; }) },
-      ...data.categories.map((c) => ({ label: `${e.categoryID === c.id ? "✓ " : ""}${c.name}`, onClick: () => actions.updateEntry(e.id, (x) => { x.categoryID = c.id; }) })),
+      ...orderedCategories(data).map((c) => ({ label: `${e.categoryID === c.id ? "✓ " : ""}${categoryLabel(data, c.id)}`, onClick: () => actions.updateEntry(e.id, (x) => { x.categoryID = c.id; }) })),
       { separator: true },
       ...(e.kind === "todo" ? [
         { label: isDone(data, { kind: "schedule", id: e.id }, day) ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone({ kind: "schedule", id: e.id }, day) },
@@ -120,7 +120,7 @@ export default function Schedule() {
                 const k = { day, slot: s.id };
                 const e = entry(k);
                 const isEdit = same(k, editing);
-                const hex = isEdit ? editColor : e?.colorHex;
+                const hex = isEdit ? editColor : e ? entryColor(data, e) : undefined;
                 const color = hex ?? (e || isEdit ? "#5B7CFA" : undefined);
                 const done = e?.kind === "todo" && isDone(data, { kind: "schedule", id: e.id }, date);
                 const isNow = day === todayIdx && cur?.id === s.id;
@@ -167,7 +167,7 @@ export default function Schedule() {
         </div>
         <select value={cat ?? ""} title="Category of the selected cell (and new cells)" onChange={(e) => { const v = e.target.value || undefined; setNewCat(v); if (selectedEntry) actions.updateEntry(selectedEntry.id, (x) => { x.categoryID = v; }); }}>
           <option value="">🏷 No category</option>
-          {data.categories.map((c) => <option key={c.id} value={c.id}>🏷 {c.name}</option>)}
+          {orderedCategories(data).map((c) => <option key={c.id} value={c.id}>🏷 {categoryLabel(data, c.id)}</option>)}
         </select>
         <select value={rec} title="Which weeks the cell appears in" onChange={(e) => { const r = e.target.value as Recurrence; setNewRec(r); if (selectedEntry) actions.setRecurrence(selectedEntry.id, r, viewDate); }}>
           {(Object.keys(RECURRENCE_TITLE) as Recurrence[]).map((r) => <option key={r} value={r}>🔁 {RECURRENCE_TITLE[r]}</option>)}

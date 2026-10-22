@@ -1,3 +1,4 @@
+import { useFightClub } from "../lib/fightclub";
 import { useEffect, useRef, useState } from "react";
 import { Avatar, Modal } from "../components";
 import { useAccount } from "../lib/account";
@@ -155,6 +156,22 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** World Boss health: hours per member (applies from the next monster) */
+function BossHours() {
+  const fc = useFightClub();
+  const [h, setH] = useState(fc.hoursPerMember);
+  useEffect(() => setH(fc.hoursPerMember), [fc.hoursPerMember]);
+  return (
+    <div className="card" style={{ padding: 12 }}>
+      <b>💥 World Boss health</b>
+      <div className="row" style={{ marginTop: 6 }}><input type="number" min={1} max={100} value={h} style={{ width: 70 }} onChange={(e) => setH(Math.max(1, Math.min(100, Math.round(+e.target.value) || 1)))} />
+        <span className="small">hours per member</span><span className="spacer" />
+        <button className="btn small primary" disabled={h === fc.hoursPerMember} onClick={() => fc.setHoursPerMember(h)}>Save</button></div>
+      <div className="small muted">Applies from the next week's monster.</div>
+    </div>
+  );
+}
+
 /** The owner's admin panel (right side). The server refuses these calls for anyone else. */
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const a = useAccount();
@@ -166,6 +183,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
       <div className="row"><b style={{ color: "#F97316", fontSize: 18 }}>👑 Admin</b><span className="spacer" />
         <button className="icon-btn" title="Refresh" onClick={a.loadUsers}>↻</button><button className="icon-btn" onClick={onClose}>✕</button></div>
       <div className="small muted">Only you see this panel. {members.length} members · {pending.length} waiting</div>
+      <BossHours />
       <div className="small" style={{ fontWeight: 800, letterSpacing: 1, color: "var(--faint)", marginTop: 8 }}>WAITING FOR APPROVAL</div>
       {!pending.length && <div className="small muted">No one is waiting.</div>}
       {pending.map((u) => (

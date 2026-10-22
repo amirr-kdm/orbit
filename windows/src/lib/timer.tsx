@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { uid } from "./model";
-import { categoryOf, TodoRef, titleOf, useStore } from "./store";
+import { categoryLabel, categoryOf, TodoRef, titleOf, useStore } from "./store";
 import { useFriends } from "./friends";
 
 type Mode = "stopwatch" | "pomodoro";
@@ -63,9 +63,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     } else if (target?.kind === "task") {
       const t = d.tasks.find((x) => x.id === target.id);
       taskID = target.id; cat = t?.categoryID ?? cat;
-      const c = categoryOf(d, cat); subject = c?.name ?? t?.title ?? ""; colorHex = c?.colorHex ?? "#8E8E93";
+      const c = categoryOf(d, cat); subject = categoryLabel(d, cat) ?? t?.title ?? ""; colorHex = c?.colorHex ?? "#8E8E93";
     } else {
-      const c = categoryOf(d, cat); subject = c?.name ?? "Free study"; colorHex = c?.colorHex ?? "#8E8E93";
+      const c = categoryOf(d, cat); subject = categoryLabel(d, cat) ?? "Free study"; colorHex = c?.colorHex ?? "#8E8E93";
     }
     actions.addSession({ id: uid(), categoryID: cat, taskID, scheduleEntryID, subject, colorHex,
       start: new Date(sessionStart).toISOString(), duration: Math.round(seconds), note });

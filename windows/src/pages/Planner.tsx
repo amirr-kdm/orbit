@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { CellPalette, MenuItem, Modal, useContextMenu } from "../components";
 import { addDays, monthDay, WEEKDAYS, WEEKDAYS_SHORT, weekStart } from "../lib/dates";
 import { isLight, Planner as PlannerT, PlannerFolder, uid, Recurrence, RECURRENCE_TITLE, ScheduleEntry } from "../lib/model";
-import { ApplyResult, applyPlannerTo, categoryOf, ConflictChoice, fixedAt, parity, plannerConflicts, slotOf, slotTitle, titleOf, useStore } from "../lib/store";
+import { ApplyResult, applyPlannerTo, categoryOf, ConflictChoice, fixedAt, parity, plannerConflicts, slotOf, slotTitle, titleOf, useStore, categoryLabel, orderedCategories, entryColor } from "../lib/store";
 
 /** Planners: draft weeks with brainstorm notes that can be copied into the weekly schedule */
 export default function Planner() {
@@ -188,7 +188,7 @@ function PlannerDetail({ planner }: { planner: PlannerT }) {
                 </div>
               );
               const isEdit = same(k, editing);
-              const hex = isEdit ? editColor : e?.colorHex;
+              const hex = isEdit ? editColor : e ? entryColor(data, e) : undefined;
               const color = hex ?? (e || isEdit ? "#5B7CFA" : undefined);
               const textColor = color && (e || isEdit) ? (isLight(color) ? "rgba(0,0,0,.8)" : "white") : undefined;
               const c = categoryOf(data, e?.categoryID);
@@ -199,7 +199,7 @@ function PlannerDetail({ planner }: { planner: PlannerT }) {
                   onContextMenu={(ev) => menu.open(ev, [
                     { label: "Edit", onClick: () => begin(k) },
                     ...(e ? [{ header: "Category" }, { label: `${!e.categoryID ? "✓ " : ""}No category`, onClick: () => setEntry(e.id, (x) => { x.categoryID = undefined; }) },
-                      ...data.categories.map((cc) => ({ label: `${e.categoryID === cc.id ? "✓ " : ""}${cc.name}`, onClick: () => setEntry(e.id, (x) => { x.categoryID = cc.id; }) })),
+                      ...orderedCategories(data).map((cc) => ({ label: `${e.categoryID === cc.id ? "✓ " : ""}${categoryLabel(data, cc.id)}`, onClick: () => setEntry(e.id, (x) => { x.categoryID = cc.id; }) })),
                       { separator: true }, { label: "Clear cell", onClick: () => actions.updatePlanner(planner.id, (p) => { p.entries = p.entries.filter((x) => x.id !== e.id); }) }] : []),
                   ] as MenuItem[])}>
                   {isEdit ? (
@@ -220,7 +220,7 @@ function PlannerDetail({ planner }: { planner: PlannerT }) {
         <CellPalette selection={editing ? editColor : selectedEntry?.colorHex ?? paletteColor} onPick={applyColor} />
         <select value={cat ?? ""} title="Category of the selected cell (and new cells)" onChange={(e) => { const v = e.target.value || undefined; setNewCat(v); if (selectedEntry) setEntry(selectedEntry.id, (x) => { x.categoryID = v; }); }}>
           <option value="">🏷 No category</option>
-          {data.categories.map((c) => <option key={c.id} value={c.id}>🏷 {c.name}</option>)}
+          {orderedCategories(data).map((c) => <option key={c.id} value={c.id}>🏷 {categoryLabel(data, c.id)}</option>)}
         </select>
         <span className="spacer" />
         <span className="small muted">🔒 Class times from your weekly schedule are locked</span>
