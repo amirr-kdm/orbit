@@ -1049,13 +1049,6 @@ struct FightClubPage: View {
             }
             .padding(24)
         }
-        .background {
-            ZStack {
-                StarsBackground()
-                RadialGradient(colors: [Color.red.opacity(0.18), .clear], center: UnitPoint(x: 0.3, y: 0.2), startRadius: 10, endRadius: 600)
-            }
-            .ignoresSafeArea()
-        }
         .environment(\.colorScheme, .dark)
         .navigationTitle("Fight Club")
         .task { await fc.load() }
