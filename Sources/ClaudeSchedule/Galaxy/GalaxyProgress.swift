@@ -136,10 +136,12 @@ extension AppStore {
         change(&solarSystems[i])
     }
 
-    /// Removes an empty system (the last one can't be removed)
+    /// Removes a system (the last one can't be removed); its planets move to systems with room
     func deleteSystem(_ id: UUID) {
-        guard solarSystems.count > 1, !galaxy.contains(where: { $0.systemID == id }) else { return }
+        guard solarSystems.count > 1 else { return }
         solarSystems.removeAll { $0.id == id }
+        for i in galaxy.indices where galaxy[i].systemID == id { galaxy[i].systemID = nil }
+        ensureHomeSystem()
     }
 
     /// Make sure there is at least one system and every planet belongs to one

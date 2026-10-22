@@ -36,6 +36,7 @@ struct GalaxyPage: View {
     /// A bought planet opened on the Your Store Planets shelf
     @State private var selectedStore: String?
     @State private var focusedSystem: UUID?
+    @State private var deleting: UUID?
     @State private var targetSystem: UUID?
     @State private var toast: String?
     @State private var zoom = 0.62
@@ -121,7 +122,18 @@ struct GalaxyPage: View {
 
         return ZStack(alignment: .topLeading) {
             // One continuous map: opening a system is just the camera zooming in on it
-            GalaxyMapView(data: data, zoom: zoom, focused: focusedSystem, onMove: { id, p in store.moveSystem(id, to: p) }, onSelect: { id in focusedSystem = id }, onZoom: { zoom = $0 })
+            GalaxyMapView(data: data, zoom: zoom, focused: focusedSystem, onMove: { id, p in store.moveSystem(id, to: p) }, onSelect: { id in focusedSystem = id },
+                          onDelete: store.solarSystems.count > 1 ? { deleting = $0 } : nil, onZoom: { zoom = $0 })
+                .confirmationDialog("Delete \(store.solarSystems.first { $0.id == deleting }?.name ?? "this system")?",
+                                    isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
+                    Button("Delete", role: .destructive) {
+                        if let id = deleting { store.deleteSystem(id); if focusedSystem == id { withAnimation { focusedSystem = nil } } }
+                        deleting = nil
+                    }
+                } message: {
+                    let n = store.galaxy.filter { $0.systemID == deleting }.count
+                    Text(n == 0 ? "It's empty." : "Its \(n) planet\(n == 1 ? "" : "s") move to another system with room — nothing is lost.")
+                }
 
             // Overlay: title + controls
             HStack(alignment: .top) {
@@ -218,12 +230,9 @@ struct GalaxyPage: View {
                     Button(name) { store.updateSystem(system.id) { $0.name = name } }
                 }
             }
-            if system.planets.isEmpty && store.solarSystems.count > 1 {
+            if store.solarSystems.count > 1 {
                 Divider()
-                Button("Delete Empty System", role: .destructive) {
-                    store.deleteSystem(system.id)
-                    withAnimation { focusedSystem = nil }
-                }
+                Button("Delete System…", role: .destructive) { deleting = system.id }
             }
         } label: {
             Label("Customize", systemImage: "slider.horizontal.3")
@@ -511,6 +520,8 @@ struct GalaxyMapView: View {
     /// Set to let the user drag solar systems around (their own galaxy only)
     var onMove: ((UUID, CGPoint) -> Void)? = nil
     var onSelect: ((UUID) -> Void)?
+    /// Right-click → delete (nil: not offered, e.g. the last system)
+    var onDelete: ((UUID) -> Void)? = nil
     /// Pinch changes the outside zoom (e.g. the slider) instead of a private one
     var onZoom: ((Double) -> Void)? = nil
     static let zoomRange = 0.35...1.3
@@ -568,6 +579,12 @@ struct GalaxyMapView: View {
                         .opacity(focused == nil || isOpen ? 1 : 0)
                         .position(x: base.x * zoom, y: base.y * zoom)
                         .help(focused == nil ? "Open \(system.name)" : "")
+                        .contextMenu {
+                            if focused == nil {
+                                Button("Open \(system.name)") { onSelect?(system.id) }
+                                if let onDelete { Button("Delete \(system.name)…", role: .destructive) { onDelete(system.id) } }
+                            }
+                        }
                 }
             }
             .frame(width: w, height: h)
