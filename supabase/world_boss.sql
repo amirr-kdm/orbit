@@ -4,11 +4,13 @@
 -- Each week (Saturday → Friday, Tehran time) one monster appears for everyone. Its health is
 -- (approved members when it appears) × (hours per member, 5 by default; only the admin can change it,
 -- and a change applies from the next monster). Every minute an Orbiter studies that week is a bullet.
--- Beat it before the week ends → 45 rockets per hour of its health, shared by damage done.
+-- The monster is picked at random (7 kinds). Beat it before the week ends → 1000 rockets, shared by damage done.
 -- Nobody summons monsters any more.
 
 alter table public.bosses add column if not exists world_week date;   -- set for the weekly World Boss
 create unique index if not exists bosses_world_week on public.bosses (world_week) where world_week is not null;
+alter table public.bosses drop constraint if exists bosses_monster_check;
+alter table public.bosses add constraint bosses_monster_check check (monster between 1 and 7);
 alter table public.bosses drop constraint if exists bosses_hp_check;
 alter table public.bosses add constraint bosses_hp_check check (hp between 30 and 1000000);
 
@@ -48,7 +50,7 @@ begin
     ends := ((week_start + 7)::timestamp) at time zone 'Asia/Tehran';
     insert into bosses (creator, title, hp, deadline, monster, status, created_at, world_week)
       values (auth.uid(), 'World Boss · ' || to_char(week_start, 'Mon DD'), greatest(30, n * coalesce(h, 5) * 60), ends,
-              (extract(week from week_start)::int % 5) + 1, 'alive', begins, week_start)
+              1 + floor(random() * 7)::int, 'alive', begins, week_start)
       on conflict do nothing;
   end if;
   return query select * from bosses where world_week = week_start;
@@ -70,14 +72,14 @@ begin
 end;
 $$;
 
--- A World Boss pays 45 rockets per hour of its health (no size bonus); others as before
+-- A World Boss pays 1000 rockets in all; others as before
 create or replace function public.pay_boss(b uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare x bosses; total int; pool int; f record;
 begin
   select * into x from bosses where id = b;
   select coalesce(sum(damage), 0) into total from boss_fighters where boss_id = b;
-  pool := case when x.world_week is not null then floor(x.hp / 60.0 * 45)::int else public.boss_pool(x.hp) end;
+  pool := case when x.world_week is not null then 1000 else public.boss_pool(x.hp) end;
   for f in select user_id, damage from boss_fighters where boss_id = b and damage > 0 loop
     perform public.move_rockets(f.user_id, greatest(1, floor(pool::numeric * f.damage / greatest(1, total))::int),
       'Beat ' || x.title || ' — ' || f.damage || ' damage');

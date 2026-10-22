@@ -674,6 +674,7 @@ struct StudyBreakdown: View {
 private struct AllOrbitersSection: View {
     @Environment(FriendsService.self) private var friends
     @Environment(AppStore.self) private var store
+    @State private var showing: ProfileTarget?
 
     var body: some View {
         let list = friends.orbiters
@@ -690,10 +691,16 @@ private struct AllOrbitersSection: View {
                     Text(i < 3 ? ["🥇", "🥈", "🥉"][i] : "\(i + 1)")
                         .font(i < 3 ? .title3 : .callout.weight(.bold).monospacedDigit())
                         .frame(width: 30)
-                    Avatar(name: o.name, color: .accentColor, size: 34, planet: o.avatar)
+                    Button { showing = ProfileTarget(id: o.id) } label: {
+                        Avatar(name: o.name, color: .accentColor, size: 34, planet: o.avatar)
+                    }
+                    .buttonStyle(.plain).help("Open \(o.name)'s profile")
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
-                            Text(o.id == me ? "\(o.name) (you)" : o.name).font(.headline).lineLimit(1)
+                            Button { showing = ProfileTarget(id: o.id) } label: {
+                                Text(o.id == me ? "\(o.name) (you)" : o.name).font(.headline).lineLimit(1)
+                            }
+                            .buttonStyle(.plain)
                             if let lv = o.level {
                                 Text("LV \(lv)").font(.caption2.weight(.heavy))
                                     .padding(.horizontal, 6).padding(.vertical, 1)
@@ -713,6 +720,7 @@ private struct AllOrbitersSection: View {
             }
         }
         .task { await friends.loadOrbiters() }
+        .sheet(item: $showing) { OrbiterProfileSheet(userID: $0.id) }
     }
 
     @ViewBuilder

@@ -262,6 +262,22 @@ final class FriendsService {
         orbiters = list
     }
 
+    /// One member's public card (anyone in Orbit): name, planet, level, streak, World Bosses beaten
+    struct OrbiterProfile: Decodable {
+        let id: UUID
+        let name: String
+        let avatar: String?
+        let level: Int?
+        let streak: Int?
+        let slain: Int
+        let joined: Date?
+    }
+
+    func profile(of id: UUID) async -> OrbiterProfile? {
+        guard let data = try? await client.rpc("orbiter_profile", ["uid": id.uuidString]) else { return nil }
+        return (try? SupabaseClient.decoder.decode([OrbiterProfile].self, from: data))?.first
+    }
+
     // MARK: Friend requests
 
     func isFriend(_ id: UUID) -> Bool { friends.contains { $0.id == id } }

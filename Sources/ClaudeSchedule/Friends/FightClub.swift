@@ -18,7 +18,7 @@ struct Boss: Decodable, Identifiable, Hashable {
     var isWorld: Bool { world_week != nil }
 
     /// Same as the server: 45 rockets per hour of the goal, +15% per monster level above 1
-    var pool: Int { isWorld ? hp * 45 / 60 : Int((Double(hp) / 60 * 45 * (1 + 0.15 * Double(monster - 1))).rounded(.down)) }
+    var pool: Int { isWorld ? 1000 : Int((Double(hp) / 60 * 45 * (1 + 0.15 * Double(monster - 1))).rounded(.down)) }
     var isAlive: Bool { status == "alive" }
 }
 
@@ -99,13 +99,16 @@ final class FightClubService {
     /// Admin setting: hours of health per member for the next World Bosses
     private(set) var hoursPerMember = 5
 
-    func load() async {
+    /// `light`: only the monsters and fighters (right after firing — keeps the fight smooth)
+    func load(light: Bool = false) async {
         guard await client.userID != nil else { return }
-        // make sure this week's World Boss exists (the first app to ask creates it)
-        struct Week: Encodable { let week_start: String }
-        _ = try? await client.rpc("world_boss", Week(week_start: Cal.dayKey(Cal.weekStart(Date()))))
-        struct Setting: Decodable { let hours_per_member: Int }
-        if let s = try? await client.select("boss_settings?select=hours_per_member", as: [Setting].self).first { hoursPerMember = s.hours_per_member }
+        if !light {
+            // make sure this week's World Boss exists (the first app to ask creates it)
+            struct Week: Encodable { let week_start: String }
+            _ = try? await client.rpc("world_boss", Week(week_start: Cal.dayKey(Cal.weekStart(Date()))))
+            struct Setting: Decodable { let hours_per_member: Int }
+            if let s = try? await client.select("boss_settings?select=hours_per_member", as: [Setting].self).first { hoursPerMember = s.hours_per_member }
+        }
         let since = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7 * 86400))
         do {
             let list = try await client.select("bosses?or=(status.eq.alive,deadline.gt.\(since))&order=created_at.desc", as: [Boss].self)
@@ -255,7 +258,7 @@ final class FightClubService {
             if store.accountReady { _ = try await client.rpc("report_boss", Report(b: b.id.uuidString, mins: earned(b))) }
             _ = try await client.rpc("fire_boss", Fire(b: b.id.uuidString, shots: shots, hits: hits))
             error = nil
-            await load()
+            await load(light: true)
             let after = bosses.first { $0.id == b.id }.map(healthLeft) ?? before
             if after == 0 { await onRocketsMoved?() }
             return max(0, before - after)
@@ -269,7 +272,7 @@ final class FightClubService {
 
 // MARK: - Views
 
-func monsterImage(_ n: Int) -> NSImage? { PlanetPainter.bundleImage("boss\(min(5, max(1, n)))") }
+func monsterImage(_ n: Int) -> NSImage? { PlanetPainter.bundleImage("boss\(min(7, max(1, n)))") }
 private func hm(_ m: Int) -> String { let h = m / 60, r = m % 60; return h == 0 ? "\(r)m" : (r == 0 ? "\(h)h" : "\(h)h \(r)m") }
 
 /// Monsters you fight
@@ -729,6 +732,11 @@ struct BattleView: View {
     @State private var holdLeft = false
     @State private var holdRight = false
     @State private var lastShot = Date.distantPast
+    /// Sent to the server but not answered yet: still counted, so health and bullets never jump back
+    @State private var inFlightShots = 0
+    @State private var inFlightHits = 0
+    /// The monster's pace for this visit: fixed, so its path never jumps when its health changes
+    @State private var fixedPace: Double?
     private let start = Date()
 
     struct Bullet: Identifiable { let id = UUID(); let x: CGFloat; let t0: Double; let hit: Bool }
@@ -736,8 +744,8 @@ struct BattleView: View {
 
     var body: some View {
         if let b = fc.bosses.first(where: { $0.id == bossID }) {
-            let ammo = max(0, fc.ammo(b, me: friends.me?.id) - pendingShots)
-            let left = max(0, fc.healthLeft(b) - pendingHits)
+            let ammo = max(0, fc.ammo(b, me: friends.me?.id) - pendingShots - inFlightShots)
+            let left = max(0, fc.healthLeft(b) - pendingHits - inFlightHits)
             VStack(spacing: 0) {
                 header(b, left: left)
                 arena(b, left: left, ammo: ammo)
@@ -749,7 +757,7 @@ struct BattleView: View {
             .focusable()
             .focused($focused)
             .focusEffectDisabled()
-            .onAppear { focused = true }
+            .onAppear { focused = true; fixedPace = pace(b, left) }
             // Keyboard: hold ← → (or A D) to fly, Space to fire (hold for rapid fire)
             .onKeyPress(keys: [.leftArrow, .rightArrow, "a", "d"], phases: [.down, .repeat, .up]) { press in
                 let left = press.key == .leftArrow || press.key.character == "a"
@@ -789,12 +797,12 @@ struct BattleView: View {
 
     /// Where the monster's centre is (0…1 across) at time t — a wandering, dodging path
     private func monsterX(_ b: Boss, _ left: Int, at t: Double) -> CGFloat {
-        let p = pace(b, left)
+        let p = fixedPace ?? pace(b, left)
         let wander = sin(t * p) * 0.7 + sin(t * p * 2.3 + 1.1) * 0.25 + sin(t * p * 0.37 + 2) * 0.2
         return 0.5 + CGFloat(wander) * 0.33
     }
 
-    private func monsterSize(_ b: Boss) -> CGFloat { min(arenaSize.height * 0.5, 120 + CGFloat(b.monster) * 18) }
+    private func monsterSize(_ b: Boss) -> CGFloat { b.isWorld ? min(arenaSize.height * 0.5, 190) : min(arenaSize.height * 0.5, 120 + CGFloat(b.monster) * 18) }
 
     // MARK: Views
 
@@ -802,7 +810,9 @@ struct BattleView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(b.title).font(.title2.weight(.bold))
-                Text("LV \(b.monster)").font(.caption.weight(.heavy)).padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.red.opacity(0.3)))
+                if !b.isWorld {
+                    Text("LV \(b.monster)").font(.caption.weight(.heavy)).padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.red.opacity(0.3)))
+                }
                 Spacer()
                 Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Escapes \(b.deadline.formatted(.relative(presentation: .named)))")
                     .font(.callout).foregroundStyle(.secondary)
@@ -971,8 +981,10 @@ struct BattleView: View {
         guard !flushing, pendingShots > 0 else { return }
         flushing = true
         let shots = pendingShots, hits = pendingHits
+        inFlightShots = shots; inFlightHits = hits
         pendingShots = 0; pendingHits = 0
         await fc.fire(b, shots: shots, hits: hits)
+        inFlightShots = 0; inFlightHits = 0
         flushing = false
     }
 }
@@ -982,6 +994,7 @@ struct FightClubPage: View {
     @Environment(FightClubService.self) private var fc
     @Environment(FriendsService.self) private var friends
     @State private var battle: Boss?
+    @State private var showing: ProfileTarget?
 
     var body: some View {
         ScrollView {
@@ -1011,6 +1024,7 @@ struct FightClubPage: View {
         .navigationTitle("Fight Club")
         .task { await fc.load() }
         .sheet(item: $battle) { BattleView(bossID: $0.id) }
+        .sheet(item: $showing) { OrbiterProfileSheet(userID: $0.id) }
     }
 
     private func worldCard(_ b: Boss) -> some View {
@@ -1021,9 +1035,11 @@ struct FightClubPage: View {
         return HStack(spacing: 24) {
             ZStack {
                 Circle().fill(RadialGradient(colors: [Color.red.opacity(0.35), .clear], center: .center, startRadius: 10, endRadius: 120))
-                if let img = monsterImage(b.monster) {
+                if !b.isAlive, let grave = PlanetPainter.bundleImage("boss-grave") {
+                    Image(nsImage: grave).resizable().scaledToFill().frame(width: 180, height: 180)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                } else if let img = monsterImage(b.monster) {
                     Image(nsImage: img).resizable().scaledToFit().frame(width: 170, height: 170)
-                        .saturation(b.isAlive ? 1 : 0).opacity(b.status == "escaped" ? 0.5 : 1)
                 }
             }
             .frame(width: 210, height: 210)
@@ -1046,7 +1062,7 @@ struct FightClubPage: View {
                     stat("scope", "\(fc.me(b, me)?.damage ?? 0)", "your damage")
                     stat("gift.fill", "\(b.pool) 🚀", "prize, split by damage")
                 }
-                Text("Health = Orbit's members × \(fc.hoursPerMember)h. Every minute you study this week (with the timer) is one bullet.")
+                Text("Every minute you study this week (with the timer) is one bullet. A new monster comes every Saturday, with \(fc.hoursPerMember)h of health per Orbiter.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button { battle = b } label: { Label(b.isAlive ? "Fight" : "View", systemImage: "scope").frame(width: 120) }
@@ -1079,7 +1095,10 @@ struct FightClubPage: View {
                 let name = f.user_id == me ? "You" : (friends.people[f.user_id]?.profile.name ?? fc.names[f.user_id] ?? "Orbiter")
                 HStack(spacing: 10) {
                     Text(i < 3 ? ["🥇", "🥈", "🥉"][i] : "\(i + 1)").frame(width: 28)
-                    Text(name).font(.headline).lineLimit(1).frame(width: 140, alignment: .leading)
+                    Button { showing = ProfileTarget(id: f.user_id) } label: {
+                        Text(name).font(.headline).lineLimit(1).frame(width: 140, alignment: .leading)
+                    }
+                    .buttonStyle(.plain).help("Open profile")
                     ProgressView(value: Double(f.damage), total: Double(total)).tint(f.user_id == me ? .orange : .red)
                     Text("\(f.damage) dmg").font(.callout.monospacedDigit()).frame(width: 80, alignment: .trailing)
                     Text("~\(b.pool * f.damage / total) 🚀").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 70, alignment: .trailing)

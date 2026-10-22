@@ -194,10 +194,15 @@ struct ChallengesPage: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: 16) {
-            Image(systemName: "flag.checkered.2.crossed")
-                .font(.system(size: 26, weight: .bold)).foregroundStyle(.white)
-                .frame(width: 56, height: 56)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            Group {
+                if let img = PlanetPainter.bundleImage("challenge-fire") {
+                    Image(nsImage: img).resizable().scaledToFit().padding(6)
+                } else {
+                    Image(systemName: "flag.checkered.2.crossed").font(.system(size: 26, weight: .bold)).foregroundStyle(.orange)
+                }
+            }
+            .frame(width: 64, height: 64)
+            .background(Circle().fill(Color.orange.opacity(0.12)))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Challenges").font(.title.weight(.bold))
                 Text("Study together with every Orbit member for rockets. Everyone pays the entry fee and anyone can join until it starts.")
@@ -240,6 +245,7 @@ private struct ChallengeCard: View {
     let challenge: Challenge
     let now: Date
     @Binding var confirmCancel: Challenge?
+    @State private var showing: ProfileTarget?
     @Environment(ChallengeService.self) private var service
     @Environment(FriendsService.self) private var friends
 
@@ -279,7 +285,10 @@ private struct ChallengeCard: View {
             ForEach(people, id: \.user_id) { m in
                 let name = m.user_id == me ? "You" : (friends.people[m.user_id]?.profile.name ?? service.names[m.user_id] ?? "Member")
                 HStack(spacing: 8) {
-                    Text(name).font(.callout).frame(width: 100, alignment: .leading).lineLimit(1)
+                    Button { if m.user_id != me { showing = ProfileTarget(id: m.user_id) } } label: {
+                        Text(name).font(.callout).frame(width: 100, alignment: .leading).lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
                     ProgressView(value: min(1, Double(m.minutes) / Double(max(1, c.target_minutes))))
                         .tint(m.minutes >= c.target_minutes ? .green : .accentColor)
                     Text("\(hm(m.minutes)) / \(hm(c.target_minutes))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -308,6 +317,7 @@ private struct ChallengeCard: View {
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(state.1.opacity(0.25)))
+        .sheet(item: $showing) { OrbiterProfileSheet(userID: $0.id) }
     }
 
     private func fact(_ icon: String, _ value: String, _ label: String) -> some View {

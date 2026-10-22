@@ -36,3 +36,18 @@ begin
   return 'sent';
 end;
 $$;
+
+-- One member's public card: name, planet, level, streak, World Bosses they helped beat, when they joined.
+-- (Study hours and subjects are only for friends — the app takes those from what friends already share.)
+create or replace function public.orbiter_profile(uid uuid)
+returns table (id uuid, name text, avatar text, level int, streak int, slain int, joined timestamptz)
+language sql stable security definer set search_path = public as $$
+  select p.id, coalesce(p.username, p.name), p.avatar, p.level, p.streak,
+         (select count(*) from boss_fighters f join bosses x on x.id = f.boss_id
+           where f.user_id = p.id and f.damage > 0 and x.world_week is not null and x.status = 'defeated')::int,
+         p.created_at
+  from profiles p
+  where public.is_approved() and p.id = uid and p.approved;
+$$;
+revoke all on function public.orbiter_profile(uuid) from public, anon;
+grant execute on function public.orbiter_profile(uuid) to authenticated;
