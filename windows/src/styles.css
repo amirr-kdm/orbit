@@ -252,3 +252,4 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .cal-cell .row > .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .btn { white-space: nowrap; }
 .page > .row { flex-wrap: wrap; row-gap: 8px; }
+.streak-pop { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }

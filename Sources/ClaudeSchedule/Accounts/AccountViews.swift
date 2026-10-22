@@ -436,7 +436,7 @@ private struct StreakChip: View {
                     Text("\(info.freezesLeft) of \(StreakInfo.freezesPerMonth) freezes left this month").font(.callout)
                 }
                 Text("Miss a day and a freeze is used automatically, so your streak survives. You get 3 new ones every month.")
-                    .font(.caption).foregroundStyle(.secondary).frame(width: 240, alignment: .leading)
+                    .font(.caption).foregroundStyle(.secondary).frame(width: 240, alignment: .leading).fixedSize(horizontal: false, vertical: true)
                 if !info.frozen.isEmpty {
                     Text("Frozen: " + info.frozen.prefix(5).map { Fmt.date($0, "MMM d", .persian) }.joined(separator: ", "))
                         .font(.caption).foregroundStyle(.cyan)
