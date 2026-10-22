@@ -1,4 +1,5 @@
 import { rtfToHtml } from "../lib/rtf";
+import { cellLook, isDarkMode, templateOf } from "../lib/themes";
 import React, { useEffect, useRef, useState } from "react";
 import { CellPalette, MenuItem, Modal, useContextMenu } from "../components";
 import { addDays, monthDay, WEEKDAYS, WEEKDAYS_SHORT, weekStart } from "../lib/dates";
@@ -118,6 +119,7 @@ type Key = { day: number; slot: string };
 
 function PlannerDetail({ planner }: { planner: PlannerT }) {
   const { data, actions } = useStore();
+  const tpl = templateOf(data.settings.template);
   const menu = useContextMenu();
   const [offset, setOffset] = useState(1);
   const [editing, setEditing] = useState<Key | null>(null);
@@ -189,12 +191,13 @@ function PlannerDetail({ planner }: { planner: PlannerT }) {
               );
               const isEdit = same(k, editing);
               const hex = isEdit ? editColor : e ? entryColor(data, e) : undefined;
-              const color = hex ?? (e || isEdit ? "#5B7CFA" : undefined);
-              const textColor = color && (e || isEdit) ? (isLight(color) ? "rgba(0,0,0,.8)" : "white") : undefined;
+              const color = hex ?? (e || isEdit ? tpl.cell : undefined);
+              const look = cellLook(tpl, color, !!(e || isEdit), isDarkMode(data.settings.appearance));
+              const textColor = e || isEdit ? look.text : undefined;
               const c = categoryOf(data, e?.categoryID);
               return (
                 <div key={s.id} className={`cell ${e || isEdit ? "filled" : ""} ${same(k, selected) ? "selected" : ""}`}
-                  style={color && (e || isEdit) ? { background: `linear-gradient(135deg, ${color}, ${color}bb)`, color: textColor } : undefined}
+                  style={{ ...look.style, color: textColor }}
                   onClick={(ev) => { ev.stopPropagation(); begin(k); }}
                   onContextMenu={(ev) => menu.open(ev, [
                     { label: "Edit", onClick: () => begin(k) },

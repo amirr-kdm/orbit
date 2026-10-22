@@ -16,6 +16,7 @@ import Friends from "./pages/Friends";
 import FightClubPage from "./pages/FightClub";
 import ChallengesPage from "./pages/Challenges";
 import About from "./pages/About";
+import { ambient, fontOf, templateOf } from "./lib/themes";
 import Settings from "./pages/Settings";
 import iconUrl from "./icon.png";
 import { useAccount } from "./lib/account";
@@ -65,11 +66,15 @@ export default function App() {
       const dark = data.settings.appearance === "dark" || (data.settings.appearance === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
       document.documentElement.dataset.theme = dark ? "dark" : "light";
       document.documentElement.style.setProperty("--accent", data.settings.accent);
+      // the template's soft colour blobs behind every page, and a whole-app font
+      document.documentElement.style.setProperty("--ambient", ambient(templateOf(data.settings.template), dark) || "none");
+      const f = fontOf(data.settings.font);
+      document.body.style.fontFamily = f.whole ? f.css : "";
     };
     apply();
     const mq = matchMedia("(prefers-color-scheme: dark)"); mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
-  }, [data.settings.appearance, data.settings.accent]);
+  }, [data.settings.appearance, data.settings.accent, data.settings.template, data.settings.font]);
 
   useEffect(() => { document.title = timer.active ? `⏱ ${clock(timer.display)} · Orbit` : "Orbit"; }, [timer.active, timer.display]);
 

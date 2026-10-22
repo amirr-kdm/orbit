@@ -77,6 +77,11 @@ export interface Settings {
   cellPalette: string[];
   /** To-dos that have a category take its colour (otherwise each cell keeps its own colour) */
   categoryColors?: boolean;
+  /** Design template (lib/themes.ts) — same names as the Mac app */
+  template?: string;
+  /** Font (lib/themes.ts FONTS) and the weekly schedule's cell text size */
+  font?: string;
+  scheduleFontSize?: number;
 }
 
 /** A rich-text note inside a planner (HTML) */

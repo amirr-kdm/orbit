@@ -248,10 +248,22 @@ function starTileURL() {
 
 /** The galaxy: endless, systems on a spiral (or where you dragged them). Drag the sky to move, drag a system to place it,
  *  pinch (Ctrl + wheel) or the slider to zoom. Opening a system is the camera zooming in on it — one continuous view. */
+/** A pinch on a touchpad arrives as Ctrl + wheel: keep it from zooming the whole window (React's wheel
+ *  listeners are passive and can't stop it, so this one is added directly) */
+export function useBlockPinchZoom(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const stop = (e: WheelEvent) => { if (e.ctrlKey) e.preventDefault(); };
+    el.addEventListener("wheel", stop, { passive: false });
+    return () => el.removeEventListener("wheel", stop);
+  }, [ref]);
+}
+
 export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove }: {
   data: GalaxyData; height?: number; focused?: string | null; onSelect: (id: string) => void; onMove?: (id: string, x: number, y: number) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  useBlockPinchZoom(box);
   const [zoom, setZoom] = useState(0.62);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   /** Camera override while flying to / sitting on a system */
@@ -347,7 +359,6 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
       onWheel={(e) => {
         // Windows touchpads send a pinch as Ctrl + wheel; a plain wheel scrolls the page
         if (!e.ctrlKey || focused || cam) return;
-        e.preventDefault();
         const nz = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom * (1 - e.deltaY * 0.01)));
         setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz);
       }}

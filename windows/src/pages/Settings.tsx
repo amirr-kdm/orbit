@@ -1,6 +1,7 @@
 import { slotTime } from "../lib/dates";
 import { Appearance } from "../lib/model";
 import { orderedCategories, useStore } from "../lib/store";
+import { ambient, cellLook, FONTS, fontOf, isDarkMode, TEMPLATES, templateOf } from "../lib/themes";
 
 const ACCENTS = ["#5B7CFA", "#0EA5E9", "#E879F9", "#22D3EE", "#C2410C", "#F97316", "#16A34A", "#E11D48"];
 const toTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
@@ -10,6 +11,7 @@ export default function Settings() {
   const { data, update, actions } = useStore();
   const s = data.settings;
   const set = (fn: (st: typeof s) => void) => update((d) => fn(d.settings));
+  const dark = isDarkMode(data.settings.appearance);
 
   const exportData = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -24,6 +26,50 @@ export default function Settings() {
       <div className="card"><h3>🎨 Appearance</h3>
         <div className="row"><span style={{ width: 140 }}>Mode</span><div className="seg">{(["system", "light", "dark"] as Appearance[]).map((a) => <button key={a} className={s.appearance === a ? "on" : ""} onClick={() => set((x) => { x.appearance = a; })}>{a[0].toUpperCase() + a.slice(1)}</button>)}</div></div>
         <div className="row" style={{ marginTop: 12 }}><span style={{ width: 140 }}>Accent colour</span>{ACCENTS.map((c) => <button key={c} className={`swatch ${s.accent === c ? "on" : ""}`} style={{ background: c }} onClick={() => set((x) => { x.accent = c; })} />)}</div>
+      </div>
+
+      <div className="card"><h3>🖼 Template</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
+          {TEMPLATES.map((t) => {
+            const on = templateOf(s.template).id === t.id;
+            return (
+              <button key={t.id} onClick={() => set((x) => { x.template = t.id; x.accent = t.accent; })}
+                style={{ textAlign: "left", padding: 10, borderRadius: 14, cursor: "pointer", color: "inherit", font: "inherit",
+                  border: `2px solid ${on ? t.accent : "var(--line)"}`, background: "var(--card2)", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ height: 74, borderRadius: 10, padding: 8, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: t.fill === "grid" ? 0 : 5,
+                  backgroundColor: "var(--bg)", backgroundImage: ambient(t, dark) || undefined }}>
+                  {["#FF6B6B", undefined, "#69DB7C", "#4DABF7", "#FFD43B", undefined].map((c, i) => {
+                    const filled = i !== 1 && i !== 5, look = cellLook(t, c, filled, dark);
+                    return <div key={i} style={{ ...look.style, color: look.text, fontSize: 8, fontWeight: 700, display: "grid", placeItems: "center",
+                      ...(filled ? {} : { border: t.fill === "grid" ? look.style.border : "1px dashed var(--line)" }) }}>{filled ? "Math" : ""}</div>;
+                  })}
+                </div>
+                <div className="row" style={{ gap: 6 }}><b>{t.title}</b>{on && <span style={{ color: t.accent }}>✓</span>}</div>
+                <div className="small muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.subtitle}</div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="small muted" style={{ marginTop: 8 }}>Changes the look of the weekly schedule, the page background and the app's accent colour.</div>
+      </div>
+
+      <div className="card"><h3>🔤 Font</h3>
+        <div className="row"><span style={{ width: 140 }}>Font</span>
+          <select value={fontOf(s.font).id} onChange={(e) => set((x) => { x.font = e.target.value; })}>
+            <optgroup label="Whole app">{FONTS.filter((f) => f.whole).map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}</optgroup>
+            <optgroup label="Weekly schedule">{FONTS.filter((f) => !f.whole).map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}</optgroup>
+          </select></div>
+        <div className="row" style={{ marginTop: 10 }}><span style={{ width: 140 }}>Cell text size</span>
+          <input type="range" min={10} max={28} value={s.scheduleFontSize ?? 14} onChange={(e) => set((x) => { x.scheduleFontSize = +e.target.value; })} style={{ width: 160, padding: 0 }} />
+          <span className="muted">{s.scheduleFontSize ?? 14} pt</span></div>
+        <div className="row" style={{ marginTop: 10, gap: 10 }}>
+          {["Math 2", "Physics class\nRoom 204", "English (TOEFL)"].map((txt, i) => {
+            const t = templateOf(s.template), look = cellLook(t, undefined, true, dark);
+            return <div key={i} style={{ ...look.style, color: look.text, flex: 1, minHeight: 70, display: "grid", placeItems: "center", textAlign: "center", whiteSpace: "pre-line",
+              fontFamily: fontOf(s.font).css, fontSize: s.scheduleFontSize ?? 14, fontWeight: 600, padding: 6 }}>{txt}</div>;
+          })}
+        </div>
+        <div className="small muted" style={{ marginTop: 6 }}>“Whole app” fonts change everything. The others style the weekly schedule. Fonts your computer doesn't have fall back to a similar one.</div>
       </div>
 
       <div className="card"><h3>📆 Calendar</h3>

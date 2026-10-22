@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { cellLook, fontOf, isDarkMode, templateOf } from "../lib/themes";
 import { useNav } from "../App";
 import { CellPalette, useContextMenu, MenuItem } from "../components";
 import { addDays, dualDate, minuteOfDay, monthDay, WEEKDAYS, weekdayIndex, weekStart } from "../lib/dates";
@@ -10,7 +11,7 @@ type Key = { day: number; slot: string };
 const same = (a?: Key | null, b?: Key | null) => !!a && !!b && a.day === b.day && a.slot === b.slot;
 
 export default function Schedule() {
-  const { data, actions } = useStore();
+  const { data, actions, update } = useStore();
   const timer = useTimer();
   const nav = useNav();
   const menu = useContextMenu();
@@ -24,7 +25,11 @@ export default function Schedule() {
   const [newCat, setNewCat] = useState<string>();
   const [newRec, setNewRec] = useState<Recurrence>("weekly");
   const [now, setNow] = useState(new Date());
-  const [fontSize, setFontSize] = useState(14);
+  // the template, font and cell text size from Settings (same as the Mac app)
+  const tpl = templateOf(data.settings.template), font = fontOf(data.settings.font).css;
+  const fontSize = data.settings.scheduleFontSize ?? 14;
+  const setFontSize = (n: number) => update((d) => { d.settings.scheduleFontSize = n; });
+  const dark = isDarkMode(data.settings.appearance);
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 30_000); return () => clearInterval(t); }, []);
 
   const viewDate = addDays(now, offset * 7);
@@ -109,7 +114,7 @@ export default function Schedule() {
       </div>
 
       <div className="sched-wrap">
-        <div className="sched" style={{ gridTemplateColumns: `110px repeat(${slots.length}, minmax(80px, 1fr))` }}>
+        <div className="sched" style={{ gridTemplateColumns: `110px repeat(${slots.length}, minmax(80px, 1fr))`, gap: tpl.fill === "grid" ? 0 : tpl.spacing, fontFamily: font }}>
           <div />
           {slots.map((s) => <div key={s.id} className={`slot-head ${cur?.id === s.id ? "now" : ""}`}>{slotTitle(s)}</div>)}
           {WEEKDAYS.map((name, day) => {
@@ -121,14 +126,15 @@ export default function Schedule() {
                 const e = entry(k);
                 const isEdit = same(k, editing);
                 const hex = isEdit ? editColor : e ? entryColor(data, e) : undefined;
-                const color = hex ?? (e || isEdit ? "#5B7CFA" : undefined);
+                const color = hex ?? (e || isEdit ? tpl.cell : undefined);
+                const look = cellLook(tpl, color, !!(e || isEdit), dark);
                 const done = e?.kind === "todo" && isDone(data, { kind: "schedule", id: e.id }, date);
                 const isNow = day === todayIdx && cur?.id === s.id;
-                const textColor = color && (e || isEdit) ? (isLight(color) ? "rgba(0,0,0,.8)" : "white") : undefined;
+                const textColor = e || isEdit ? look.text : undefined;
                 const c = categoryOf(data, e?.categoryID);
                 return (
                   <div key={s.id} className={`cell ${e || isEdit ? "filled" : ""} ${day === todayIdx ? "today-row" : ""} ${isNow ? "now" : ""} ${same(k, selected) && !isNow ? "selected" : ""}`}
-                    style={color && (e || isEdit) ? { background: `linear-gradient(135deg, ${color}, ${color}bb)`, color: textColor } : undefined}
+                    style={{ ...look.style, color: textColor }}
                     onClick={(ev) => { ev.stopPropagation(); begin(k); }}
                     onContextMenu={(ev) => menu.open(ev, cellMenu(k, e))}>
                     {isEdit ? (

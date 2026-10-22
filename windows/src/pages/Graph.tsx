@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { frameLoop } from "../components";
+import { frameLoop, useBlockPinchZoom } from "../components";
 import { useNav } from "../App";
 import { addDays, duration, fullDate, monthDay, monthDays, shiftMonth, startOfDay, WEEKDAYS, weekStart } from "../lib/dates";
 import { AppData, RECURRENCE_TITLE } from "../lib/model";
@@ -81,6 +81,7 @@ export default function Graph({ catFilter }: { catFilter: string }) {
   const [showLook, setShowLook] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  useBlockPinchZoom(canvas);
   const wrap = useRef<HTMLDivElement>(null);
   const hover = useRef<string | null>(null);
   const focus = useRef({ level: 0, last: null as string | null });
