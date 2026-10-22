@@ -312,6 +312,31 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
     ctx.globalAlpha = 1; drawStars(ctx, WORLD_W, WORLD_H, 11);
   }, []);
 
+  /** Drags follow the mouse on the whole window until the button is released — leaving the map, or moving
+   *  fast, no longer drops a system halfway (it used to stop and lose the move) */
+  const zRef = useRef(z); zRef.current = z;
+  const startDrag = (e: React.MouseEvent, d: NonNullable<typeof drag.current>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    drag.current = d;
+    const move = (ev: MouseEvent) => {
+      if (Math.abs(ev.clientX - d.x) + Math.abs(ev.clientY - d.y) > 4) d.moved = true;
+      if (!d.moved) return;
+      if (d.sys && onMove) setMoving({ id: d.sys, dx: ev.clientX - d.x, dy: ev.clientY - d.y });
+      else setPan({ x: d.px + ev.clientX - d.x, y: d.py + ev.clientY - d.y });
+    };
+    const up = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); window.removeEventListener("blur", cancel);
+      if (d.sys) {
+        if (d.moved && onMove) onMove(d.sys, d.sx! + (ev.clientX - d.x) / zRef.current, d.sy! + (ev.clientY - d.y) / zRef.current);
+        else if (!d.moved) onSelect(d.sys);
+      }
+      setMoving(null); drag.current = null;
+    };
+    const cancel = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); window.removeEventListener("blur", cancel); setMoving(null); drag.current = null; };
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up); window.addEventListener("blur", cancel);
+  };
+
   const w = WORLD_W * z, h = WORLD_H * z;
   // world origin on screen
   const ox = size.w / 2 + px - w / 2, oy = size.h / 2 + py - h / 2;
@@ -326,23 +351,7 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
         const nz = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom * (1 - e.deltaY * 0.01)));
         setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz);
       }}
-      onMouseDown={(e) => { if (focused) return; drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }; }}
-      onMouseMove={(e) => {
-        const d = drag.current; if (!d) return;
-        if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) > 4) d.moved = true;
-        if (!d.moved) return;
-        if (d.sys && onMove) setMoving({ id: d.sys, dx: e.clientX - d.x, dy: e.clientY - d.y });
-        else setPan({ x: d.px + e.clientX - d.x, y: d.py + e.clientY - d.y });
-      }}
-      onMouseUp={(e) => {
-        const d = drag.current;
-        if (d?.sys) {
-          if (d.moved && onMove) onMove(d.sys, d.sx! + (e.clientX - d.x) / zoom, d.sy! + (e.clientY - d.y) / zoom);
-          else if (!d.moved) onSelect(d.sys);
-        }
-        setMoving(null); setTimeout(() => (drag.current = null), 0);
-      }}
-      onMouseLeave={() => { drag.current = null; setMoving(null); }}>
+      onMouseDown={(e) => { if (focused) return; startDrag(e, { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }); }}>
       <div style={{ position: "absolute", left: ox, top: oy, width: w, height: h }}>
         <canvas ref={bg} style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
           maskImage: "radial-gradient(ellipse at center, black 55%, transparent 72%)", WebkitMaskImage: "radial-gradient(ellipse at center, black 55%, transparent 72%)" }} />
@@ -356,7 +365,7 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
             <div key={s.id} title={focused ? undefined : `Open ${s.name} · drag to move it`}
               style={{ position: "absolute", left: p.x * z - tw / 2, top: p.y * z - th / 2, width: tw, height: th, transform: `scale(${k})`,
                 cursor: focused ? "default" : "pointer", opacity: !focused || open ? 1 : 0, transition: "opacity .4s", zIndex: mv ? 2 : 1 }}
-              onMouseDown={(e) => { if (focused) return; e.stopPropagation(); drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false, sys: s.id, sx: p0.x, sy: p0.y }; }}>
+              onMouseDown={(e) => { if (focused) return; e.stopPropagation(); startDrag(e, { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false, sys: s.id, sx: p0.x, sy: p0.y }); }}>
               <SystemCanvas sys={s} width={tw} height={th} large={false} res={open ? Math.min(4, k) : 1} hideName={!!focused} />
             </div>
           );
