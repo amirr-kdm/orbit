@@ -5,7 +5,9 @@
 -- so paying in is a negative row and payouts are positive rows. All rules run here, on the server.
 --
 -- Group challenge: everyone (creator included) pays the entry fee to join.
---   All finish  → everyone gets double their fee back.
+--   At least 4 hours of study; the fee is at least 50 rockets per hour of the goal (4h → 200, 5h → 250 …).
+--   Fewer than 2 people joined → everyone is refunded, nobody wins.
+--   All finish  → everyone gets their fee back plus a bonus: as much again, at most 100 rockets per hour of the goal.
 --   Some fail   → those who failed lose their fee; it's shared between those who finished
 --                 (who also get their own fee back).
 --   Before the start anyone can leave for a full refund; after it, no one can.
@@ -77,12 +79,25 @@ end;
 $$;
 revoke all on function public.check_balance(uuid, int) from public, anon, authenticated;
 
+-- Rules for group challenges (shared by the app's form and the checks below)
+create or replace function public.challenge_min_minutes() returns int language sql immutable as $$ select 240 $$;
+create or replace function public.challenge_min_fee(target_minutes int) returns int language sql immutable as $$
+  select ceil(target_minutes / 60.0 * 50)::int
+$$;
+create or replace function public.challenge_max_bonus(target_minutes int) returns int language sql immutable as $$
+  select floor(target_minutes / 60.0 * 100)::int
+$$;
+
 create or replace function public.create_challenge(g uuid, title text, target_minutes int, fee int, starts_at timestamptz, ends_at timestamptz)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare me uuid := auth.uid(); c uuid; s timestamptz := greatest(starts_at, now());
 begin
   if not public.is_approved() then raise exception 'Your account is waiting for approval'; end if;
   if not public.in_group(g) then raise exception 'You are not in that group'; end if;
+  if target_minutes < public.challenge_min_minutes() then raise exception 'A challenge is at least 4 hours of study'; end if;
+  if fee < public.challenge_min_fee(target_minutes) then
+    raise exception 'The entry fee is at least % rockets for this goal', public.challenge_min_fee(target_minutes);
+  end if;
   if ends_at <= s then raise exception 'The end must be after the start'; end if;
   perform public.check_balance(me, fee);
   insert into challenges (kind, group_id, creator, title, target_minutes, fee, starts_at, ends_at)
@@ -171,11 +186,19 @@ $$;
 -- Pay out once the end + grace period has passed. Anyone who can see it may trigger this; it runs once.
 create or replace function public.settle_challenge(c uuid)
 returns void language plpgsql security definer set search_path = public as $$
-declare x challenges; m record; winners int; losers int; pot int; share int;
+declare x challenges; m record; winners int; losers int; pot int; share int; bonus int;
 begin
   select * into x from challenges where id = c for update;
   if x.id is null or not public.can_see_challenge(c) then raise exception 'Challenge not found'; end if;
   if x.status <> 'open' or now() < x.ends_at + public.challenge_grace() then return; end if;
+  -- a group challenge needs at least 2 people: otherwise everyone just gets their fee back
+  if x.kind = 'group' and (select count(*) from challenge_members where challenge_id = c) < 2 then
+    for m in select user_id from challenge_members where challenge_id = c loop
+      perform public.move_rockets(m.user_id, x.fee, 'Refund: ' || x.title || ' needed at least 2 people');
+    end loop;
+    update challenges set status = 'settled' where id = c;
+    return;
+  end if;
   select count(*) filter (where minutes >= x.target_minutes), count(*) filter (where minutes < x.target_minutes)
     into winners, losers from challenge_members where challenge_id = c;
   if x.kind = 'promise' then
@@ -187,8 +210,9 @@ begin
       end if;
     end loop;
   elsif losers = 0 then
+    bonus := least(x.fee, public.challenge_max_bonus(x.target_minutes));
     for m in select user_id from challenge_members where challenge_id = c loop
-      perform public.move_rockets(m.user_id, x.fee * 2, 'Everyone finished ' || x.title || ' — fee doubled!');
+      perform public.move_rockets(m.user_id, x.fee + bonus, 'Everyone finished ' || x.title || ' — fee back + ' || bonus || ' bonus!');
     end loop;
   elsif winners > 0 then
     pot := losers * x.fee;
@@ -207,3 +231,5 @@ revoke all on function public.create_challenge(uuid, text, int, int, timestamptz
 grant execute on function public.create_challenge(uuid, text, int, int, timestamptz, timestamptz), public.create_promise(uuid, int, int, timestamptz),
   public.join_challenge(uuid), public.leave_challenge(uuid), public.cancel_challenge(uuid),
   public.report_challenge(uuid, int), public.settle_challenge(uuid) to authenticated;
+
+grant execute on function public.challenge_min_minutes(), public.challenge_min_fee(int), public.challenge_max_bonus(int) to authenticated;

@@ -142,8 +142,6 @@ struct GroupsSection: View {
                     if f.id != cards.last?.id { Divider() }
                 }
             }
-
-            GroupChallengesCard(group: g)
         }
     }
 

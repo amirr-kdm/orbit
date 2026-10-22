@@ -132,64 +132,144 @@ private func hm(_ minutes: Int) -> String {
     return h == 0 ? "\(m)m" : (m == 0 ? "\(h)h" : "\(h)h \(m)m")
 }
 
-/// Challenges of one study group: create, join, leave, cancel, live progress
-struct GroupChallengesCard: View {
-    let group: StudyGroup
+/// The rules (the server checks the same: supabase/challenges.sql)
+enum ChallengeRules {
+    static let minHours = 4
+    static let minPeople = 2
+    /// Entry fee: at least 50 rockets per hour of the goal (4h → 200, 5h → 250 …)
+    static func minFee(hours: Int) -> Int { hours * 50 }
+    /// Everyone finished: fee back plus as much again, at most 100 rockets per hour of the goal
+    static func bonus(fee: Int, minutes: Int) -> Int { min(fee, minutes * 100 / 60) }
+}
+
+/// Every challenge in my groups: open to join, running, and recently finished
+struct ChallengesPage: View {
     @Environment(ChallengeService.self) private var service
     @Environment(FriendsService.self) private var friends
-    @Environment(AppStore.self) private var store
     @State private var creating = false
     @State private var confirmCancel: Challenge?
 
     var body: some View {
-        let list = service.challenges(inGroup: group.id)
-        Card(title: "Challenges", systemImage: "flag.checkered") {
-            HStack {
-                Text("Everyone pays the entry fee. All finish → fees doubled. Missed → that fee is shared by those who finished.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button { creating = true } label: { Label("New Challenge", systemImage: "plus") }
-                    .buttonStyle(.borderedProminent)
-            }
-            if list.isEmpty {
-                Text("No challenges yet — start one!").font(.callout).foregroundStyle(.secondary)
-            }
-            TimelineView(.periodic(from: .now, by: 30)) { tl in
-                VStack(spacing: 10) {
-                    ForEach(list) { c in row(c, now: tl.date) }
+        let groups = Set(friends.groups.map(\.id))
+        let all = service.challenges.filter { !$0.isPromise && ($0.group_id.map(groups.contains) ?? false) }
+        TimelineView(.periodic(from: .now, by: 30)) { tl in
+            let now = tl.date
+            let upcoming = all.filter { $0.isOpen && !$0.started(now) }
+            let live = all.filter { $0.isOpen && $0.started(now) }
+            let done = all.filter { !$0.isOpen }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    if friends.groups.isEmpty {
+                        Card { Text("Join or create a study group in Friends → Groups to take part in challenges.").foregroundStyle(.secondary) }
+                    } else if all.isEmpty {
+                        Card { Text("No challenges yet — start one with New Challenge.").foregroundStyle(.secondary) }
+                    }
+                    section("Open to join", "person.badge.plus", .blue, upcoming, now)
+                    section("Running now", "flame.fill", .orange, live, now)
+                    section("Finished", "checkmark.seal.fill", .green, done, now)
+                    if let e = service.error { Text(e).font(.caption).foregroundStyle(.red) }
                 }
+                .padding(24)
             }
-            if let e = service.error { Text(e).font(.caption).foregroundStyle(.red) }
         }
-        .sheet(isPresented: $creating) { NewChallengeSheet(group: group) }
+        .navigationTitle("Challenges")
+        .task { await service.load() }
+        .sheet(isPresented: $creating) { NewChallengeSheet(group: nil) }
         .confirmationDialog("Cancel “\(confirmCancel?.title ?? "")”?", isPresented: Binding(get: { confirmCancel != nil }, set: { if !$0 { confirmCancel = nil } })) {
             Button("Cancel Challenge", role: .destructive) { if let c = confirmCancel { Task { await service.cancel(c) } } }
         } message: { Text("Everyone gets their entry fee back.") }
     }
 
-    private func row(_ c: Challenge, now: Date) -> some View {
+    private var header: some View {
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: "flag.checkered.2.crossed")
+                .font(.system(size: 26, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Challenges").font(.title.weight(.bold))
+                Text("Study together for rockets. Everyone pays the entry fee and you can join until it starts.")
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    rule("clock", "at least \(ChallengeRules.minHours)h of study")
+                    rule("person.2", "\(ChallengeRules.minPeople)+ people, or everyone is refunded")
+                    rule("gift", "all finish → fee back + bonus up to 100 🚀/h")
+                    rule("arrow.triangle.swap", "some miss → their fees go to those who finished")
+                }
+                .padding(.top, 4)
+            }
+            Spacer()
+            Button { creating = true } label: { Label("New Challenge", systemImage: "plus") }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                .disabled(friends.groups.isEmpty)
+        }
+    }
+
+    private func rule(_ icon: String, _ text: String) -> some View {
+        Label(text, systemImage: icon).font(.caption)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(Color.primary.opacity(0.07)))
+    }
+
+    @ViewBuilder
+    private func section(_ title: String, _ icon: String, _ tint: Color, _ list: [Challenge], _ now: Date) -> some View {
+        if !list.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("\(title) · \(list.count)", systemImage: icon).font(.headline).foregroundStyle(tint)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 380), spacing: 14)], spacing: 14) {
+                    ForEach(list) { c in ChallengeCard(challenge: c, now: now, confirmCancel: $confirmCancel) }
+                }
+            }
+        }
+    }
+}
+
+/// One challenge: who, how far, and what you can do
+private struct ChallengeCard: View {
+    let challenge: Challenge
+    let now: Date
+    @Binding var confirmCancel: Challenge?
+    @Environment(ChallengeService.self) private var service
+    @Environment(FriendsService.self) private var friends
+
+    var body: some View {
+        let c = challenge
         let me = friends.me?.id
         let mine = service.joined(c, me: me)
         let people = service.members(of: c).sorted { $0.minutes > $1.minutes }
+        let group = friends.groups.first { $0.id == c.group_id }?.name ?? "Group"
         let state: (String, Color) = c.status == "cancelled" ? ("Cancelled", .gray)
             : c.status == "settled" ? ("Finished", .green)
             : !c.started(now) ? ("Starts \(c.starts_at.formatted(.relative(presentation: .named)))", .blue)
             : !c.ended(now) ? ("Live · ends \(c.ends_at.formatted(.relative(presentation: .named)))", .orange)
             : ("Paying out soon", .purple)
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(c.title).font(.headline)
-                Text(state.0).font(.caption.weight(.semibold)).foregroundStyle(state.1)
-                    .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(state.1.opacity(0.15)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(c.title).font(.headline)
+                    Label(group, systemImage: "person.3.fill").font(.caption).foregroundStyle(.secondary)
+                }
                 Spacer()
-                Label("\(c.fee)", systemImage: "airplane").labelStyle(RocketLabel())
+                Text(state.0).font(.caption.weight(.semibold)).foregroundStyle(state.1)
+                    .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(state.1.opacity(0.15)))
             }
-            Text("Study \(hm(c.target_minutes)) between \(c.starts_at.formatted(date: .abbreviated, time: .shortened)) and \(c.ends_at.formatted(date: .abbreviated, time: .shortened))")
+            HStack(spacing: 14) {
+                fact("clock.fill", hm(c.target_minutes), "goal")
+                fact("calendar", "\(Int(c.ends_at.timeIntervalSince(c.starts_at) / 3600))h", "window")
+                fact("ticket.fill", "\(c.fee) 🚀", "entry")
+                fact("gift.fill", "+\(ChallengeRules.bonus(fee: c.fee, minutes: c.target_minutes)) 🚀", "if all finish")
+            }
+            Text("\(c.starts_at.formatted(date: .abbreviated, time: .shortened)) → \(c.ends_at.formatted(date: .abbreviated, time: .shortened))")
                 .font(.caption).foregroundStyle(.secondary)
+            if people.count < ChallengeRules.minPeople && c.isOpen {
+                Label("Needs at least \(ChallengeRules.minPeople) people — otherwise everyone is refunded", systemImage: "person.badge.clock")
+                    .font(.caption).foregroundStyle(.orange)
+            }
             ForEach(people, id: \.user_id) { m in
                 let name = m.user_id == me ? "You" : (friends.people[m.user_id]?.profile.name ?? "Member")
                 HStack(spacing: 8) {
-                    Text(name).font(.callout).frame(width: 110, alignment: .leading).lineLimit(1)
+                    Text(name).font(.callout).frame(width: 100, alignment: .leading).lineLimit(1)
                     ProgressView(value: min(1, Double(m.minutes) / Double(max(1, c.target_minutes))))
                         .tint(m.minutes >= c.target_minutes ? .green : .accentColor)
                     Text("\(hm(m.minutes)) / \(hm(c.target_minutes))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
@@ -201,6 +281,7 @@ struct GroupChallengesCard: View {
                     if !c.started(now) {
                         if mine {
                             if c.creator != me { Button("Leave (refund)") { Task { await service.leave(c) } } }
+                            else { Label("You're in", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green) }
                         } else {
                             Button("Join for \(c.fee) 🚀") { Task { await service.join(c) } }.buttonStyle(.borderedProminent)
                         }
@@ -214,8 +295,16 @@ struct GroupChallengesCard: View {
                 .controlSize(.small)
             }
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(.quaternary.opacity(0.5)))
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(state.1.opacity(0.25)))
+    }
+
+    private func fact(_ icon: String, _ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Label(value, systemImage: icon).font(.callout.weight(.semibold)).labelStyle(.titleAndIcon)
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -227,16 +316,19 @@ private struct RocketLabel: LabelStyle {
 }
 
 struct NewChallengeSheet: View {
-    let group: StudyGroup
+    /// nil: pick the group in the sheet
+    let group: StudyGroup?
     @Environment(ChallengeService.self) private var service
+    @Environment(FriendsService.self) private var friends
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @State private var groupID: UUID?
     @State private var title = ""
-    @State private var hours = 6.0
-    @State private var fee = 50
+    @State private var hours = ChallengeRules.minHours
+    @State private var fee = ChallengeRules.minFee(hours: ChallengeRules.minHours)
     @State private var startMode = 0
     @State private var startDate = Date().addingTimeInterval(3600)
-    @State private var lengthHours = 24.0
+    @State private var lengthHours = 24
 
     private var start: Date {
         switch startMode {
@@ -245,16 +337,23 @@ struct NewChallengeSheet: View {
         default: startDate
         }
     }
+    private var minFee: Int { ChallengeRules.minFee(hours: hours) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("New challenge in \(group.name)", systemImage: "flag.checkered").font(.title3.weight(.bold))
+            Label("New challenge", systemImage: "flag.checkered").font(.title3.weight(.bold))
+            if group == nil {
+                Picker("Group", selection: $groupID) {
+                    ForEach(friends.groups) { Text($0.name).tag(Optional($0.id)) }
+                }
+            }
             TextField("Name, e.g. Weekend sprint", text: $title).textFieldStyle(.roundedBorder)
-            HStack {
+            HStack(spacing: 8) {
                 Text("Study")
-                Stepper("\(hm(Int(hours * 60)))", value: $hours, in: 0.5...72, step: 0.5)
-                Text("within")
-                Stepper("\(Int(lengthHours))h", value: $lengthHours, in: 1...168, step: 1)
+                HourField(value: $hours, range: ChallengeRules.minHours...168)
+                Text("hours within")
+                HourField(value: $lengthHours, range: max(ChallengeRules.minHours, hours)...336)
+                Text("hours")
             }
             Picker("Starts", selection: $startMode) {
                 Text("Now").tag(0); Text("In 1 hour").tag(1); Text("At…").tag(2)
@@ -267,27 +366,53 @@ struct NewChallengeSheet: View {
                 Text("Entry fee")
                 TextField("", value: $fee, format: .number).textFieldStyle(.roundedBorder).frame(width: 80)
                 RocketIcon(size: 16)
-                Text("· you have \(store.rocketBalance)").font(.caption).foregroundStyle(.secondary)
+                Text("· at least \(minFee) · you have \(store.rocketBalance)").font(.caption).foregroundStyle(.secondary)
             }
-            Text("You join too and pay the fee. Others can join or leave for a refund until it starts. Only you can cancel it (everyone is refunded).")
-                .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("• At least \(ChallengeRules.minHours) hours, and the fee is at least 50 🚀 per hour (\(hours)h → \(minFee) 🚀).")
+                Text("• Needs at least \(ChallengeRules.minPeople) people by the end — otherwise everyone just gets their fee back.")
+                Text("• Everyone finishes → fee back + \(ChallengeRules.bonus(fee: fee, minutes: hours * 60)) 🚀 bonus each (at most 100 🚀 per hour).")
+                Text("• Some miss → their fees are shared by those who finished.")
+                Text("• Others can join or leave (refund) until it starts. Only you can cancel it — everyone is refunded.")
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            if fee < minFee { Text("The entry fee must be at least \(minFee) 🚀 for \(hours) hours.").font(.caption).foregroundStyle(.orange) }
+            if fee > store.rocketBalance { Text("You don't have enough rockets.").font(.caption).foregroundStyle(.orange) }
             if let e = service.error { Text(e).font(.caption).foregroundStyle(.red) }
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Create & Pay \(fee) 🚀") {
+                    guard let g = group?.id ?? groupID else { return }
                     Task {
                         let s = start
-                        if await service.create(group: group.id, title: title.isEmpty ? "Challenge" : title, minutes: Int(hours * 60),
-                                                fee: max(0, fee), start: s, end: s.addingTimeInterval(lengthHours * 3600)) { dismiss() }
+                        if await service.create(group: g, title: title.isEmpty ? "Challenge" : title, minutes: hours * 60,
+                                                fee: fee, start: s, end: s.addingTimeInterval(Double(lengthHours) * 3600)) { dismiss() }
                     }
                 }
                 .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-                .disabled(service.busy || fee < 0 || hours * 60 > lengthHours * 60)
+                .disabled(service.busy || fee < minFee || fee > store.rocketBalance || hours > lengthHours || (group == nil && groupID == nil))
             }
         }
-        .padding(20).frame(width: 460)
-        .onAppear { service.error = nil }
+        .padding(20).frame(width: 520)
+        .onAppear { service.error = nil; groupID = groupID ?? friends.groups.first?.id }
+        .onChange(of: hours) { _, h in
+            fee = max(fee, ChallengeRules.minFee(hours: h))
+            lengthHours = max(lengthHours, h)
+        }
+    }
+}
+
+/// Whole hours: type a number or step one hour at a time
+private struct HourField: View {
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    var body: some View {
+        HStack(spacing: 2) {
+            TextField("", value: Binding(get: { value }, set: { value = min(range.upperBound, max(range.lowerBound, $0)) }), format: .number)
+                .textFieldStyle(.roundedBorder).frame(width: 52).multilineTextAlignment(.center)
+            Stepper("", value: $value, in: range, step: 1).labelsHidden()
+        }
     }
 }
 
