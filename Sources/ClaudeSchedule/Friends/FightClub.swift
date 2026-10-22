@@ -1008,7 +1008,7 @@ struct BattleView: View {
     }
 }
 
-/// Fight Club page: invitations and your fights
+/// Fight Club: this week's World Boss for every Orbiter
 struct FightClubPage: View {
     @Environment(FightClubService.self) private var fc
     @Environment(FriendsService.self) private var friends
@@ -1017,21 +1017,21 @@ struct FightClubPage: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 14) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Fight Club").font(.largeTitle.weight(.bold))
-                        Text("Every week a World Boss attacks Orbit. Every minute any Orbiter studies is a bullet — beat it together before the week ends and share the rockets by damage.")
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if let ship = PlanetPainter.bundleImage("fighter") { Image(nsImage: ship).resizable().scaledToFit().frame(width: 70, height: 70) }
-                }
+            VStack(alignment: .leading, spacing: 20) {
+                header
                 if let w = fc.worldBoss {
-                    worldCard(w)
-                    leaderboard(w)
+                    hero(w)
+                    steps
+                    HStack(alignment: .top, spacing: 16) {
+                        leaderboard(w)
+                        graveyard(except: w)
+                    }
                 } else {
-                    Card { ProgressView("Looking for this week's monster…").frame(maxWidth: .infinity, minHeight: 120) }
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Looking for this week's monster…").foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 300)
                 }
                 if fc.bosses.contains(where: { !$0.isWorld && $0.isAlive }) {
                     FightClubCard()   // older monsters still being fought
@@ -1040,89 +1040,241 @@ struct FightClubPage: View {
             }
             .padding(24)
         }
+        .background {
+            ZStack {
+                StarsBackground()
+                RadialGradient(colors: [Color.red.opacity(0.18), .clear], center: UnitPoint(x: 0.3, y: 0.2), startRadius: 10, endRadius: 600)
+            }
+            .ignoresSafeArea()
+        }
+        .environment(\.colorScheme, .dark)
         .navigationTitle("Fight Club")
         .task { await fc.load() }
         .sheet(item: $battle) { BattleView(bossID: $0.id) }
         .sheet(item: $showing) { OrbiterProfileSheet(userID: $0.id) }
     }
 
-    private func worldCard(_ b: Boss) -> some View {
+    // MARK: Pieces
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("FIGHT CLUB").font(.caption.weight(.heavy)).tracking(3).foregroundStyle(.red)
+                Text("A monster attacks Orbit every week").font(.system(size: 28, weight: .bold, design: .rounded))
+                Text("Every Orbiter fights it together. Study to earn bullets, shoot it down before Friday ends.")
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let ship = PlanetPainter.bundleImage("fighter") {
+                Image(nsImage: ship).resizable().scaledToFit().frame(width: 84, height: 84)
+                    .rotationEffect(.degrees(-12))
+                    .shadow(color: .cyan.opacity(0.4), radius: 12)
+            }
+        }
+    }
+
+    private func hero(_ b: Boss) -> some View {
         let left = fc.healthLeft(b)
         let me = friends.me?.id
         let ammo = fc.ammo(b, me: me)
         let people = fc.fighters(of: b).filter { $0.minutes > 0 || $0.damage > 0 }.count
-        return HStack(spacing: 24) {
+        let share = Double(left) / Double(max(1, b.hp))
+        return HStack(spacing: 28) {
+            // the monster (or its grave)
             ZStack {
-                Circle().fill(RadialGradient(colors: [Color.red.opacity(0.35), .clear], center: .center, startRadius: 10, endRadius: 120))
+                Circle().fill(RadialGradient(colors: [Color.red.opacity(b.isAlive ? 0.45 : 0.15), .clear], center: .center, startRadius: 10, endRadius: 150))
                 if !b.isAlive, let grave = PlanetPainter.bundleImage("boss-grave") {
-                    Image(nsImage: grave).resizable().scaledToFill().frame(width: 180, height: 180)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    Image(nsImage: grave).resizable().scaledToFill().frame(width: 200, height: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                 } else if let img = monsterImage(b.monster) {
-                    Image(nsImage: img).resizable().scaledToFit().frame(width: 170, height: 170)
+                    TimelineView(.animation(minimumInterval: 1 / 20, paused: AppActivity.paused)) { tl in
+                        let t = tl.date.timeIntervalSinceReferenceDate
+                        Image(nsImage: img).resizable().scaledToFit().frame(width: 210, height: 210)
+                            .scaleEffect(x: 1 - 0.02 * sin(t * 2.4), y: 1 + 0.03 * sin(t * 2.4), anchor: .bottom)
+                            .rotationEffect(.degrees(3 * sin(t * 1.3)), anchor: .bottom)
+                            .offset(y: -6 * abs(sin(t * 1.6)))
+                    }
                 }
+                // shadow on the floor
+                Ellipse().fill(.black.opacity(0.45)).frame(width: 150, height: 18).blur(radius: 6).offset(y: 112)
             }
-            .frame(width: 210, height: 210)
-            VStack(alignment: .leading, spacing: 10) {
+            .frame(width: 260, height: 260)
+
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("WORLD BOSS · THIS WEEK").font(.caption.weight(.heavy)).tracking(2).foregroundStyle(.red)
+                    Text(b.status == "defeated" ? "DEFEATED 🏆" : b.status == "escaped" ? "ESCAPED 💨" : "WORLD BOSS · ALIVE")
+                        .font(.caption.weight(.heavy)).tracking(2)
+                        .foregroundStyle(b.status == "defeated" ? .green : .red)
                     Spacer()
-                    Text(b.status == "defeated" ? "Defeated 🏆" : b.status == "escaped" ? "Escaped 💨" : "Escapes \(b.deadline.formatted(.relative(presentation: .named)))")
-                        .font(.callout.weight(.semibold)).foregroundStyle(.secondary)
+                    if b.isAlive { countdown(to: b.deadline) }
                 }
-                Text(b.title).font(.title.weight(.bold))
-                HStack(spacing: 8) {
-                    Image(systemName: "heart.fill").foregroundStyle(.red)
-                    ProgressView(value: Double(left), total: Double(max(1, b.hp))).tint(.red)
-                    Text("\(hm(left)) / \(hm(b.hp))").font(.callout.monospacedDigit().weight(.semibold))
+                Text(b.title).font(.system(size: 30, weight: .heavy, design: .rounded))
+
+                // health
+                VStack(alignment: .leading, spacing: 6) {
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.white.opacity(0.08))
+                            Capsule().fill(LinearGradient(colors: [Color(hex: "#FF4D4D"), Color(hex: "#B91C1C")], startPoint: .leading, endPoint: .trailing))
+                                .frame(width: g.size.width * share)
+                                .shadow(color: .red.opacity(0.6), radius: 8)
+                        }
+                    }
+                    .frame(height: 16)
+                    HStack {
+                        Label("\(hm(left)) of \(hm(b.hp)) health left", systemImage: "heart.fill").foregroundStyle(.red)
+                        Spacer()
+                        Text("\(Int((1 - share) * 100))% down").foregroundStyle(.secondary)
+                    }
+                    .font(.callout.weight(.semibold).monospacedDigit())
                 }
-                HStack(spacing: 18) {
-                    stat("person.3.fill", "\(people)", "fighting")
-                    stat("bolt.horizontal.fill", "\(ammo)", "your bullets")
-                    stat("scope", "\(fc.me(b, me)?.damage ?? 0)", "your damage")
-                    stat("gift.fill", "\(b.pool) 🚀", "prize, split by damage")
+
+                HStack(spacing: 10) {
+                    chip("person.3.fill", "\(people)", "fighting")
+                    chip("bolt.horizontal.fill", "\(ammo)", "your bullets")
+                    chip("scope", "\(fc.me(b, me)?.damage ?? 0)", "your damage")
+                    chip("gift.fill", "1,000 🚀", "prize")
                 }
-                Text("Every minute you study this week (with the timer) is one bullet. A new monster comes every Saturday, with \(fc.hoursPerMember)h of health per Orbiter.")
-                    .font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    Button { battle = b } label: { Label(b.isAlive ? "Fight" : "View", systemImage: "scope").frame(width: 120) }
-                        .buttonStyle(.borderedProminent).tint(.red).controlSize(.large)
-                    if b.isAlive && ammo == 0 { Text("Study to earn bullets 📚").font(.callout).foregroundStyle(.secondary) }
+
+                HStack(spacing: 12) {
+                    Button { battle = b } label: {
+                        Label(b.isAlive ? "Fight" : "View the fight", systemImage: "scope")
+                            .font(.headline)
+                            .frame(width: 170, height: 44)
+                            .background(Capsule().fill(LinearGradient(colors: [Color(hex: "#FF4D4D"), Color(hex: "#B91C1C")], startPoint: .top, endPoint: .bottom)))
+                            .shadow(color: .red.opacity(0.55), radius: 14)
+                    }
+                    .buttonStyle(.plain)
+                    Text(b.isAlive ? (ammo > 0 ? "Hold Space for rapid fire" : "No bullets yet — study with the timer to reload")
+                                   : "A new monster arrives on Saturday.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(20)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(LinearGradient(colors: [Color(hex: "#2A0A12"), Color(hex: "#0B1020")], startPoint: .topLeading, endPoint: .bottomTrailing)))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.red.opacity(0.3)))
-        .environment(\.colorScheme, .dark)
+        .padding(24)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
+            .fill(LinearGradient(colors: [Color(hex: "#2A0A12").opacity(0.92), Color(hex: "#0B1020").opacity(0.92)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Color.red.opacity(0.35)))
     }
 
-    private func stat(_ icon: String, _ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+    private func countdown(to end: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 30)) { tl in
+            let s = max(0, Int(end.timeIntervalSince(tl.date)))
+            HStack(spacing: 6) {
+                Image(systemName: "hourglass").foregroundStyle(.orange)
+                ForEach([(s / 86400, "d"), ((s % 86400) / 3600, "h"), ((s % 3600) / 60, "m")], id: \.1) { v, u in
+                    Text("\(v)\(u)").font(.callout.weight(.bold).monospacedDigit())
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.08)))
+                }
+                Text("left").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func chip(_ icon: String, _ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             Label(value, systemImage: icon).font(.headline.monospacedDigit())
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.06)))
+    }
+
+    private var steps: some View {
+        HStack(spacing: 12) {
+            step("timer", .cyan, "1 · Study", "Every minute you study with the timer this week is one bullet.")
+            step("scope", .red, "2 · Fight", "Fly with ← →, fire with Space. Only hits do damage.")
+            step("trophy.fill", .yellow, "3 · Share", "Beat it before Friday ends: 1,000 🚀 split by damage.")
+        }
+    }
+
+    private func step(_ icon: String, _ tint: Color, _ title: String, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundStyle(tint)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(tint.opacity(0.15)))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline)
+                Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.06)))
     }
 
     private func leaderboard(_ b: Boss) -> some View {
         let me = friends.me?.id
         let list = fc.fighters(of: b).filter { $0.damage > 0 }.sorted { $0.damage > $1.damage }
         let total = max(1, list.reduce(0) { $0 + $1.damage })
-        return Card(title: "Most damage this week", systemImage: "trophy.fill") {
-            if list.isEmpty { Text("No hits yet — be the first!").foregroundStyle(.secondary) }
+        return VStack(alignment: .leading, spacing: 12) {
+            Label("Most damage this week", systemImage: "trophy.fill").font(.headline).foregroundStyle(.yellow)
+            if list.isEmpty {
+                Text("No hits yet — be the first!").foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 60)
+            }
             ForEach(Array(list.enumerated()), id: \.element.user_id) { i, f in
                 let name = f.user_id == me ? "You" : (friends.people[f.user_id]?.profile.name ?? fc.names[f.user_id] ?? "Orbiter")
-                HStack(spacing: 10) {
-                    Text(i < 3 ? ["🥇", "🥈", "🥉"][i] : "\(i + 1)").frame(width: 28)
-                    Button { showing = ProfileTarget(id: f.user_id) } label: {
-                        Text(name).font(.headline).lineLimit(1).frame(width: 140, alignment: .leading)
+                Button { showing = ProfileTarget(id: f.user_id) } label: {
+                    HStack(spacing: 10) {
+                        Text(i < 3 ? ["🥇", "🥈", "🥉"][i] : "\(i + 1)").frame(width: 26)
+                        Avatar(name: f.user_id == me ? (friends.me?.name ?? name) : name, color: .red, size: 30,
+                               planet: f.user_id == me ? friends.me?.avatar : friends.people[f.user_id]?.profile.avatar)
+                        Text(name).font(.headline).lineLimit(1)
+                        if i == 0, let badge = PlanetPainter.bundleImage("badge-slayer") {
+                            Image(nsImage: badge).resizable().scaledToFit().frame(width: 14, height: 22).help("Top damage")
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text("\(f.damage) dmg").font(.callout.weight(.semibold).monospacedDigit())
+                            Text("~\(b.pool * f.damage / total) 🚀").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                        }
                     }
-                    .buttonStyle(.plain).help("Open profile")
-                    ProgressView(value: Double(f.damage), total: Double(total)).tint(f.user_id == me ? .orange : .red)
-                    Text("\(f.damage) dmg").font(.callout.monospacedDigit()).frame(width: 80, alignment: .trailing)
-                    Text("~\(b.pool * f.damage / total) 🚀").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 70, alignment: .trailing)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(0.06)))
+    }
+
+    /// Earlier weeks' monsters and how they ended
+    private func graveyard(except current: Boss) -> some View {
+        let past = fc.bosses.filter { $0.isWorld && $0.id != current.id }
+        return VStack(alignment: .leading, spacing: 12) {
+            Label("Graveyard", systemImage: "moon.stars.fill").font(.headline).foregroundStyle(.orange)
+            if past.isEmpty {
+                VStack(spacing: 8) {
+                    if let grave = PlanetPainter.bundleImage("boss-grave") {
+                        Image(nsImage: grave).resizable().scaledToFill().frame(width: 120, height: 90)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous)).opacity(0.85)
+                    }
+                    Text("Beaten monsters rest here.").font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            ForEach(past) { p in
+                HStack(spacing: 10) {
+                    if let img = monsterImage(p.monster) {
+                        Image(nsImage: img).resizable().scaledToFit().frame(width: 40, height: 40).saturation(0)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(p.title).font(.callout.weight(.semibold))
+                        Text(p.status == "defeated" ? "Defeated 🏆" : p.status == "escaped" ? "Escaped 💨" : "Still alive")
+                            .font(.caption).foregroundStyle(p.status == "defeated" ? .green : .secondary)
+                    }
                 }
             }
         }
+        .padding(18)
+        .frame(width: 280, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(0.06)))
     }
 }
