@@ -48,6 +48,7 @@ create or replace function public.can_see_challenge(c uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from challenges x where x.id = c and (
     x.creator = auth.uid() or x.friend = auth.uid()
+    or (x.kind = 'group' and x.group_id is null and public.is_approved())   -- open to every Orbit member
     or (x.group_id is not null and public.in_group(x.group_id))
     or exists (select 1 from challenge_members m where m.challenge_id = x.id and m.user_id = auth.uid())));
 $$;
@@ -93,7 +94,7 @@ returns uuid language plpgsql security definer set search_path = public as $$
 declare me uuid := auth.uid(); c uuid; s timestamptz := greatest(starts_at, now());
 begin
   if not public.is_approved() then raise exception 'Your account is waiting for approval'; end if;
-  if not public.in_group(g) then raise exception 'You are not in that group'; end if;
+  -- challenges are open to every Orbit member: no group (older apps still send one; it's ignored)
   if target_minutes < public.challenge_min_minutes() then raise exception 'A challenge is at least 4 hours of study'; end if;
   if fee < public.challenge_min_fee(target_minutes) then
     raise exception 'The entry fee is at least % rockets for this goal', public.challenge_min_fee(target_minutes);
@@ -101,7 +102,7 @@ begin
   if ends_at <= s then raise exception 'The end must be after the start'; end if;
   perform public.check_balance(me, fee);
   insert into challenges (kind, group_id, creator, title, target_minutes, fee, starts_at, ends_at)
-    values ('group', g, me, trim(title), target_minutes, fee, s, ends_at) returning id into c;
+    values ('group', null, me, trim(title), target_minutes, fee, s, ends_at) returning id into c;
   insert into challenge_members (challenge_id, user_id) values (c, me);
   perform public.move_rockets(me, -fee, 'Entry fee: ' || trim(title));
   return c;
@@ -131,7 +132,7 @@ returns void language plpgsql security definer set search_path = public as $$
 declare me uuid := auth.uid(); x challenges;
 begin
   select * into x from challenges where id = c for update;
-  if x.id is null or x.kind <> 'group' or not public.in_group(x.group_id) then raise exception 'Challenge not found'; end if;
+  if x.id is null or x.kind <> 'group' or not (x.group_id is null or public.in_group(x.group_id)) then raise exception 'Challenge not found'; end if;
   if x.status <> 'open' or now() >= x.starts_at then raise exception 'This challenge has already started'; end if;
   if exists (select 1 from challenge_members where challenge_id = c and user_id = me) then return; end if;
   if not public.is_approved() then raise exception 'Your account is waiting for approval'; end if;
@@ -233,3 +234,14 @@ grant execute on function public.create_challenge(uuid, text, int, int, timestam
   public.report_challenge(uuid, int), public.settle_challenge(uuid) to authenticated;
 
 grant execute on function public.challenge_min_minutes(), public.challenge_min_fee(int), public.challenge_max_bonus(int) to authenticated;
+
+-- Names of the people in open-to-all challenges (they may not be your friends): just the username
+create or replace function public.challenge_names(ids uuid[])
+returns table (id uuid, name text) language sql stable security definer set search_path = public as $$
+  select p.id, coalesce(p.username, p.name) from profiles p
+  where public.is_approved() and p.id = any(ids)
+    and exists (select 1 from challenge_members m join challenges x on x.id = m.challenge_id
+                where m.user_id = p.id and x.kind = 'group' and x.group_id is null);
+$$;
+revoke all on function public.challenge_names(uuid[]) from public, anon;
+grant execute on function public.challenge_names(uuid[]) to authenticated;

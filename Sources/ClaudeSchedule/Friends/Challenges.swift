@@ -61,9 +61,22 @@ final class ChallengeService {
             }
             challenges = list
             members = byID
+            await loadNames(Set(byID.values.flatMap { $0.map(\.user_id) }))
         } catch {
             // offline: keep what we have
         }
+    }
+
+    /// Usernames of people in open-to-all challenges (they may not be friends)
+    private(set) var names: [UUID: String] = [:]
+    private func loadNames(_ ids: Set<UUID>) async {
+        let missing = ids.filter { names[$0] == nil }
+        guard !missing.isEmpty else { return }
+        struct Body: Encodable { let ids: [String] }
+        struct Row: Decodable { let id: UUID; let name: String }
+        guard let data = try? await client.rpc("challenge_names", Body(ids: missing.map(\.uuidString))),
+              let rows = try? SupabaseClient.decoder.decode([Row].self, from: data) else { return }
+        for r in rows { names[r.id] = r.name }
     }
 
     /// Every minute: report my study minutes in running challenges, and pay out finished ones
@@ -86,10 +99,11 @@ final class ChallengeService {
 
     // MARK: Actions
 
-    func create(group: UUID, title: String, minutes: Int, fee: Int, start: Date, end: Date) async -> Bool {
-        struct Body: Encodable { let g: String; let title: String; let target_minutes: Int; let fee: Int; let starts_at: String; let ends_at: String }
+    /// Open to every Orbit member (no group)
+    func create(title: String, minutes: Int, fee: Int, start: Date, end: Date) async -> Bool {
+        struct Body: Encodable { let g: String?; let title: String; let target_minutes: Int; let fee: Int; let starts_at: String; let ends_at: String }
         return await perform(cost: fee) {
-            _ = try await self.client.rpc("create_challenge", Body(g: group.uuidString, title: title, target_minutes: minutes, fee: fee,
+            _ = try await self.client.rpc("create_challenge", Body(g: nil, title: title, target_minutes: minutes, fee: fee,
                                                                     starts_at: Self.iso(start), ends_at: Self.iso(end)))
         }
     }
@@ -150,8 +164,7 @@ struct ChallengesPage: View {
     @State private var confirmCancel: Challenge?
 
     var body: some View {
-        let groups = Set(friends.groups.map(\.id))
-        let all = service.challenges.filter { !$0.isPromise && ($0.group_id.map(groups.contains) ?? false) }
+        let all = service.challenges.filter { !$0.isPromise }
         TimelineView(.periodic(from: .now, by: 30)) { tl in
             let now = tl.date
             let upcoming = all.filter { $0.isOpen && !$0.started(now) }
@@ -160,9 +173,7 @@ struct ChallengesPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    if friends.groups.isEmpty {
-                        Card { Text("Join or create a study group in Friends → Groups to take part in challenges.").foregroundStyle(.secondary) }
-                    } else if all.isEmpty {
+                    if all.isEmpty {
                         Card { Text("No challenges yet — start one with New Challenge.").foregroundStyle(.secondary) }
                     }
                     section("Open to join", "person.badge.plus", .blue, upcoming, now)
@@ -175,7 +186,7 @@ struct ChallengesPage: View {
         }
         .navigationTitle("Challenges")
         .task { await service.load() }
-        .sheet(isPresented: $creating) { NewChallengeSheet(group: nil) }
+        .sheet(isPresented: $creating) { NewChallengeSheet() }
         .confirmationDialog("Cancel “\(confirmCancel?.title ?? "")”?", isPresented: Binding(get: { confirmCancel != nil }, set: { if !$0 { confirmCancel = nil } })) {
             Button("Cancel Challenge", role: .destructive) { if let c = confirmCancel { Task { await service.cancel(c) } } }
         } message: { Text("Everyone gets their entry fee back.") }
@@ -189,7 +200,7 @@ struct ChallengesPage: View {
                 .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Challenges").font(.title.weight(.bold))
-                Text("Study together for rockets. Everyone pays the entry fee and you can join until it starts.")
+                Text("Study together with every Orbit member for rockets. Everyone pays the entry fee and anyone can join until it starts.")
                     .foregroundStyle(.secondary)
                 HStack(spacing: 6) {
                     rule("clock", "at least \(ChallengeRules.minHours)h of study")
@@ -202,7 +213,6 @@ struct ChallengesPage: View {
             Spacer()
             Button { creating = true } label: { Label("New Challenge", systemImage: "plus") }
                 .buttonStyle(.borderedProminent).controlSize(.large)
-                .disabled(friends.groups.isEmpty)
         }
     }
 
@@ -238,7 +248,7 @@ private struct ChallengeCard: View {
         let me = friends.me?.id
         let mine = service.joined(c, me: me)
         let people = service.members(of: c).sorted { $0.minutes > $1.minutes }
-        let group = friends.groups.first { $0.id == c.group_id }?.name ?? "Group"
+        let group = c.group_id.flatMap { g in friends.groups.first { $0.id == g }?.name } ?? "Open to all Orbit members"
         let state: (String, Color) = c.status == "cancelled" ? ("Cancelled", .gray)
             : c.status == "settled" ? ("Finished", .green)
             : !c.started(now) ? ("Starts \(c.starts_at.formatted(.relative(presentation: .named)))", .blue)
@@ -248,7 +258,7 @@ private struct ChallengeCard: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(c.title).font(.headline)
-                    Label(group, systemImage: "person.3.fill").font(.caption).foregroundStyle(.secondary)
+                    Label(group, systemImage: c.group_id == nil ? "globe" : "person.3.fill").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text(state.0).font(.caption.weight(.semibold)).foregroundStyle(state.1)
@@ -267,7 +277,7 @@ private struct ChallengeCard: View {
                     .font(.caption).foregroundStyle(.orange)
             }
             ForEach(people, id: \.user_id) { m in
-                let name = m.user_id == me ? "You" : (friends.people[m.user_id]?.profile.name ?? "Member")
+                let name = m.user_id == me ? "You" : (friends.people[m.user_id]?.profile.name ?? service.names[m.user_id] ?? "Member")
                 HStack(spacing: 8) {
                     Text(name).font(.callout).frame(width: 100, alignment: .leading).lineLimit(1)
                     ProgressView(value: min(1, Double(m.minutes) / Double(max(1, c.target_minutes))))
@@ -316,13 +326,9 @@ private struct RocketLabel: LabelStyle {
 }
 
 struct NewChallengeSheet: View {
-    /// nil: pick the group in the sheet
-    let group: StudyGroup?
     @Environment(ChallengeService.self) private var service
-    @Environment(FriendsService.self) private var friends
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var groupID: UUID?
     @State private var title = ""
     @State private var hours = ChallengeRules.minHours
     @State private var fee = ChallengeRules.minFee(hours: ChallengeRules.minHours)
@@ -341,12 +347,7 @@ struct NewChallengeSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("New challenge", systemImage: "flag.checkered").font(.title3.weight(.bold))
-            if group == nil {
-                Picker("Group", selection: $groupID) {
-                    ForEach(friends.groups) { Text($0.name).tag(Optional($0.id)) }
-                }
-            }
+            Label("New challenge · open to every Orbit member", systemImage: "flag.checkered").font(.title3.weight(.bold))
             TextField("Name, e.g. Weekend sprint", text: $title).textFieldStyle(.roundedBorder)
             HStack(spacing: 8) {
                 Text("Study")
@@ -383,19 +384,18 @@ struct NewChallengeSheet: View {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Create & Pay \(fee) 🚀") {
-                    guard let g = group?.id ?? groupID else { return }
                     Task {
                         let s = start
-                        if await service.create(group: g, title: title.isEmpty ? "Challenge" : title, minutes: hours * 60,
+                        if await service.create(title: title.isEmpty ? "Challenge" : title, minutes: hours * 60,
                                                 fee: fee, start: s, end: s.addingTimeInterval(Double(lengthHours) * 3600)) { dismiss() }
                     }
                 }
                 .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-                .disabled(service.busy || fee < minFee || fee > store.rocketBalance || hours > lengthHours || (group == nil && groupID == nil))
+                .disabled(service.busy || fee < minFee || fee > store.rocketBalance || hours > lengthHours)
             }
         }
         .padding(20).frame(width: 520)
-        .onAppear { service.error = nil; groupID = groupID ?? friends.groups.first?.id }
+        .onAppear { service.error = nil }
         .onChange(of: hours) { _, h in
             fee = max(fee, ChallengeRules.minFee(hours: h))
             lengthHours = max(lengthHours, h)
