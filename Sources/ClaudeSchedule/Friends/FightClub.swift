@@ -737,7 +737,9 @@ struct BattleView: View {
     @State private var inFlightHits = 0
     /// The monster's pace for this visit: fixed, so its path never jumps when its health changes
     @State private var fixedPace: Double?
-    private let start = Date()
+    /// When this fight opened — kept in state: a plain `let` would reset every time the view is rebuilt
+    /// (after each server reply), sending the monster back to the start of its path
+    @State private var start = Date()
 
     struct Bullet: Identifiable { let id = UUID(); let x: CGFloat; let t0: Double; let hit: Bool }
     static let flight = 0.55   // seconds from ship to monster height
@@ -854,14 +856,13 @@ struct BattleView: View {
             TimelineView(.animation) { tl in
                 let t = tl.date.timeIntervalSince(start)
                 let mx = monsterX(b, left, at: t) * w
-                let p = pace(b, left)
+                let p = fixedPace ?? pace(b, left)
                 // alive: breathing, swaying, a little hop; flinches when hit
                 let breath = 1 + 0.045 * sin(t * 3.1 * p)
                 let sway = 5 * sin(t * 1.7 * p)
                 let hop = abs(sin(t * 2.2 * p)) * -7
                 let hitNow = bullets.contains { $0.hit && (0...0.18).contains(t - ($0.t0 + Self.flight)) }
                 ZStack {
-                    StarsBackground()
                     if let img = monsterImage(b.monster) {
                         Image(nsImage: img).resizable().scaledToFit()
                             .frame(width: size, height: size)
@@ -912,6 +913,8 @@ struct BattleView: View {
                     }
                 }
             }
+            // the starfield is drawn once behind the moving parts, not every frame
+            .background(StarsBackground().drawingGroup())
             .contentShape(Rectangle())
             .onTapGesture { focused = true }   // clicking the arena gives the keyboard back to the game
             .onAppear { arenaSize = geo.size }

@@ -194,15 +194,10 @@ struct ChallengesPage: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: 16) {
-            Group {
-                if let img = PlanetPainter.bundleImage("challenge-fire") {
-                    Image(nsImage: img).resizable().scaledToFit().padding(6)
-                } else {
-                    Image(systemName: "flag.checkered.2.crossed").font(.system(size: 26, weight: .bold)).foregroundStyle(.orange)
-                }
-            }
-            .frame(width: 64, height: 64)
-            .background(Circle().fill(Color.orange.opacity(0.12)))
+            Image(systemName: "flag.checkered.2.crossed")
+                .font(.system(size: 26, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Challenges").font(.title.weight(.bold))
                 Text("Study together with every Orbit member for rockets. Everyone pays the entry fee and anyone can join until it starts.")
