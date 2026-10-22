@@ -452,8 +452,13 @@ final class FriendsService {
         let todos = store.todos(on: day)
         var subjects: [String: SubjectStat] = [:]
         for s in sessions {
-            let subj = store.subject(of: s)
-            subjects[subj.name, default: SubjectStat(name: subj.name, minutes: 0, color: store.subjectHex(of: s))]
+            // grouped by category (a subcategory counts under its parent); study without one shows as itself
+            var name = store.subject(of: s).name, hex = store.subjectHex(of: s)
+            if let c = store.category(s.categoryID) {
+                let top = store.category(c.parentID) ?? c
+                name = top.name; hex = top.colorHex
+            }
+            subjects[name, default: SubjectStat(name: name, minutes: 0, color: hex)]
                 .minutes += Int(s.duration / 60)
         }
         return DailyStat(user_id: userID,

@@ -598,7 +598,7 @@ struct StudyBreakdown: View {
                     ForEach(week, id: \.name) { s in
                         HStack(spacing: 8) {
                             Circle().fill(Color(hex: s.color)).frame(width: 9, height: 9)
-                            Text(s.name).lineLimit(1).frame(width: 150, alignment: .leading)
+                            Text(s.name).lineLimit(1).truncationMode(.tail).frame(width: 150, alignment: .leading)
                             GeometryReader { geo in
                                 Capsule().fill(Color.primary.opacity(0.06))
                                     .overlay(alignment: .leading) {
@@ -624,8 +624,8 @@ struct StudyBreakdown: View {
                     ForEach(today, id: \.name) { s in
                         HStack(spacing: 6) {
                             Circle().fill(Color(hex: s.color)).frame(width: 8, height: 8)
-                            Text(s.name).lineLimit(1)
-                            Spacer()
+                            Text(s.name).lineLimit(1).truncationMode(.tail)
+                            Spacer(minLength: 6)
                             Text(Fmt.duration(TimeInterval(s.minutes * 60))).font(.callout.monospacedDigit())
                         }
                     }
@@ -634,11 +634,15 @@ struct StudyBreakdown: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     if let now = card.studyingNow {
-                        Label("Studying \(now) now", systemImage: "circle.fill")
-                            .font(.caption).foregroundStyle(.green).labelStyle(CompactLabelStyle())
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Image(systemName: "circle.fill").font(.system(size: 7))
+                            Text("Studying \(now) now").lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        }
+                        .font(.caption).foregroundStyle(.green)
                     }
                 }
-                .frame(width: 220)
+                .frame(width: 240, alignment: .topLeading)
+                .clipped()
             }
 
             // day by day
