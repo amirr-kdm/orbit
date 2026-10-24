@@ -40,7 +40,7 @@ returns setof public.bosses language plpgsql security definer set search_path = 
 declare n int; h int; begins timestamptz; ends timestamptz;
 begin
   if not public.is_approved() then raise exception 'Your account is waiting for approval'; end if;
-  if extract(isodow from week_start) <> 6 or week_start > current_date + 1 or week_start < current_date - 7 then
+  if extract(isodow from week_start) <> 6 or week_start > (now() at time zone 'Asia/Tehran')::date + 1 or week_start < (now() at time zone 'Asia/Tehran')::date - 7 then
     raise exception 'Not this week';
   end if;
   if not exists (select 1 from bosses where world_week = week_start) then

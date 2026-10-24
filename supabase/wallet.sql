@@ -230,7 +230,7 @@ begin
   select * into w from wallets where user_id = me for update;
   if w.user_id is null then return 0; end if;
   -- finished weeks only, and only those after the wallet started (earlier ones are in the opening balance)
-  if week_start + 7 > current_date or (week_start + 7)::timestamptz <= w.started_at then return 0; end if;
+  if week_start + 7 > (now() at time zone 'Asia/Tehran')::date or (week_start + 7)::timestamptz <= w.started_at then return 0; end if;
   if exists (select 1 from rocket_gifts where user_id = me and ref = 'week:' || week_start) then return 0; end if;
   select coalesce(sum(minutes), 0) / 60.0 into hours from daily_stats where user_id = me and day >= week_start and day < week_start + 7;
   bonus := case when hours > 30 then 400 when hours >= 30 then 300 when hours >= 25 then 240 when hours >= 20 then 200
@@ -250,7 +250,7 @@ declare me uuid := auth.uid(); w wallets; mine int; best int;
 begin
   select * into w from wallets where user_id = me for update;
   if w.user_id is null or not public.in_group(g) then return false; end if;
-  if week_start + 7 > current_date or (week_start + 7)::timestamptz <= w.started_at then return false; end if;
+  if week_start + 7 > (now() at time zone 'Asia/Tehran')::date or (week_start + 7)::timestamptz <= w.started_at then return false; end if;
   if (select count(*) from group_members where group_id = g) < 2 then return false; end if;
   if exists (select 1 from rocket_gifts where user_id = me and ref = 'group:' || g || '|' || week_start) then return false; end if;
   select coalesce(sum(minutes), 0) into mine from daily_stats where user_id = me and day >= week_start and day < week_start + 7;
