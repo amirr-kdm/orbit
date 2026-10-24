@@ -155,8 +155,9 @@ export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["syst
   });
   const draw = (it: typeof items[number]) => {
     const p = planetByID(it.id); if (!p) return;
-    // Planets with rings/moons are redrawn each frame; others are cached
-    const animated = !!p.ring || !!p.moons;
+    // Anything that moves (rings, moons, creatures walking on it, spacecraft in orbit, animated pictures) is redrawn
+    // every frame, like the Mac app; only completely still planets are cached
+    const animated = !!p.ring || !!p.moons || !!p.walkers?.length || !!p.crafts?.length || !!p.image;
     let img = cache.get(it.id + ps);
     if (!img || animated) {
       img = img ?? document.createElement("canvas");

@@ -32,7 +32,7 @@ export default function TimerPage() {
   const field: React.CSSProperties = { flex: 1, minWidth: 0, background: "transparent", border: "none", color: "white" };
 
   return (
-    <div style={{ display: "flex", height: "100%", minHeight: "100vh", color: "white", position: "relative", overflow: "hidden", background: "#05060C" }}>
+    <div className="timer-page" style={{ display: "flex", height: "100%", minHeight: "100vh", color: "white", position: "relative", overflow: "hidden", background: "#05060C" }}>
       {/* night sky with a pale glow from the launch pad that grows as today's study climbs toward the goal; a calm green night on a break */}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
         {/* the launch picture behind the dial, fitted to the height, rising a little as today's study climbs */}

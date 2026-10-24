@@ -48,7 +48,7 @@ export default function Galaxy() {
       <div style={{ position: "relative" }}>
         {/* One continuous map: opening a system is the camera zooming in on it */}
         <GalaxyMap data={gd} height={600} focused={focused} onSelect={setFocused} onMove={(id, x, y) => actions.moveSystem(id, x, y)} />
-        <div style={{ position: "absolute", top: 16, left: 18, right: 18, display: "flex", alignItems: "flex-start", color: "white", pointerEvents: "none" }}>
+        <div className="space-controls" style={{ position: "absolute", top: 16, left: 18, right: 18, display: "flex", alignItems: "flex-start", color: "white", pointerEvents: "none" }}>
           <div style={{ pointerEvents: "auto" }}>
             {sys ? <>
               <button className="btn small" onClick={back}>‹ Galaxy</button>

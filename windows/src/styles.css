@@ -256,3 +256,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 /* Midnight Black: pure black everywhere in dark mode */
 :root[data-theme="dark"][data-tpl="midnight"] { --bg: #000000; --card: #0A0A0B; --card2: #121214; --line: #232327; }
 :root[data-theme="dark"][data-tpl="midnight"] .sidebar { background: #000000; border-color: #1A1A1D; }
+/* Dropdown lists: the list pops up in the system's colours, so give every option its own background and text colour
+   (white text on the default white list made them unreadable) */
+option, optgroup { background-color: var(--card); color: var(--text); }
+/* The Timer is always dark, whatever the app's mode: its dropdowns open dark with light text */
+.timer-page select { color-scheme: dark; }
+.timer-page option, .timer-page optgroup { background-color: #1B1D26; color: #FFFFFF; }
+/* Controls on the dark space panels (galaxy, level pass...) are always dark with light text, in light mode too */
+.space select, .space input:not([type="range"]), .space .btn:not(.primary):not(.danger),
+.space-controls select, .space-controls input:not([type="range"]), .space-controls .btn:not(.primary):not(.danger) {
+  background: rgba(18, 20, 36, .78); color: #FFFFFF; border: 1px solid rgba(255, 255, 255, .22); color-scheme: dark; }
+.space .popover, .space-controls .popover { background: #1B1D26; color: #FFFFFF; border: 1px solid rgba(255, 255, 255, .15); }
+.space option, .space optgroup, .space-controls option, .space-controls optgroup { background-color: #1B1D26; color: #FFFFFF; }
