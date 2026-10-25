@@ -245,3 +245,12 @@ returns table (id uuid, name text) language sql stable security definer set sear
 $$;
 revoke all on function public.challenge_names(uuid[]) from public, anon;
 grant execute on function public.challenge_names(uuid[]) to authenticated;
+
+-- Challenges are open to everyone (no group). Swift leaves a nil group out of the request instead of sending null,
+-- so apps that do that call this 5-argument form; it forwards to the real function with no group.
+create or replace function public.create_challenge(title text, target_minutes int, fee int, starts_at timestamptz, ends_at timestamptz)
+returns uuid language sql security definer set search_path = public as $$
+  select public.create_challenge(null::uuid, title, target_minutes, fee, starts_at, ends_at)
+$$;
+revoke all on function public.create_challenge(text, int, int, timestamptz, timestamptz) from public, anon;
+grant execute on function public.create_challenge(text, int, int, timestamptz, timestamptz) to authenticated;
