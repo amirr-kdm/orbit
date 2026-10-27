@@ -100,6 +100,15 @@ struct TimerView: View {
                 Text(subtitle).font(.caption).foregroundStyle(.white.opacity(0.6))
             }
 
+            if !timer.isActive {
+                QuickAddField(placeholder: "Quick task: type and press Enter to create & start…") { t in
+                    let item = store.addAnytime(t)
+                    timer.select(.task(item.id))
+                    timer.start()
+                }
+                .frame(maxWidth: 440)
+            }
+
             // What, category, note — on glass
             VStack(spacing: 0) {
                 row("book.closed.fill") {

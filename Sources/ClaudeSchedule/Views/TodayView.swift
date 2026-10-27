@@ -94,6 +94,10 @@ struct TodayView: View {
                     }
                 }
 
+                Card(title: "No specific time", systemImage: "tray") {
+                    AnytimeBox(today: today)
+                }
+
                 if !overdue.isEmpty {
                     Card(title: "Overdue", systemImage: "exclamationmark.triangle") {
                         ForEach(overdue) { task in

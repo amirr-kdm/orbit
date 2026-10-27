@@ -57,6 +57,7 @@ struct WeeklyScheduleView: View {
                 weekBar(viewDate: viewDate)
                 board(now: now, viewDate: viewDate, today: weekOffset == 0 ? today : -1,
                       currentSlot: weekOffset == 0 ? currentSlot : nil, slots: slots)
+                AnytimeBox(compact: true)
                 toolbar
             }
             .padding(.horizontal, 26)

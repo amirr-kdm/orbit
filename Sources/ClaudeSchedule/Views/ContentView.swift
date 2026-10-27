@@ -63,6 +63,7 @@ struct ContentView: View {
     @Environment(ChallengeService.self) private var challenges
     @Environment(FightClubService.self) private var fightClub
     @State private var showAdmin = false
+    @State private var showQuickTask = false
     @State private var showAbout = false
     @Environment(\.colorScheme) private var scheme
     /// Midnight Black in dark mode: the whole app turns pure black (sidebar and pages)
@@ -106,6 +107,7 @@ struct ContentView: View {
             if new == .about { showAbout = true; router.selection = old ?? .today }
         }
         .sheet(isPresented: $showAbout) { AboutView() }
+        .sheet(isPresented: $showQuickTask) { QuickTaskSheet() }
         // a new notification slides in at the top right
         .overlay(alignment: .topTrailing) {
             if let t = Inbox.shared.toast {
@@ -139,6 +141,10 @@ struct ContentView: View {
             AdminPanel().inspectorColumnWidth(min: 280, ideal: 320, max: 420)
         }
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showQuickTask = true } label: { Image(systemName: "plus") }
+                    .keyboardShortcut("n", modifiers: .command).help("New task (⌘N)")
+            }
             ToolbarItem(placement: .primaryAction) { InboxBell() }
             if account.isAdmin {
                 ToolbarItem(placement: .primaryAction) {
