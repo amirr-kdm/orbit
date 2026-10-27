@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cellLook, fontOf, isDarkMode, templateOf } from "../lib/themes";
 import { useNav } from "../App";
+import { AnytimeBox } from "../lib/anytime";
 import { CellPalette, useContextMenu, MenuItem } from "../components";
 import { addDays, dualDate, minuteOfDay, monthDay, WEEKDAYS, weekdayIndex, weekStart } from "../lib/dates";
 import { EntryKind, isLight, Recurrence, RECURRENCE_BADGE, RECURRENCE_TITLE, ScheduleEntry } from "../lib/model";
@@ -164,6 +165,10 @@ export default function Schedule() {
             ];
           })}
         </div>
+      </div>
+
+      <div onClick={(e) => e.stopPropagation()}>
+        <AnytimeBox compact onStudy={(id) => { timer.setTarget({ kind: "task", id }); nav.go("timer"); }} />
       </div>
 
       <div className="toolbar" onClick={(e) => e.stopPropagation()}>

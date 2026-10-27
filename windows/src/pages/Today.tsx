@@ -1,4 +1,5 @@
 import { useNav } from "../App";
+import { AnytimeBox } from "../lib/anytime";
 import { QuickAdd, Ring, Stat } from "../components";
 import { addDays, dualDate, duration, isToday, time, WEEKDAYS, weekdayIndex, weekStart } from "../lib/dates";
 import { currentSlot, entryAt, sessionsIn, slotTitle, studyOn, studyTime, subjectOf, titleOf, todosOn, TodoItem, refKey, useStore, parity } from "../lib/store";
@@ -79,6 +80,11 @@ export default function Today() {
         <h3>📋 Other tasks today</h3>
         <QuickAdd onAdd={(t) => actions.addTask(t, today)} />
         {tasks.map((t) => <TodoRow key={refKey(t.ref)} item={t} day={today} />)}
+      </div>
+
+      <div className="card">
+        <h3>🗂 No specific time</h3>
+        <AnytimeBox today={today} onStudy={(id) => { timer.setTarget({ kind: "task", id }); nav.go("timer"); }} />
       </div>
 
       {overdue.length > 0 && (

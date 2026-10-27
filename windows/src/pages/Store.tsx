@@ -4,7 +4,7 @@ import { Modal, PlanetCanvas } from "../components";
 import { PlanetDef } from "../lib/planets";
 import { RARITY_COLOR, Rarity, rarityOf, STORE, REWARDS } from "../lib/storePlanets";
 import {
-  BONUS_TIERS, GROUP_WIN_ROCKETS, ownedCount, placedCount, progress, REFUND_TICKETS, refundsLeft, ROCKETS_PER_LEVEL, unplacedCount,
+  BONUS_TIERS, GROUP_WIN_ROCKETS, ownedCount, placedCount, progress, REFUND_TICKETS, refundsLeft, unplacedCount,
   useStore, wallet, weekBonuses, weeklyBonus,
 } from "../lib/store";
 import rocketIcon from "../assets/rocket.png";
@@ -42,7 +42,7 @@ export default function StorePage() {
           <div className="small" style={{ opacity: 0.7 }}>{w.study + w.levels} from study · {w.bonuses} weekly bonuses · {w.groups} group wins · {w.spent} spent</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <b>🏁 {ROCKETS_PER_LEVEL} rockets for every level — claim them on the Level Pass</b>
+          <b>🏁 25 rockets a level (75 from level 10, 125 from level 20 …) — claim them on the Level Pass</b>
           <div className="small" style={{ opacity: 0.7 }}>Weekly bonus when Friday ends:</div>
           <div className="row" style={{ gap: 5 }}>
             {BONUS_TIERS.map(([h, r]) => <div key={h} style={{ background: "rgba(255,255,255,.08)", borderRadius: 7, padding: "3px 7px", textAlign: "center", fontSize: 11 }}><b>{h}</b><br />+{r}</div>)}

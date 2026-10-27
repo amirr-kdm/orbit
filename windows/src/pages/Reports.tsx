@@ -24,6 +24,11 @@ export default function Reports() {
   const [period, setPeriod] = useState<"week" | "month">("week");
   const [anchor, setAnchor] = useState(new Date());
   const accent = data.settings.accent;
+  // Charts show each subcategory on its own (default), or roll subcategories up into their main category
+  const [mainOnly, setMainOnlyRaw] = useState(() => localStorage.getItem("reports-main-only") === "1");
+  const setMainOnly = (v: boolean) => { setMainOnlyRaw(v); localStorage.setItem("reports-main-only", v ? "1" : "0"); };
+  const hasSub = data.categories.some((c) => c.parentID && categoryOf(data, c.parentID));
+  const mainOf = (s: StudySession) => { const c = categoryOf(data, s.categoryID); return c ? categoryOf(data, c.parentID) ?? c : undefined; };
 
   const days = period === "week" ? Array.from({ length: 7 }, (_, i) => addDays(weekStart(anchor), i)) : monthDays(anchor, kind);
   const from = days[0], to = addDays(days[days.length - 1], 1), now = new Date();
@@ -36,11 +41,13 @@ export default function Reports() {
   // The daily chart's colours: with "to-dos use their category's colour" on, several subjects share a colour,
   // so the chart groups by category (one colour = one legend entry); otherwise by subject
   const group = (s: StudySession) => {
+    const top = mainOnly ? mainOf(s) : undefined;
+    if (top) return { name: top.name, color: top.colorHex };
     const c = categoryOf(data, s.categoryID);
     return data.settings.categoryColors && c ? { name: categoryLabel(data, c.id) ?? c.name, color: c.colorHex } : subjectOf(data, s);
   };
   const perDay = days.map((d) => { const ss = sessionsIn(data, startOfDay(d), addDays(startOfDay(d), 1)); return { d, total: sum(ss), by: totals(ss, group) }; });
-  const groups = totals(sessions, group), subjects = totals(sessions, (s) => subjectOf(data, s));
+  const groups = totals(sessions, group), subjects = totals(sessions, (s) => { const top = mainOnly ? mainOf(s) : undefined; return top ? { name: top.name, color: top.colorHex } : subjectOf(data, s); });
   const items = totals(sessions, (s) => ({ name: itemTitle(data, s), color: subjectOf(data, s).color }));
   const best = perDay.reduce((a, b) => (b.total > a.total ? b : a), perDay[0]);
   const active = perDay.filter((p) => p.total > 0).length;
@@ -108,6 +115,14 @@ export default function Reports() {
             <div><div style={{ fontSize: 20, fontWeight: 900 }}>{target > 0 ? `${Math.round((total / target) * 100)}%` : "—"}</div><div style={{ fontSize: 10, opacity: 0.8 }}>of {shortDuration(target)} goal</div></div></div>
         </div>
       </div>
+
+      {hasSub && (
+        <div className="card row" style={{ gap: 12, flexWrap: "wrap" }}>
+          <b>📚 Categories in the charts</b>
+          <div className="seg"><button className={!mainOnly ? "on" : ""} onClick={() => setMainOnly(false)}>Each subcategory</button><button className={mainOnly ? "on" : ""} onClick={() => setMainOnly(true)}>Main categories only</button></div>
+          <span className="small muted">{mainOnly ? "Subcategories are added up under their main category." : "IELTS › Speaking and IELTS › Writing show separately."}</span>
+        </div>
+      )}
 
       {/* insights */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>

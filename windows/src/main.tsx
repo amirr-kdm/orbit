@@ -8,6 +8,7 @@ import { TimerProvider } from "./lib/timer";
 import { AccountProvider } from "./lib/account";
 import { ChallengesProvider } from "./lib/challenges";
 import { FightClubProvider } from "./lib/fightclub";
+import { InboxProvider } from "./lib/inbox";
 import { registerPicture } from "./lib/planets";
 import ufo from "./assets/ufo.png";
 import satellite from "./assets/satellite.png";
@@ -23,7 +24,7 @@ for (const [path, url] of Object.entries(import.meta.glob(["./assets/s4_*.png", 
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <StoreProvider>
+    <InboxProvider><StoreProvider>
       <FriendsProvider>
         <AccountProvider>
           <ChallengesProvider><FightClubProvider>
@@ -33,6 +34,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           </FightClubProvider></ChallengesProvider>
         </AccountProvider>
       </FriendsProvider>
-    </StoreProvider>
+    </StoreProvider></InboxProvider>
   </React.StrictMode>,
 );

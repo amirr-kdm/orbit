@@ -268,3 +268,16 @@ option, optgroup { background-color: var(--card); color: var(--text); }
   background: rgba(18, 20, 36, .78); color: #FFFFFF; border: 1px solid rgba(255, 255, 255, .22); color-scheme: dark; }
 .space .popover, .space-controls .popover { background: #1B1D26; color: #FFFFFF; border: 1px solid rgba(255, 255, 255, .15); }
 .space option, .space optgroup, .space-controls option, .space-controls optgroup { background-color: #1B1D26; color: #FFFFFF; }
+
+/* notification bell, toast, top bar */
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; justify-content: flex-end; align-items: center; gap: 4px; padding: 6px 14px 0; height: 0; overflow: visible; pointer-events: none; }
+.topbar > * { pointer-events: auto; }
+.bell-count { position: absolute; top: -4px; right: -6px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 99px; background: #ef4444; color: white; font-size: 9px; font-weight: 800; display: grid; place-items: center; }
+.notice-pop { position: absolute; top: 34px; right: 0; width: 340px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 34px rgba(0,0,0,.35); z-index: 50; overflow: hidden; }
+.notice-row { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; padding: 10px 14px; border: none; border-bottom: 1px solid var(--line); background: none; color: var(--text); }
+.notice-ico { width: 34px; height: 34px; border-radius: 99px; display: grid; place-items: center; flex-shrink: 0; font-size: 16px; }
+.notice-toast { position: fixed; top: 14px; right: 16px; z-index: 200; width: 330px; display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.4); cursor: pointer; animation: toast-in .35s ease-out; }
+@keyframes toast-in { from { transform: translateY(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.nav .sub { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+.nav.active .sub { color: rgba(255,255,255,.8); }
+.nav .nbadge { margin-left: auto; font-size: 11px; font-weight: 800; color: white; border-radius: 99px; padding: 1px 7px; }

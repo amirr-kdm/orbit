@@ -184,6 +184,19 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         <button className="icon-btn" title="Refresh" onClick={a.loadUsers}>↻</button><button className="icon-btn" onClick={onClose}>✕</button></div>
       <div className="small muted">Only you see this panel. {members.length} members · {pending.length} waiting</div>
       <BossHours />
+      <div className="card" style={{ padding: 12, background: "rgba(249,115,22,.1)" }}>
+        <b>🎁 Gift everyone</b>
+        <div className="small muted">Gives every approved member the same rockets at once.</div>
+        <button className="btn small" style={{ marginTop: 6 }} onClick={async () => {
+          const v = prompt(`How many rockets for every member? (1–100000)`, "100");
+          const n = Math.round(Number(v));
+          if (!v || !(n >= 1 && n <= 100000)) return;
+          const reason = prompt("Message they will see (optional):", "") ?? "";
+          if (!confirm(`Send ${n} 🚀 to ALL ${members.length} members?`)) return;
+          const got = await a.giftEveryone(n, reason.trim());
+          if (got != null) setGiftNote(`Sent ${n} 🚀 to ${got} members.`);
+        }}>🚀 Gift everyone…</button>
+      </div>
       <div className="small" style={{ fontWeight: 800, letterSpacing: 1, color: "var(--faint)", marginTop: 8 }}>WAITING FOR APPROVAL</div>
       {!pending.length && <div className="small muted">No one is waiting.</div>}
       {pending.map((u) => (

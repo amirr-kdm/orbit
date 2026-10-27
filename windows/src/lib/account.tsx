@@ -1,5 +1,6 @@
 // Accounts (email + username + password), owner approval, cloud backup of the data and the owner's admin tools.
 // Same server and rules as the Mac app. The app keeps working offline on the local copy.
+import { useInbox } from "./inbox";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppData } from "./model";
 import { accountData, sharedClient as client, supabaseConfigured, useFriends } from "./friends";
@@ -34,6 +35,8 @@ interface Account {
   resetPassword: (id: string) => Promise<string | null>;
   /** Give (or take back, if negative) rockets; their app adds them on its next check */
   giftRockets: (id: string, amount: number) => Promise<boolean>;
+  /** Gift every approved member at once; returns how many got it */
+  giftEveryone: (amount: number, reason?: string) => Promise<number | null>;
   /** Rockets just received as a gift (banner until dismissed) */
   giftNotice: string | null; clearGiftNotice: () => void;
   /** Re-check rocket gifts / payouts right away */
@@ -82,6 +85,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state); stateRef.current = state;
   const restoring = useRef(false);
   const [giftNotice, setGiftNotice] = useState<string | null>(null);
+  const inbox = useInbox();
   const timer = useRef<number>();
   const notified = useRef<Set<string>>(new Set());
 
@@ -169,8 +173,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       if (!gifts.some((g) => !known.includes(g.id))) return;
       // Tell about rockets received (buying, refunds, level rewards and fees are your own actions, so they stay quiet)
       for (const g of gifts.filter((x) => !known.includes(x.id) && x.amount > 0 && !x.ref?.startsWith("refund:") && !x.ref?.startsWith("level:"))) {
-        setGiftNotice(g.reason ? `${g.reason} (+${g.amount} 🚀)` : `You got ${g.amount} rockets from the Orbit admin! 🚀`);
-        notify(g.reason ? `+${g.amount} 🚀 rockets` : `You got ${g.amount} 🚀 rockets!`, g.reason ?? "A gift from the Orbit admin. Spend them in the Store.");
+        inbox.post({ id: `gift-${g.id}`, kind: "gift", route: "store", title: g.reason ? `+${g.amount} 🚀 rockets` : `You got ${g.amount} 🚀 rockets!`,
+          body: g.reason ?? "A gift from the Orbit admin. Spend them in the Store." });
       }
       update((d) => {
         const claimed = d.claimedGifts ?? (d.claimedGifts = []);
@@ -179,7 +183,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       });
       if (walletLive()) await actions.walletRefresh();
     } catch { /* offline — try again later */ }
-  }, [update]);
+  }, [update, inbox]);
 
   // ---------- profile / state ----------
 
@@ -360,6 +364,11 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       return ok ? temp : null;
     },
     giftNotice, clearGiftNotice: () => setGiftNotice(null), claimGifts,
+    giftEveryone: async (amount, reason) => {
+      let n: number | null = null;
+      await perform(async () => { n = await client.rpc("admin_gift_all", { amount, reason: reason || null }); await claimGifts(); });
+      return n;
+    },
     giftRockets: async (id, amount) => {
       let ok = false;
       await perform(async () => { await client.rpc("admin_gift_rockets", { uid: id, amount }); ok = true; });

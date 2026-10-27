@@ -3,12 +3,18 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { useAccount } from "./account";
 import { accountData, sharedClient as client } from "./friends";
 import { rewardTime, useStore, wallet } from "./store";
+import { useInbox } from "./inbox";
 
 export interface Challenge {
   id: string; kind: "group" | "promise"; group_id: string | null; creator: string; friend: string | null;
   title: string; target_minutes: number; fee: number; starts_at: string; ends_at: string; status: "open" | "settled" | "cancelled";
+  /** public: everyone · private: needs the invite code · group: only that group */
+  visibility?: "public" | "private" | "group"; invite_code?: string | null;
 }
-export interface ChallengeMember { challenge_id: string; user_id: string; minutes: number }
+export interface ChallengeMember { challenge_id: string; user_id: string; minutes: number; joined_at?: string }
+export interface Person { name: string; avatar?: string | null; level?: number }
+export const typeOf = (c: Challenge): "public" | "private" | "group" => c.visibility ?? (c.group_id ? "group" : "public");
+export const isLive = (c: Challenge, now = Date.now()) => c.kind !== "promise" && c.status === "open" && now >= new Date(c.starts_at).getTime() && now < new Date(c.ends_at).getTime();
 /** Apps can still report minutes for this long after the end; then it pays out */
 const GRACE = 3600_000;
 
@@ -16,8 +22,12 @@ interface Challenges {
   list: Challenge[]; members: Record<string, ChallengeMember[]>; error: string | null; busy: boolean;
   /** Usernames of people in open-to-all challenges (they may not be friends) */
   names: Record<string, string>;
-  /** Open to every Orbit member (no group) */
-  create: (title: string, minutes: number, fee: number, start: Date, end: Date) => Promise<boolean>;
+  /** Name, picture and level of everyone in the challenges */
+  people: Record<string, Person>;
+  /** Public (everyone), private (invite code) or group; returns the new id (null when it failed) */
+  create: (title: string, minutes: number, fee: number, start: Date, end: Date, type?: "public" | "private" | "group", group?: string) => Promise<string | null>;
+  joinByCode: (code: string) => Promise<string | null>;
+  liveCount: () => number;
   promise: (friend: string, minutes: number, stake: number, end: Date) => Promise<boolean>;
   join: (c: Challenge) => Promise<void>; leave: (c: Challenge) => Promise<void>; cancel: (c: Challenge) => Promise<void>;
   setError: (e: string | null) => void;
@@ -32,7 +42,9 @@ export function ChallengesProvider({ children }: { children: React.ReactNode }) 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [names, setNames] = useState<Record<string, string>>({});
-  const namesRef = useRef(names); namesRef.current = names;
+  const [people, setPeople] = useState<Record<string, Person>>({});
+  const namesRef = useRef(people); namesRef.current = people;
+  const inbox = useInbox();
   const dataRef = useRef(data); dataRef.current = data;
 
   /** Open ones, plus anything finished in the last week */
@@ -43,15 +55,37 @@ export function ChallengesProvider({ children }: { children: React.ReactNode }) 
       const l: Challenge[] = await client.get(`challenges?or=(status.eq.open,ends_at.gt.${since})&order=starts_at.desc`);
       const by: Record<string, ChallengeMember[]> = {};
       if (l.length) {
-        const rows: ChallengeMember[] = await client.get(`challenge_members?challenge_id=in.(${l.map((c) => c.id).join(",")})&select=challenge_id,user_id,minutes`);
+        const rows: ChallengeMember[] = await client.get(`challenge_members?challenge_id=in.(${l.map((c) => c.id).join(",")})&select=challenge_id,user_id,minutes,joined_at`);
         for (const r of rows) (by[r.challenge_id] ??= []).push(r);
       }
       setList(l); setMembers(by);
       const missing = [...new Set(Object.values(by).flat().map((m) => m.user_id))].filter((id) => !namesRef.current[id]);
       if (missing.length) {
-        try { const rows: { id: string; name: string }[] = await client.rpc("challenge_names", { ids: missing }); setNames((n) => ({ ...n, ...Object.fromEntries(rows.map((x) => [x.id, x.name])) })); }
-        catch { /* ignore */ }
+        try {
+          const rows: { id: string; name: string; avatar?: string | null; level?: number }[] = await client.rpc("challenge_people", { ids: missing });
+          setPeople((n) => ({ ...n, ...Object.fromEntries(rows.map((x) => [x.id, { name: x.name, avatar: x.avatar, level: x.level }])) }));
+          setNames((n) => ({ ...n, ...Object.fromEntries(rows.map((x) => [x.id, x.name])) }));
+        } catch {
+          // a server without challenges v2: names only
+          try { const rows: { id: string; name: string }[] = await client.rpc("challenge_names", { ids: missing });
+            setPeople((n) => ({ ...n, ...Object.fromEntries(rows.map((x) => [x.id, { name: x.name }])) })); setNames((n) => ({ ...n, ...Object.fromEntries(rows.map((x) => [x.id, x.name])) })); } catch { /* ignore */ }
+        }
       }
+      // tell about new challenges once (the very first load only learns what's already there)
+      try {
+        const me = client.session?.userID.toLowerCase();
+        const raw = localStorage.getItem("orbit-challenges-seen");
+        const seen = new Set<string>(JSON.parse(raw ?? "[]"));
+        const fresh = l.filter((c) => c.kind !== "promise" && c.status === "open" && c.creator.toLowerCase() !== me && Date.now() < new Date(c.ends_at).getTime() && !seen.has(c.id));
+        if (raw !== null) for (const c of fresh) {
+          const kind = typeOf(c);
+          if (kind === "private") continue;
+          inbox.post({ id: `challenge-${c.id}`, kind: kind === "group" ? "group" : "challenge", route: "challenges", target: c.id,
+            title: kind === "group" ? `New challenge in your group: ${c.title}` : `🏁 New public challenge: ${c.title}`,
+            body: `${hm(c.target_minutes)} of study · ${c.fee} 🚀 entry · join any time until it ends` });
+        }
+        localStorage.setItem("orbit-challenges-seen", JSON.stringify([...new Set([...seen, ...l.map((c) => c.id)])]));
+      } catch { /* ignore */ }
       return { l, by };
     } catch { return undefined; }
   }, []);
@@ -91,8 +125,24 @@ export function ChallengesProvider({ children }: { children: React.ReactNode }) 
   };
 
   const value: Challenges = {
-    list, members, error, busy, setError, names,
-    create: (title, minutes, fee, start, end) => perform(fee, () => client.rpc("create_challenge", { g: null, title, target_minutes: minutes, fee, starts_at: start.toISOString(), ends_at: end.toISOString() })),
+    list, members, error, busy, setError, names, people,
+    liveCount: () => list.filter((c) => isLive(c)).length,
+    create: async (title, minutes, fee, start, end, type = "public", group) => {
+      let id: string | null = null;
+      const ok = await perform(fee, async () => {
+        try { id = await client.rpc("create_challenge_v2", { title, target_minutes: minutes, fee, starts_at: start.toISOString(), ends_at: end.toISOString(), visibility: type, grp: group ?? null }); }
+        catch (e: any) {
+          if (type !== "public") throw e;
+          id = await client.rpc("create_challenge", { g: null, title, target_minutes: minutes, fee, starts_at: start.toISOString(), ends_at: end.toISOString() });
+        }
+      });
+      return ok ? id : null;
+    },
+    joinByCode: async (code) => {
+      let id: string | null = null;
+      await perform(0, async () => { id = await client.rpc("join_challenge_by_code", { code: code.trim() }); });
+      return id;
+    },
     promise: (friend, minutes, stake, end) => perform(stake, () => client.rpc("create_promise", { to_friend: friend, target_minutes: minutes, stake, ends_at: end.toISOString() })),
     join: async (c) => { await perform(c.fee, () => client.rpc("join_challenge", { c: c.id })); },
     leave: async (c) => { await perform(0, () => client.rpc("leave_challenge", { c: c.id })); },

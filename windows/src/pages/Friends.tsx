@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { PromiseModal, Promises } from "./Challenges";
+import { NewChallenge, PromiseModal, Promises } from "./Challenges";
+import { hm, typeOf, useChallenges } from "../lib/challenges";
 import { StreakIcon, Avatar, GalaxyMap, LevelBadge, Modal, SystemCanvas } from "../components";
 import { dayKey, duration, isToday, shortDuration, WEEKDAYS_SHORT, weekDays, weekdayIndex } from "../lib/dates";
 import { FriendCard, minutesOn, streak, studyingNow, supabaseConfigured, useFriends, weekMinutes, weekSubjects } from "../lib/friends";
@@ -9,7 +10,7 @@ import { RocketIcon } from "./Store";
 import { AllOrbiters } from "./Orbiters";
 import { useStore } from "../lib/store";
 
-export default function Friends() {
+export default function Friends({ only }: { only?: "groups" } = {}) {
   const f = useFriends();
   const { data } = useStore();
   const [name, setName] = useState("");
@@ -19,7 +20,8 @@ export default function Friends() {
   const [galaxy, setGalaxy] = useState<FriendCard | null>(null);
   const [promising, setPromising] = useState<FriendCard | null>(null);
   const [copied, setCopied] = useState(false);
-  const [tab, setTab] = useState<number>(() => Number(localStorage.getItem("friends-tab") ?? 0));
+  const [tab0, setTab] = useState<number>(() => Number(localStorage.getItem("friends-tab") ?? 0));
+  const tab = only === "groups" ? 1 : tab0 === 1 ? 0 : tab0;
   useEffect(() => { localStorage.setItem("friends-tab", String(tab)); }, [tab]);
 
   useEffect(() => { const t = setInterval(f.refresh, 45_000); return () => clearInterval(t); }, [f.refresh]);
@@ -78,11 +80,10 @@ export default function Friends() {
         </div>
       )}
 
-      <div className="seg" style={{ alignSelf: "flex-start" }}>
+      {!only && <div className="seg" style={{ alignSelf: "flex-start" }}>
         <button className={tab === 2 ? "on" : ""} onClick={() => setTab(2)}>All Orbiters</button>
         <button className={tab === 0 ? "on" : ""} onClick={() => setTab(0)}>Friends ({f.friends.length})</button>
-        <button className={tab === 1 ? "on" : ""} onClick={() => setTab(1)}>Groups ({f.groups.length})</button>
-      </div>
+      </div>}
 
       {tab === 2 ? <AllOrbiters /> : tab === 1 ? <Groups mine={mine} onGalaxy={setGalaxy} /> : <>
       {live.length > 0 && (
@@ -197,6 +198,8 @@ function Groups({ mine, onGalaxy }: { mine: FriendCard | null; onGalaxy: (c: Fri
   const [note, setNote] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(localStorage.getItem("selected-group"));
   const g = f.groups.find((x) => x.id === sel) ?? f.groups[0];
+  const ch = useChallenges();
+  const [newCh, setNewCh] = useState(false);
   const myID = f.me?.id;
   const cards = g ? g.members.map((id) => (id === myID ? mine : f.people[id])).filter((c): c is FriendCard => !!c).sort((a, b) => weekMinutes(b) - weekMinutes(a)) : [];
   const top = Math.max(1, ...cards.map(weekMinutes));
@@ -238,6 +241,11 @@ function Groups({ mine, onGalaxy }: { mine: FriendCard | null; onGalaxy: (c: Fri
             <button className="btn small" onClick={() => navigator.clipboard.writeText(g.code)}>Copy code</button>
             <button className="btn small danger" onClick={() => confirm(`Leave ${g.name}? You can join again with the code.`) && f.leaveGroup(g.id)}>Leave</button>
           </div>
+          <div className="row" style={{ margin: "4px 0 10px" }}><h3 style={{ margin: 0 }}>🏁 Group challenges</h3><span className="spacer" /><button className="btn small primary" onClick={() => { ch.setError(null); setNewCh(true); }}>＋ New group challenge</button></div>
+          {(() => { const list = ch.list.filter((c) => c.kind !== "promise" && c.group_id === g.id); return list.length ? list.map((c) => (
+            <div key={c.id} className="list-row"><div style={{ flex: 1 }}><b>{c.title}</b><div className="small muted">{hm(c.target_minutes)} goal · {c.fee} 🚀 entry · {(ch.members[c.id] ?? []).length} joined · {c.status === "open" ? (Date.now() < new Date(c.ends_at).getTime() ? "open" : "paying out") : c.status}</div></div>
+              <span className="small muted">{typeOf(c) === "group" ? "👥" : ""}</span></div>)) : <div className="small muted" style={{ marginBottom: 8 }}>No challenges in this group yet. Make one — only group members can join it.</div>; })()}
+          {newCh && <NewChallenge presetGroup={g.id} onClose={() => setNewCh(false)} />}
           <h3>🏆 This week in {g.name}</h3>
           {cards.map((x, i) => (
             <div key={x.profile.id} className="list-row">

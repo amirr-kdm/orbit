@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PlanetCanvas } from "../components";
 import { RocketIcon } from "./Store";
 import { planetByID } from "../lib/planets";
-import { canClaim, HOURS_PER_LEVEL, levelPlanet, MAX_LEVEL, progress, ROCKETS_PER_LEVEL, useStore, wallet } from "../lib/store";
+import { canClaim, HOURS_PER_LEVEL, levelPlanet, MAX_LEVEL, progress, rocketsForLevel, useStore, wallet } from "../lib/store";
 import ship1 from "../assets/pass_ship1.png";
 import ship2 from "../assets/pass_ship2.png";
 import ship3 from "../assets/pass_ship3.png";
@@ -85,12 +85,12 @@ export default function LevelPass({ fromHours, onClose }: { fromHours?: number; 
                     background: reached ? "#F97316" : "rgba(255,255,255,.12)", border: `1.5px solid rgba(255,255,255,${reached ? 0.6 : 0.15})` }}>{lv}</div>
                   <button disabled={!take && !planet}
                     onClick={() => { if (take) actions.claimLevel(lv); else if (planet) setPreview(lv); }}
-                    title={planet ? `Level ${lv}: 25 rockets + ${planet.name}` : `Level ${lv}: 25 rockets`}
+                    title={planet ? `Level ${lv}: ${rocketsForLevel(lv)} rockets + ${planet.name}` : `Level ${lv}: ${rocketsForLevel(lv)} rockets`}
                     style={{ width: 104, height: planet ? 136 : 64, borderRadius: 12, color: "white", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
                       background: take ? "rgba(249,115,22,.18)" : "rgba(255,255,255,.05)", border: `${take ? 2 : 1}px solid ${take ? "#F97316" : planet ? "rgba(168,85,247,.6)" : "rgba(255,255,255,.08)"}`,
                       boxShadow: take ? "0 0 10px rgba(249,115,22,.5)" : undefined, opacity: reached || planet ? 1 : 0.55, cursor: take || planet ? "pointer" : "default" }}>
                     {planet && <PlanetCanvas planet={planet} size={70} animate />}
-                    <span className="row small" style={{ gap: 3, fontWeight: 700 }}><RocketIcon size={14} />+{ROCKETS_PER_LEVEL}</span>
+                    <span className="row small" style={{ gap: 3, fontWeight: 700 }}><RocketIcon size={14} />+{rocketsForLevel(lv)}</span>
                     <span className="small" style={{ fontWeight: 600, color: claimed ? "#22C55E" : take ? "#F97316" : "rgba(255,255,255,.5)" }}>{claimed ? "Taken ✓" : take ? "Claim" : "Locked"}</span>
                   </button>
                 </div>

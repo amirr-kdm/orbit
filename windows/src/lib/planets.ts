@@ -631,9 +631,9 @@ function paintPicture(ctx: Ctx, p: PlanetDef, c: number, r: number, phase: numbe
 
 export const SUNS: Record<string, { name: string; level: number; colors: [string, string, string]; scale: number }> = {
   yellow: { name: "Yellow Sun", level: 1, colors: ["#FFFBEB", "#FDE047", "#F97316"], scale: 1 },
-  red: { name: "Red Giant", level: 6, colors: ["#FEE2E2", "#F87171", "#991B1B"], scale: 1.35 },
-  blue: { name: "Blue Star", level: 16, colors: ["#EFF6FF", "#60A5FA", "#1D4ED8"], scale: 1.1 },
-  white: { name: "White Dwarf", level: 21, colors: ["#FFFFFF", "#E0E7FF", "#818CF8"], scale: 0.7 },
+  red: { name: "Red Giant", level: 6, colors: ["#FEE2E2", "#F87171", "#991B1B"], scale: 1 },
+  blue: { name: "Blue Star", level: 16, colors: ["#EFF6FF", "#60A5FA", "#1D4ED8"], scale: 1 },
+  white: { name: "White Dwarf", level: 21, colors: ["#FFFFFF", "#E0E7FF", "#818CF8"], scale: 1 },
   binary: { name: "Twin Stars", level: 31, colors: ["#FFFBEB", "#FDBA74", "#F43F5E"], scale: 1 },
   pulsar: { name: "Pulsar", level: 41, colors: ["#ECFEFF", "#22D3EE", "#7C3AED"], scale: 1 },
 };

@@ -244,7 +244,8 @@ export function weekBonuses(d: AppData, now = new Date()): { start: Date; hours:
 
 /** Until this day rockets came for every hour studied; since then they come from the Level Pass (25 a level) */
 export const LEVEL_PASS_START = new Date(2026, 9, 21);
-export const ROCKETS_PER_LEVEL = 25;
+/** Rockets a level gives: 25 up to level 9, 75 from level 10, then 50 more with every further ten levels (20 → 125 …); the server uses the same table */
+export const rocketsForLevel = (level: number) => (level < 10 ? 25 : 75 + 50 * (Math.floor(level / 10) - 1));
 /** Levels 10, 20 … 60 also give a special planet */
 export const levelPlanet = (level: number) => (level > 0 && level % 10 === 0 ? `lv_t${level / 10}` : null);
 export const canClaim = (d: AppData, level: number) => level >= 1 && level <= progress(d).level && !(d.claimedLevels ?? []).includes(level);
@@ -256,7 +257,7 @@ export const serverWallet: { balance: number | null; refundsLeft: number | null 
 export const refundsLeft = (d: AppData) => serverWallet.refundsLeft ?? Math.max(0, REFUND_TICKETS - d.refundsUsed);
 export function wallet(d: AppData): Wallet {
   const study = Math.floor(d.sessions.filter((s) => new Date(s.start) < LEVEL_PASS_START).reduce((a, s) => a + s.duration, 0) / 3600 * ROCKETS_PER_HOUR);
-  const levels = (d.claimedLevels ?? []).length * ROCKETS_PER_LEVEL;
+  const levels = (d.claimedLevels ?? []).reduce((a, l) => a + rocketsForLevel(l), 0);
   const bonuses = weekBonuses(d).reduce((a, b) => a + b.rockets, 0);
   const groups = d.groupWins.length * GROUP_WIN_ROCKETS;
   const spent = d.purchases.reduce((a, p) => a + p.price, 0);
@@ -471,7 +472,7 @@ function makeActions(update: Store["update"]) {
       if (placedCount(d, id) > ownedCount(d, id)) { const j = d.galaxy.map((g) => g.planetID).lastIndexOf(id); if (j >= 0) d.galaxy.splice(j, 1); }
       if (d.avatarPlanet === id && ownedCount(d, id) === 0) d.avatarPlanet = undefined;
     }),
-    /** Take a level's rewards: 25 rockets, plus a planet on every 10th level */
+    /** Take a level's rewards: its rockets, plus a planet on every 10th level */
     claimLevel: (level: number) => update((d) => {
       if (!canClaim(d, level)) return;
       (d.claimedLevels ??= []).push(level);
