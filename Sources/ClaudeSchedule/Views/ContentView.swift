@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case today, schedule, planner, timer, tasks, calendar, reports, galaxy, store, friends, challenges, fightClub, settings, about
+    case today, schedule, planner, timer, tasks, calendar, reports, galaxy, store, friends, groups, challenges, fightClub, settings, about
 
     var id: String { rawValue }
 
@@ -10,7 +10,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         ("Plan", [.today, .schedule, .tasks, .calendar, .planner]),
         ("Focus", [.timer, .reports]),
         ("Rewards", [.galaxy, .store]),
-        ("Social", [.friends, .challenges, .fightClub]),
+        ("Social", [.friends, .groups, .challenges, .fightClub]),
         ("App", [.settings, .about]),
     ]
     var title: String {
@@ -25,6 +25,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .galaxy: "My Galaxy"
         case .store: "Store"
         case .friends: "Friends"
+        case .groups: "Groups"
         case .challenges: "Challenges"
         case .fightClub: "Fight Club"
         case .settings: "Settings"
@@ -43,6 +44,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .galaxy: "sparkles"
         case .store: "bag"
         case .friends: "person.2"
+        case .groups: "person.3"
         case .challenges: "flag.checkered"
         case .fightClub: "burst.fill"
         case .settings: "gearshape"
@@ -73,7 +75,12 @@ struct ContentView: View {
                 ForEach(SidebarItem.sections, id: \.title) { section in
                     Section(section.title) {
                         ForEach(section.items) { item in
-                            Label(item.title, systemImage: item.icon).tag(item)
+                            HStack(spacing: 6) {
+                                Label(item.title, systemImage: item.icon)
+                                Spacer(minLength: 4)
+                                sidebarBadge(item)
+                            }
+                            .tag(item)
                         }
                     }
                 }
@@ -99,8 +106,25 @@ struct ContentView: View {
             if new == .about { showAbout = true; router.selection = old ?? .today }
         }
         .sheet(isPresented: $showAbout) { AboutView() }
+        // a new notification slides in at the top right
+        .overlay(alignment: .topTrailing) {
+            if let t = Inbox.shared.toast {
+                NoticeToast(notice: t)
+                    .padding(.top, 12).padding(.trailing, 16)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .id(t.id)
+            }
+        }
         // Developer tool: CS_TEST_PASS=2 opens the Level Pass as if 2 hours were just studied
         .onAppear {
+            // Developer tool: CS_TEST_NOTICES=1 puts a few pretend notifications in the bell
+            if ProcessInfo.processInfo.environment["CS_TEST_NOTICES"] != nil {
+                Inbox.shared.post(id: "test-1", title: "🏁 New public challenge: Weekend sprint", body: "6h of study · 300 🚀 entry by @sara · join any time",
+                                  kind: .challenge, route: .challenges, system: false)
+                Inbox.shared.post(id: "test-2", title: "+800 🚀 rockets", body: "Welcome gift from the Orbit admin!", kind: .gift, route: .store, system: false)
+                Inbox.shared.post(id: "test-3", title: "New challenge in Class 12: Focus battle", body: "5h of study · 250 🚀 entry · anyone in the group can join",
+                                  kind: .group, route: .groups, system: false)
+            }
             if let h = ProcessInfo.processInfo.environment["CS_TEST_PASS"].flatMap(Double.init) {
                 let total = store.sessions.reduce(0) { $0 + $1.duration } / 3600
                 store.passMoment = PassMoment(fromHours: max(0, total - h), toHours: total)
@@ -115,6 +139,7 @@ struct ContentView: View {
             AdminPanel().inspectorColumnWidth(min: 280, ideal: 320, max: 420)
         }
         .toolbar {
+            ToolbarItem(placement: .primaryAction) { InboxBell() }
             if account.isAdmin {
                 ToolbarItem(placement: .primaryAction) {
                     Button { showAdmin.toggle() } label: {
@@ -150,6 +175,29 @@ struct ContentView: View {
         .onChange(of: store.sessions.count) { _, _ in Task { await friends.syncNow() } }
     }
 
+    /// Little numbers beside the sidebar names: friends studying now, live challenges, my rank in the fight
+    @ViewBuilder private func sidebarBadge(_ item: SidebarItem) -> some View {
+        switch item {
+        case .friends:
+            let n = friends.friends.filter { $0.studyingNow != nil }.count
+            if n > 0 { badge("\(n)", .green, help: "\(n) friend\(n == 1 ? " is" : "s are") studying right now") }
+        case .challenges:
+            let n = challenges.liveCount()
+            if n > 0 { badge("\(n)", .orange, help: "\(n) challenge\(n == 1 ? "" : "s") running now") }
+        case .fightClub:
+            if let r = fightClub.myRank(me: friends.me?.id) { badge("#\(r)", .red, help: "Your place on this week's World Boss board") }
+        default:
+            EmptyView()
+        }
+    }
+
+    private func badge(_ text: String, _ color: Color, help: String) -> some View {
+        Text(text).font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
+            .padding(.horizontal, 7).padding(.vertical, 1.5)
+            .background(Capsule().fill(color.gradient))
+            .help(help)
+    }
+
     @ViewBuilder private var page: some View {
             switch router.selection ?? .today {
             case .today: TodayView()
@@ -162,6 +210,7 @@ struct ContentView: View {
             case .galaxy: GalaxyPage()
             case .store: StoreView()
             case .friends: FriendsView()
+            case .groups: GroupsPage()
             case .challenges: ChallengesPage()
             case .fightClub: FightClubPage()
             case .settings: SettingsView()

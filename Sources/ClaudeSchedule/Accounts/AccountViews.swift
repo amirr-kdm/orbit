@@ -458,6 +458,9 @@ struct AdminPanel: View {
     @State private var giftTo: AccountService.AdminUser?
     @State private var giftAmount = 100
     @State private var giftDone: String?
+    @State private var giftAll = 100
+    @State private var giftAllReason = ""
+    @State private var confirmGiftAll = false
 
     var body: some View {
         let pending = account.users.filter { !$0.approved }
@@ -488,6 +491,35 @@ struct AdminPanel: View {
                 .padding(12)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.08)))
                 .onAppear { bossHours = fightClub.hoursPerMember }
+
+                // the same gift for everyone
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("GIFT EVERYONE").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
+                    HStack {
+                        TextField("Amount", value: $giftAll, format: .number).textFieldStyle(.roundedBorder).frame(width: 90)
+                        Text("🚀 each")
+                        Spacer()
+                        ForEach([100, 500, 800], id: \.self) { n in Button("\(n)") { giftAll = n }.controlSize(.small) }
+                    }
+                    TextField("Message they'll see (optional), e.g. Happy Nowruz!", text: $giftAllReason).textFieldStyle(.roundedBorder)
+                    HStack {
+                        Text("To all \(members.count) members, at once.").font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Button { confirmGiftAll = true } label: { Label("Send to everyone", systemImage: "gift.fill") }
+                            .buttonStyle(.borderedProminent).tint(.orange).controlSize(.small)
+                            .disabled(giftAll < 1 || giftAll > 100_000 || members.isEmpty)
+                    }
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.10)))
+                .confirmationDialog("Send \(giftAll) 🚀 to all \(members.count) members?", isPresented: $confirmGiftAll) {
+                    Button("Send \(giftAll) 🚀 to everyone") {
+                        let amount = giftAll, why = giftAllReason
+                        Task {
+                            if let n = await account.giftEveryone(amount: amount, reason: why) { giftDone = "Sent \(amount) 🚀 to \(n) members."; giftAllReason = "" }
+                        }
+                    }
+                } message: { Text("Everyone gets a notification. This can't be undone.") }
 
                 Text("WAITING FOR APPROVAL").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
                 if pending.isEmpty { Text("No one is waiting.").font(.callout).foregroundStyle(.secondary) }

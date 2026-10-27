@@ -44,15 +44,10 @@ enum SunType: String, Codable, CaseIterable, Identifiable {
         case .pulsar: ["#ECFEFF", "#22D3EE", "#7C3AED"]
         }
     }
-    /// Relative size of the star
-    var scale: Double {
-        switch self {
-        case .red: 1.35
-        case .white: 0.7
-        case .blue: 1.1
-        default: 1
-        }
-    }
+    /// Every kind of star is drawn at the same size, so a new sun matches the ones you already have and the
+    /// "Sun size" slider (which sizes all suns together) can always make them equal. (Red giants used to be
+    /// 35% bigger and white dwarfs 30% smaller than the slider value, so they could never be matched.)
+    var scale: Double { 1 }
 }
 
 struct SolarSystem: Codable, Identifiable, Hashable {

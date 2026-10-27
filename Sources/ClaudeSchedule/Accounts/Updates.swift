@@ -50,8 +50,8 @@ final class UpdateChecker {
         let key = "notifiedVersion"
         if UserDefaults.standard.string(forKey: key) != latest {
             UserDefaults.standard.set(latest, forKey: key)
-            Notifier.post(id: "update-\(latest)", title: "Orbit \(latest) is out ✨",
-                          body: "Download the new version from GitHub. Your data stays as it is.")
+            Inbox.shared.post(id: "update-\(latest)", title: "Orbit \(latest) is out ✨",
+                              body: "Download the new version from GitHub. Your data stays as it is.", kind: .update)
         }
     }
 

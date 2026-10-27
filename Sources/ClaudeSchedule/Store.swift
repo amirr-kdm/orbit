@@ -786,6 +786,9 @@ final class AppStore {
 final class Router {
     /// A day another screen asked the Tasks page to open
     var tasksFocusDate: Date?
+    /// A challenge or group another screen (a notification, a group page) asked to open
+    var openChallenge: UUID?
+    var openGroup: UUID?
 
     // CS_START_TAB opens a given screen (handy for testing)
     var selection: SidebarItem? = ProcessInfo.processInfo.environment["CS_START_TAB"]

@@ -61,6 +61,14 @@ final class FightClubService {
     func healthLeft(_ b: Boss) -> Int { max(0, b.hp - damageDone(b)) }
     func me(_ b: Boss, _ id: UUID?) -> BossFighter? { fighters(of: b).first { $0.user_id == id } }
 
+    /// My place on this week's World Boss damage board (nil until I've hit it)
+    func myRank(me id: UUID?) -> Int? {
+        guard let id, let b = worldBoss else { return nil }
+        let ranked = fighters(of: b).filter { $0.damage > 0 }
+        guard let mine = ranked.first(where: { $0.user_id == id }) else { return nil }
+        return ranked.filter { $0.damage > mine.damage }.count + 1
+    }
+
     /// Bullets I've earned so far, counted from my own study (what the server will accept after the next report).
     /// Only the part of each session after the monster appeared counts — a timer already running when it was
     /// summoned counts from that moment. With a subject picked, only study in that subject counts.
@@ -217,8 +225,8 @@ final class FightClubService {
             for inv in invitesToMe(me) where !notified.contains(inv.boss_id) {
                 notified.insert(inv.boss_id)
                 if let b = bosses.first(where: { $0.id == inv.boss_id }) {
-                    Notifier.post(id: "boss-\(b.id)", title: "👾 You're invited to fight “\(b.title)”",
-                                  body: "Open Fight Club to join — study to earn bullets and share the prize.")
+                    Inbox.shared.post(id: "boss-\(b.id)", title: "👾 You're invited to fight “\(b.title)”",
+                                      body: "Open Fight Club to join — study to earn bullets and share the prize.", kind: .boss, route: .fightClub)
                 }
             }
         }
@@ -273,7 +281,6 @@ final class FightClubService {
 // MARK: - Views
 
 func monsterImage(_ n: Int) -> NSImage? { PlanetPainter.bundleImage("boss\(min(7, max(1, n)))") }
-private func hm(_ m: Int) -> String { let h = m / 60, r = m % 60; return h == 0 ? "\(r)m" : (r == 0 ? "\(h)h" : "\(h)h \(r)m") }
 
 /// Monsters you fight
 struct FightClubCard: View {

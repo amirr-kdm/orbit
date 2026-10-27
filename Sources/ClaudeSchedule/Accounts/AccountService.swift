@@ -382,6 +382,18 @@ final class AccountService {
         return ok
     }
 
+    /// The same gift for every approved member at once. Returns how many people got it.
+    func giftEveryone(amount: Int, reason: String) async -> Int? {
+        var count: Int?
+        await perform {
+            struct Body: Encodable { let amount: Int; let reason: String? }
+            let data = try await self.client.rpc("admin_gift_all", Body(amount: amount, reason: reason.trimmingCharacters(in: .whitespaces).isEmpty ? nil : reason))
+            count = try? JSONDecoder().decode(Int.self, from: data)
+        }
+        if count != nil { await claimGifts() }
+        return count
+    }
+
     /// Add rocket gifts from the owner that this account hasn't counted yet
     func claimGifts() async {
         guard state == .approved, !restoring, store.accountReady else { return }
@@ -397,8 +409,8 @@ final class AccountService {
         for g in new where g.amount > 0 && !(g.ref?.hasPrefix("refund:") ?? false) && !(g.ref?.hasPrefix("level:") ?? false) {
             let text = g.reason.map { "\($0) (+\(g.amount) 🚀)" } ?? "You got \(g.amount) rockets from the Orbit admin! 🚀"
             giftNotice = text
-            Notifier.post(id: "gift-\(g.id)", title: g.reason == nil ? "You got \(g.amount) 🚀 rockets!" : "+\(g.amount) 🚀 rockets",
-                          body: g.reason ?? "A gift from the Orbit admin. Spend them in the Store.")
+            Inbox.shared.post(id: "gift-\(g.id)", title: g.reason == nil ? "You got \(g.amount) 🚀 rockets!" : "+\(g.amount) 🚀 rockets",
+                              body: g.reason ?? "A gift from the Orbit admin. Spend them in the Store.", kind: .gift, route: .store)
         }
     }
 

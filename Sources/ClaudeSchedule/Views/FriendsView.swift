@@ -17,7 +17,7 @@ struct FriendsView: View {
     @State private var viewingGalaxy: FriendCard?
     @State private var promising: FriendCard?
     @State private var expandedRow: UUID?
-    /// 0 = friends, 1 = groups
+    /// 0 = friends, 2 = all Orbiters (groups have their own page in the sidebar)
     @AppStorage("friendsTab") private var tab = 0
 
     private var accent: Color { store.settings.template.style.accent }
@@ -127,16 +127,13 @@ struct FriendsView: View {
                 Picker("", selection: $tab) {
                     Text("All Orbiters").tag(2)
                     Text("Friends (\(friends.friends.count))").tag(0)
-                    Text("Groups (\(friends.groups.count))").tag(1)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 420)
+                .frame(width: 300)
 
                 if tab == 2 {
                     AllOrbitersSection()
-                } else if tab == 1 {
-                    GroupsSection(mine: mine, accent: accent) { viewingGalaxy = $0 }
                 } else {
                 if !studying.isEmpty {
                     Card(title: "Studying right now", systemImage: "dot.radiowaves.left.and.right") {

@@ -52,8 +52,25 @@ struct ReportsView: View {
 
     private var accent: Color { store.settings.template.style.accent }
 
+    /// Charts show each subcategory on its own (default), or roll subcategories up into their main category
+    @AppStorage("reports.mainCategoriesOnly") private var mainOnly = false
+    private var hasSubcategories: Bool { store.categories.contains { $0.parentID != nil } }
+
+    /// The main category a session's category belongs to (itself if it is one)
+    private func mainCategory(_ s: StudySession) -> Category? {
+        guard let c = store.category(s.categoryID) else { return nil }
+        return store.category(c.parentID) ?? c
+    }
+
+    /// What the "Time by subject" chart groups a session under
+    private func subjectBucket(_ s: StudySession) -> (name: String, color: Color) {
+        if mainOnly, let top = mainCategory(s) { return (top.name, top.color) }
+        return store.subject(of: s)
+    }
+
     /// The daily chart's colour group for a session (see `body`)
     private func group(_ s: StudySession) -> (name: String, color: Color) {
+        if mainOnly, let top = mainCategory(s) { return (top.name, top.color) }
         if store.settings.categoryColors, let c = store.category(s.categoryID) { return (store.categoryLabel(c.id) ?? c.name, c.color) }
         return store.subject(of: s)
     }
@@ -81,9 +98,9 @@ struct ReportsView: View {
         let groupTotals: [SubjectTotal] = Dictionary(grouping: sessions) { group($0).name }
             .map { name, list in SubjectTotal(name: name, color: group(list[0]).color, seconds: list.reduce(0) { $0 + $1.duration }) }
             .sorted { $0.seconds > $1.seconds }
-        let subjectTotals: [SubjectTotal] = Dictionary(grouping: sessions) { store.subject(of: $0).name }
+        let subjectTotals: [SubjectTotal] = Dictionary(grouping: sessions) { subjectBucket($0).name }
             .map { name, list in
-                SubjectTotal(name: name, color: store.subject(of: list[0]).color,
+                SubjectTotal(name: name, color: subjectBucket(list[0]).color,
                              seconds: list.reduce(0) { $0 + $1.duration })
             }
             .sorted { $0.seconds > $1.seconds }
@@ -97,6 +114,20 @@ struct ReportsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 hero(total: total, prevTotal: prevTotal, days: days, perDay: perDay, goal: goal)
+
+                if hasSubcategories {
+                    HStack(spacing: 10) {
+                        Label("Categories in the charts", systemImage: "square.stack.3d.up.fill").font(.callout.weight(.semibold))
+                        Picker("", selection: $mainOnly) {
+                            Text("Each subcategory").tag(false)
+                            Text("Main categories only").tag(true)
+                        }
+                        .pickerStyle(.segmented).labelsHidden().frame(width: 300)
+                        Text(mainOnly ? "Subcategories are added up under their main category." : "IELTS › Speaking and IELTS › Writing show separately.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
 
                 HStack(spacing: 14) {
                     InsightTile(title: "Daily average", value: Fmt.duration(total / Double(elapsedDays)),

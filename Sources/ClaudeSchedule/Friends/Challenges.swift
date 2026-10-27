@@ -1,6 +1,49 @@
 import SwiftUI
 
-/// A group challenge or a promise to a friend (rules and payouts run on the server — see supabase/challenges.sql)
+/// What kind of challenge it is: who can join
+enum ChallengeType: String, CaseIterable, Identifiable {
+    case `public`, `private`, group
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .public: "Public"
+        case .private: "Private"
+        case .group: "Group"
+        }
+    }
+    var subtitle: String {
+        switch self {
+        case .public: "Anyone in Orbit can join"
+        case .private: "Needs an invite code"
+        case .group: "Only the members of one group"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .public: "globe"
+        case .private: "lock.fill"
+        case .group: "person.3.fill"
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .public: Color(hex: "#3B82F6")
+        case .private: Color(hex: "#F97316")
+        case .group: Color(hex: "#A855F7")
+        }
+    }
+    var gradient: LinearGradient {
+        let pair: (String, String) = switch self {
+        case .public: ("#3B82F6", "#22D3EE")
+        case .private: ("#F97316", "#EF4444")
+        case .group: ("#A855F7", "#EC4899")
+        }
+        return LinearGradient(colors: [Color(hex: pair.0), Color(hex: pair.1)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+}
+
+/// A challenge or a promise to a friend (rules and payouts run on the server — see supabase/challenges.sql and challenges_v2.sql)
 struct Challenge: Decodable, Identifiable, Hashable {
     let id: UUID
     let kind: String
@@ -13,11 +56,18 @@ struct Challenge: Decodable, Identifiable, Hashable {
     let starts_at: Date
     let ends_at: Date
     let status: String
+    /// "public", "private" or "group" (older rows have none: public)
+    var visibility: String? = nil
+    /// Private challenges: the code that lets someone in
+    var invite_code: String? = nil
 
     var isPromise: Bool { kind == "promise" }
     var isOpen: Bool { status == "open" }
+    var type: ChallengeType { group_id != nil ? .group : (visibility == "private" ? .private : .public) }
     func started(_ now: Date = Date()) -> Bool { now >= starts_at }
     func ended(_ now: Date = Date()) -> Bool { now >= ends_at }
+    /// Running right now
+    func isLive(_ now: Date = Date()) -> Bool { !isPromise && isOpen && started(now) && !ended(now) }
     /// Apps can still report minutes for this long after the end; then it pays out
     static let grace: TimeInterval = 3600
 }
@@ -26,12 +76,23 @@ struct ChallengeMember: Decodable, Hashable {
     let challenge_id: UUID
     let user_id: UUID
     let minutes: Int
+    /// When they joined (a late joiner's study counts from then)
+    var joined_at: Date? = nil
+}
+
+/// Someone in a challenge I can see (they may not be my friend): username, planet and level
+struct ChallengePerson: Decodable, Hashable {
+    let id: UUID
+    let name: String
+    let avatar: String?
+    let level: Int?
 }
 
 @MainActor @Observable
 final class ChallengeService {
     private(set) var challenges: [Challenge] = []
     private(set) var members: [UUID: [ChallengeMember]] = [:]
+    private(set) var people: [UUID: ChallengePerson] = [:]
     var error: String?
     var busy = false
 
@@ -39,44 +100,127 @@ final class ChallengeService {
     @ObservationIgnored private let store: AppStore
     /// Called after rockets moved (entry fee, refund, payout) so the balance updates right away
     @ObservationIgnored var onRocketsMoved: (() async -> Void)?
+    /// Looks up one of my groups' names (set by the app; used in notifications)
+    @ObservationIgnored var groupName: (@MainActor (UUID) -> String?)?
+    @ObservationIgnored var testGroupID: (@MainActor () -> UUID?)?
 
     init(store: AppStore) { self.store = store }
 
     func members(of c: Challenge) -> [ChallengeMember] { members[c.id] ?? [] }
     func joined(_ c: Challenge, me: UUID?) -> Bool { members(of: c).contains { $0.user_id == me } }
-    func challenges(inGroup g: UUID) -> [Challenge] { challenges.filter { $0.group_id == g } }
+    func challenges(inGroup g: UUID) -> [Challenge] { challenges.filter { $0.group_id == g && !$0.isPromise } }
     var promises: [Challenge] { challenges.filter(\.isPromise) }
+    /// Everything except promises, newest first
+    var all: [Challenge] { challenges.filter { !$0.isPromise } }
+    /// How many are running right now (for the sidebar)
+    func liveCount(_ now: Date = Date()) -> Int { challenges.filter { $0.isLive(now) }.count }
+    func name(of id: UUID) -> String? { people[id]?.name }
+
+    /// Joining is open until the end (a private one needs its code; a group one needs the group)
+    func canJoin(_ c: Challenge, me: UUID?, now: Date = Date(), myGroups: Set<UUID> = []) -> Bool {
+        guard !c.isPromise, c.isOpen, !c.ended(now), !joined(c, me: me) else { return false }
+        switch c.type {
+        case .public: return true
+        case .group: return c.group_id.map(myGroups.contains) ?? false
+        case .private: return false
+        }
+    }
 
     /// Open ones, plus anything finished in the last week
     func load() async {
-        guard await client.userID != nil else { return }
+        guard let me = await client.userID else { return }
         let since = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7 * 86400))
         do {
             let list = try await client.select("challenges?or=(status.eq.open,ends_at.gt.\(since))&order=starts_at.desc", as: [Challenge].self)
             var byID: [UUID: [ChallengeMember]] = [:]
             if !list.isEmpty {
                 let ids = list.map { $0.id.uuidString.lowercased() }.joined(separator: ",")
-                let rows = try await client.select("challenge_members?challenge_id=in.(\(ids))&select=challenge_id,user_id,minutes", as: [ChallengeMember].self)
+                let rows = try await client.select("challenge_members?challenge_id=in.(\(ids))&select=challenge_id,user_id,minutes,joined_at", as: [ChallengeMember].self)
                 for r in rows { byID[r.challenge_id, default: []].append(r) }
             }
+            await loadPeople(Set(byID.values.flatMap { $0.map(\.user_id) }))
             challenges = list
             members = byID
-            await loadNames(Set(byID.values.flatMap { $0.map(\.user_id) }))
+            notifyNew(list, me: me)
+            if ProcessInfo.processInfo.environment["CS_TEST_CHALLENGES"] != nil {
+                addTestChallenges(me: me, groupID: testGroupID?())
+            }
         } catch {
             // offline: keep what we have
         }
     }
 
-    /// Usernames of people in open-to-all challenges (they may not be friends)
-    private(set) var names: [UUID: String] = [:]
-    private func loadNames(_ ids: Set<UUID>) async {
-        let missing = ids.filter { names[$0] == nil }
+    /// Developer tool: CS_TEST_CHALLENGES=1 shows pretend challenges and people (local only)
+    private func addTestChallenges(me: UUID, groupID: UUID?) {
+        func id(_ n: Int) -> UUID { UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000C%04d", n))! }
+        let now = Date(), H: TimeInterval = 3600
+        let sara = id(101), arash = id(102), negar = id(103)
+        people[sara] = ChallengePerson(id: sara, name: "sara", avatar: "s4_spacecat", level: 12)
+        people[arash] = ChallengePerson(id: arash, name: "arash", avatar: "lv_t3", level: 31)
+        people[negar] = ChallengePerson(id: negar, name: "negar", avatar: "s5_duck", level: 7)
+        func make(_ n: Int, _ title: String, start: TimeInterval, end: TimeInterval, vis: String, group: UUID? = nil, status: String = "open", code: String? = nil) -> Challenge {
+            Challenge(id: id(n), kind: "group", group_id: group, creator: n == 3 ? me : sara, friend: nil, title: title, target_minutes: 360, fee: 300,
+                      starts_at: now.addingTimeInterval(start * H), ends_at: now.addingTimeInterval(end * H), status: status, visibility: vis, invite_code: code)
+        }
+        func mem(_ c: Int, _ u: UUID, _ minutes: Int, joinedHoursAgo: Double = 30) -> ChallengeMember {
+            ChallengeMember(challenge_id: id(c), user_id: u, minutes: minutes, joined_at: now.addingTimeInterval(-joinedHoursAgo * H))
+        }
+        let demo = [
+            make(1, "Weekend sprint", start: 5, end: 29, vis: "public"),
+            make(2, "Exam week grind", start: -6, end: 18, vis: "public"),
+            make(3, "Private study room", start: -2, end: 22, vis: "private", code: "7F3A9C"),
+            make(4, "Class focus battle", start: -3, end: 21, vis: "group", group: groupID),
+            make(5, "First challenge", start: -40, end: -16, vis: "public", status: "settled"),
+        ]
+        challenges = demo + challenges
+        members[id(1)] = [mem(1, sara, 0), mem(1, arash, 0, joinedHoursAgo: 1)]
+        members[id(2)] = [mem(2, me, 155), mem(2, sara, 126), mem(2, arash, 173), mem(2, negar, 82, joinedHoursAgo: 2)]
+        members[id(3)] = [mem(3, me, 95), mem(3, sara, 40)]
+        members[id(4)] = [mem(4, me, 210), mem(4, arash, 188)]
+        members[id(5)] = [mem(5, me, 360), mem(5, sara, 361), mem(5, arash, 372), mem(5, negar, 360)]
+    }
+
+    /// Names, planets and levels of people in challenges (they may not be friends)
+    private func loadPeople(_ ids: Set<UUID>) async {
+        let missing = ids.filter { people[$0] == nil }
         guard !missing.isEmpty else { return }
         struct Body: Encodable { let ids: [String] }
+        let body = Body(ids: missing.map(\.uuidString))
+        if let data = try? await client.rpc("challenge_people", body),
+           let rows = try? SupabaseClient.decoder.decode([ChallengePerson].self, from: data) {
+            for r in rows { people[r.id] = r }
+            return
+        }
+        // a server without challenges v2: names only
         struct Row: Decodable { let id: UUID; let name: String }
-        guard let data = try? await client.rpc("challenge_names", Body(ids: missing.map(\.uuidString))),
+        guard let data = try? await client.rpc("challenge_names", body),
               let rows = try? SupabaseClient.decoder.decode([Row].self, from: data) else { return }
-        for r in rows { names[r.id] = r.name }
+        for r in rows { people[r.id] = ChallengePerson(id: r.id, name: r.name, avatar: nil, level: nil) }
+    }
+
+    /// A new public challenge, or one in one of my groups, that someone else made: tell me once
+    private func notifyNew(_ list: [Challenge], me: UUID) {
+        let key = "challenges.seen"
+        let d = UserDefaults.standard
+        let first = d.object(forKey: key) == nil
+        var seen = Set(d.stringArray(forKey: key) ?? [])
+        for c in list where !c.isPromise && !seen.contains(c.id.uuidString) {
+            seen.insert(c.id.uuidString)
+            guard !first, c.creator != me, c.isOpen, !c.ended() else { continue }
+            let group = c.group_id.flatMap { groupName?($0) }
+            if c.type == .group && group == nil { continue }
+            if c.type == .private { continue }
+            let by = people[c.creator].map { " by @\($0.name)" } ?? ""
+            let what = "\(hm(c.target_minutes)) of study · \(c.fee) 🚀 entry"
+            if let group {
+                Inbox.shared.post(id: "challenge-\(c.id)", title: "New challenge in \(group): \(c.title)", body: what + " · anyone in the group can join",
+                                  kind: .group, route: .challenges, target: c.id.uuidString)
+            } else {
+                Inbox.shared.post(id: "challenge-\(c.id)", title: "🏁 New public challenge: \(c.title)", body: what + by + " · join any time",
+                                  kind: .challenge, route: .challenges, target: c.id.uuidString)
+            }
+        }
+        d.set(Array(seen), forKey: key)
     }
 
     /// Every minute: report my study minutes in running challenges, and pay out finished ones
@@ -86,7 +230,10 @@ final class ChallengeService {
         let now = Date()
         var settled = false
         for c in challenges where store.accountReady && c.isOpen && joined(c, me: me) && c.started(now) && now <= c.ends_at.addingTimeInterval(Challenge.grace) {
-            let minutes = Int(store.rewardTime(in: DateInterval(start: c.starts_at, end: min(now, c.ends_at))) / 60)
+            // a late joiner's study counts from the moment they joined
+            let joinedAt = members(of: c).first { $0.user_id == me }?.joined_at ?? c.starts_at
+            let from = max(c.starts_at, joinedAt), to = max(from, min(now, c.ends_at))
+            let minutes = Int(store.rewardTime(in: DateInterval(start: from, end: to)) / 60)
             struct Body: Encodable { let c: String; let minutes: Int }
             _ = try? await client.rpc("report_challenge", Body(c: c.id.uuidString, minutes: minutes))
         }
@@ -99,13 +246,27 @@ final class ChallengeService {
 
     // MARK: Actions
 
-    /// Open to every Orbit member (no group)
-    func create(title: String, minutes: Int, fee: Int, start: Date, end: Date) async -> Bool {
-        struct Body: Encodable { let g: String?; let title: String; let target_minutes: Int; let fee: Int; let starts_at: String; let ends_at: String }
-        return await perform(cost: fee) {
-            _ = try await self.client.rpc("create_challenge", Body(g: nil, title: title, target_minutes: minutes, fee: fee,
-                                                                    starts_at: Self.iso(start), ends_at: Self.iso(end)))
+    /// Make a challenge. `group` is only for group challenges. Returns its id.
+    func create(title: String, minutes: Int, fee: Int, start: Date, end: Date, type: ChallengeType, group: UUID?) async -> UUID? {
+        struct Body: Encodable {
+            let title: String; let target_minutes: Int; let fee: Int; let starts_at: String; let ends_at: String
+            let visibility: String; let grp: String?
         }
+        var made: UUID?
+        let ok = await perform(cost: fee) {
+            do {
+                let data = try await self.client.rpc("create_challenge_v2", Body(title: title, target_minutes: minutes, fee: fee,
+                    starts_at: Self.iso(start), ends_at: Self.iso(end), visibility: type.rawValue, grp: group?.uuidString))
+                made = (try? JSONDecoder().decode(UUID.self, from: data))
+            } catch let e as SupabaseClient.APIError where e.message.contains("create_challenge_v2") && type == .public {
+                // a server without challenges v2: public challenges still work the old way
+                struct Old: Encodable { let title: String; let target_minutes: Int; let fee: Int; let starts_at: String; let ends_at: String }
+                let data = try await self.client.rpc("create_challenge", Old(title: title, target_minutes: minutes, fee: fee,
+                    starts_at: Self.iso(start), ends_at: Self.iso(end)))
+                made = (try? JSONDecoder().decode(UUID.self, from: data))
+            }
+        }
+        return ok ? made : nil
     }
 
     func promise(to friend: UUID, minutes: Int, stake: Int, until end: Date) async -> Bool {
@@ -118,6 +279,16 @@ final class ChallengeService {
     func join(_ c: Challenge) async { _ = await perform(cost: c.fee) { _ = try await self.client.rpc("join_challenge", ["c": c.id.uuidString]) } }
     func leave(_ c: Challenge) async { _ = await perform { _ = try await self.client.rpc("leave_challenge", ["c": c.id.uuidString]) } }
     func cancel(_ c: Challenge) async { _ = await perform { _ = try await self.client.rpc("cancel_challenge", ["c": c.id.uuidString]) } }
+
+    /// Join a private challenge with its invite code. Returns its id.
+    func join(code: String) async -> UUID? {
+        var joinedID: UUID?
+        let ok = await perform {
+            let data = try await self.client.rpc("join_challenge_by_code", ["code": code.trimmingCharacters(in: .whitespaces)])
+            joinedID = try? JSONDecoder().decode(UUID.self, from: data)
+        }
+        return ok ? joinedID : nil
+    }
 
     private func perform(cost: Int = 0, _ work: @escaping () async throws -> Void) async -> Bool {
         if cost > store.rocketBalance { error = "Not enough rockets — you have \(store.rocketBalance)."; return false }
@@ -138,10 +309,10 @@ final class ChallengeService {
     private static func iso(_ d: Date) -> String { ISO8601DateFormatter().string(from: d) }
 }
 
-// MARK: - Views
+// MARK: - Rules
 
 /// Duration like "6h" or "1h 30m"
-private func hm(_ minutes: Int) -> String {
+func hm(_ minutes: Int) -> String {
     let h = minutes / 60, m = minutes % 60
     return h == 0 ? "\(m)m" : (m == 0 ? "\(h)h" : "\(h)h \(m)m")
 }
@@ -154,271 +325,6 @@ enum ChallengeRules {
     static func minFee(hours: Int) -> Int { hours * 50 }
     /// Everyone finished: fee back plus as much again, at most 100 rockets per hour of the goal
     static func bonus(fee: Int, minutes: Int) -> Int { min(fee, minutes * 100 / 60) }
-}
-
-/// Every challenge in my groups: open to join, running, and recently finished
-struct ChallengesPage: View {
-    @Environment(ChallengeService.self) private var service
-    @Environment(FriendsService.self) private var friends
-    @State private var creating = false
-    @State private var confirmCancel: Challenge?
-
-    var body: some View {
-        let all = service.challenges.filter { !$0.isPromise }
-        TimelineView(.periodic(from: .now, by: 30)) { tl in
-            let now = tl.date
-            let upcoming = all.filter { $0.isOpen && !$0.started(now) }
-            let live = all.filter { $0.isOpen && $0.started(now) && !$0.ended(now) }
-            let done = all.filter { !$0.isOpen || $0.ended(now) }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
-                    if all.isEmpty {
-                        Card { Text("No challenges yet — start one with New Challenge.").foregroundStyle(.secondary) }
-                    }
-                    section("Upcoming · join until it starts", "calendar.badge.clock", .blue, upcoming, now)
-                    section("Running now", "flame.fill", .orange, live, now)
-                    section("Finished", "checkmark.seal.fill", .green, done, now)
-                    if let e = service.error { Text(e).font(.caption).foregroundStyle(.red) }
-                }
-                .padding(24)
-            }
-        }
-        .navigationTitle("Challenges")
-        .task { await service.load() }
-        .sheet(isPresented: $creating) { NewChallengeSheet() }
-        .confirmationDialog("Cancel “\(confirmCancel?.title ?? "")”?", isPresented: Binding(get: { confirmCancel != nil }, set: { if !$0 { confirmCancel = nil } })) {
-            Button("Cancel Challenge", role: .destructive) { if let c = confirmCancel { Task { await service.cancel(c) } } }
-        } message: { Text("Everyone gets their entry fee back.") }
-    }
-
-    private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            Image(systemName: "flag.checkered.2.crossed")
-                .font(.system(size: 26, weight: .bold)).foregroundStyle(.white)
-                .frame(width: 56, height: 56)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)))
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Challenges").font(.title.weight(.bold))
-                Text("Study together with every Orbit member for rockets. Everyone pays the entry fee and anyone can join until it starts.")
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    rule("clock", "at least \(ChallengeRules.minHours)h of study")
-                    rule("person.2", "\(ChallengeRules.minPeople)+ people, or everyone is refunded")
-                    rule("gift", "all finish → fee back + bonus up to 100 🚀/h")
-                    rule("arrow.triangle.swap", "some miss → their fees go to those who finished")
-                }
-                .padding(.top, 4)
-            }
-            Spacer()
-            Button { creating = true } label: { Label("New Challenge", systemImage: "plus") }
-                .buttonStyle(.borderedProminent).controlSize(.large)
-        }
-    }
-
-    private func rule(_ icon: String, _ text: String) -> some View {
-        Label(text, systemImage: icon).font(.caption)
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(Capsule().fill(Color.primary.opacity(0.07)))
-    }
-
-    @ViewBuilder
-    private func section(_ title: String, _ icon: String, _ tint: Color, _ list: [Challenge], _ now: Date) -> some View {
-        if !list.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("\(title) · \(list.count)", systemImage: icon).font(.headline).foregroundStyle(tint)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 380), spacing: 14)], spacing: 14) {
-                    ForEach(list) { c in ChallengeCard(challenge: c, now: now, confirmCancel: $confirmCancel) }
-                }
-            }
-        }
-    }
-}
-
-/// One challenge: who, how far, and what you can do
-private struct ChallengeCard: View {
-    let challenge: Challenge
-    let now: Date
-    @Binding var confirmCancel: Challenge?
-    @State private var showing: ProfileTarget?
-    @Environment(ChallengeService.self) private var service
-    @Environment(FriendsService.self) private var friends
-
-    var body: some View {
-        let c = challenge
-        let me = friends.me?.id
-        let mine = service.joined(c, me: me)
-        let people = service.members(of: c).sorted { $0.minutes > $1.minutes }
-        let group = c.group_id.flatMap { g in friends.groups.first { $0.id == g }?.name } ?? "Open to all Orbit members"
-        let state: (String, Color) = c.status == "cancelled" ? ("Cancelled", .gray)
-            : c.status == "settled" ? ("Finished", .green)
-            : !c.started(now) ? ("Starts \(c.starts_at.formatted(.relative(presentation: .named)))", .blue)
-            : !c.ended(now) ? ("Live · ends \(c.ends_at.formatted(.relative(presentation: .named)))", .orange)
-            : ("Paying out soon", .purple)
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(c.title).font(.headline)
-                    Label(group, systemImage: c.group_id == nil ? "globe" : "person.3.fill").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text(state.0).font(.caption.weight(.semibold)).foregroundStyle(state.1)
-                    .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(state.1.opacity(0.15)))
-            }
-            HStack(spacing: 14) {
-                fact("clock.fill", hm(c.target_minutes), "goal")
-                fact("calendar", "\(Int(c.ends_at.timeIntervalSince(c.starts_at) / 3600))h", "window")
-                fact("ticket.fill", "\(c.fee) 🚀", "entry")
-                fact("gift.fill", "+\(ChallengeRules.bonus(fee: c.fee, minutes: c.target_minutes)) 🚀", "if all finish")
-            }
-            Text("\(c.starts_at.formatted(date: .abbreviated, time: .shortened)) → \(c.ends_at.formatted(date: .abbreviated, time: .shortened))")
-                .font(.caption).foregroundStyle(.secondary)
-            if people.count < ChallengeRules.minPeople && c.isOpen {
-                Label("Needs at least \(ChallengeRules.minPeople) people — otherwise everyone is refunded", systemImage: "person.badge.clock")
-                    .font(.caption).foregroundStyle(.orange)
-            }
-            ForEach(people, id: \.user_id) { m in
-                let name = m.user_id == me ? "You" : (friends.people[m.user_id]?.profile.name ?? service.names[m.user_id] ?? "Member")
-                HStack(spacing: 8) {
-                    Button { if m.user_id != me { showing = ProfileTarget(id: m.user_id) } } label: {
-                        Text(name).font(.callout).frame(width: 100, alignment: .leading).lineLimit(1)
-                    }
-                    .buttonStyle(.plain)
-                    ProgressView(value: min(1, Double(m.minutes) / Double(max(1, c.target_minutes))))
-                        .tint(m.minutes >= c.target_minutes ? .green : .accentColor)
-                    Text("\(hm(m.minutes)) / \(hm(c.target_minutes))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                        .frame(width: 90, alignment: .trailing)
-                }
-            }
-            if c.isOpen {
-                HStack {
-                    if !c.started(now) {
-                        if mine {
-                            if c.creator != me { Button("Leave (refund)") { Task { await service.leave(c) } } }
-                            else { Label("You're in", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green) }
-                        } else {
-                            Button("Join for \(c.fee) 🚀") { Task { await service.join(c) } }.buttonStyle(.borderedProminent)
-                        }
-                    } else if !mine {
-                        Text("Started — joining is closed").font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if c.creator == me { Button("Cancel…", role: .destructive) { confirmCancel = c } }
-                }
-                .disabled(service.busy)
-                .controlSize(.small)
-            }
-        }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(state.1.opacity(0.25)))
-        .sheet(item: $showing) { OrbiterProfileSheet(userID: $0.id) }
-    }
-
-    private func fact(_ icon: String, _ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Label(value, systemImage: icon).font(.callout.weight(.semibold)).labelStyle(.titleAndIcon)
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-        }
-    }
-}
-
-/// Shows the rocket icon in front of an amount
-private struct RocketLabel: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 4) { RocketIcon(size: 15); configuration.title.font(.callout.weight(.bold).monospacedDigit()) }
-    }
-}
-
-struct NewChallengeSheet: View {
-    @Environment(ChallengeService.self) private var service
-    @Environment(AppStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var hours = ChallengeRules.minHours
-    @State private var fee = ChallengeRules.minFee(hours: ChallengeRules.minHours)
-    @State private var startMode = 0
-    @State private var startDate = Date().addingTimeInterval(3600)
-    @State private var lengthHours = 24
-
-    private var start: Date {
-        switch startMode {
-        case 0: Date()
-        case 1: Date().addingTimeInterval(3600)
-        default: startDate
-        }
-    }
-    private var minFee: Int { ChallengeRules.minFee(hours: hours) }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("New challenge · open to every Orbit member", systemImage: "flag.checkered").font(.title3.weight(.bold))
-            TextField("Name, e.g. Weekend sprint", text: $title).textFieldStyle(.roundedBorder)
-            HStack(spacing: 8) {
-                Text("Study")
-                HourField(value: $hours, range: ChallengeRules.minHours...168)
-                Text("hours within")
-                HourField(value: $lengthHours, range: max(ChallengeRules.minHours, hours)...336)
-                Text("hours")
-            }
-            Picker("Starts", selection: $startMode) {
-                Text("Now").tag(0); Text("In 1 hour").tag(1); Text("At…").tag(2)
-            }
-            .pickerStyle(.segmented)
-            if startMode == 2 {
-                DatePicker("Start", selection: $startDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-            }
-            HStack {
-                Text("Entry fee")
-                TextField("", value: $fee, format: .number).textFieldStyle(.roundedBorder).frame(width: 80)
-                RocketIcon(size: 16)
-                Text("· at least \(minFee) · you have \(store.rocketBalance)").font(.caption).foregroundStyle(.secondary)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("• At least \(ChallengeRules.minHours) hours, and the fee is at least 50 🚀 per hour (\(hours)h → \(minFee) 🚀).")
-                Text("• Needs at least \(ChallengeRules.minPeople) people by the end — otherwise everyone just gets their fee back.")
-                Text("• Everyone finishes → fee back + \(ChallengeRules.bonus(fee: fee, minutes: hours * 60)) 🚀 bonus each (at most 100 🚀 per hour).")
-                Text("• Some miss → their fees are shared by those who finished.")
-                Text("• Others can join or leave (refund) until it starts. Only you can cancel it — everyone is refunded.")
-            }
-            .font(.caption).foregroundStyle(.secondary)
-            if fee < minFee { Text("The entry fee must be at least \(minFee) 🚀 for \(hours) hours.").font(.caption).foregroundStyle(.orange) }
-            if fee > store.rocketBalance { Text("You don't have enough rockets.").font(.caption).foregroundStyle(.orange) }
-            if let e = service.error { Text(e).font(.caption).foregroundStyle(.red) }
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Create & Pay \(fee) 🚀") {
-                    Task {
-                        let s = start
-                        if await service.create(title: title.isEmpty ? "Challenge" : title, minutes: hours * 60,
-                                                fee: fee, start: s, end: s.addingTimeInterval(Double(lengthHours) * 3600)) { dismiss() }
-                    }
-                }
-                .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-                .disabled(service.busy || fee < minFee || fee > store.rocketBalance || hours > lengthHours)
-            }
-        }
-        .padding(20).frame(width: 520)
-        .onAppear { service.error = nil }
-        .onChange(of: hours) { _, h in
-            fee = max(fee, ChallengeRules.minFee(hours: h))
-            lengthHours = max(lengthHours, h)
-        }
-    }
-}
-
-/// Whole hours: type a number or step one hour at a time
-private struct HourField: View {
-    @Binding var value: Int
-    let range: ClosedRange<Int>
-    var body: some View {
-        HStack(spacing: 2) {
-            TextField("", value: Binding(get: { value }, set: { value = min(range.upperBound, max(range.lowerBound, $0)) }), format: .number)
-                .textFieldStyle(.roundedBorder).frame(width: 52).multilineTextAlignment(.center)
-            Stepper("", value: $value, in: range, step: 1).labelsHidden()
-        }
-    }
 }
 
 /// My promises and the ones made to me
