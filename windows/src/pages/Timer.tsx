@@ -14,7 +14,12 @@ export default function TimerPage() {
   const t = useTimer();
   const [manual, setManual] = useState(false);
   const today = new Date();
-  const todos = todosOn(data, today);
+  // tasks with no day ("No specific time") can be studied too
+  const anytime = data.tasks.filter((x) => !x.dueDate && !x.isDone && !x.isSkipped).map((x) => ({
+    ref: { kind: "task" as const, id: x.id }, title: x.title, detail: categoryLabel(data, x.categoryID) ?? "Task",
+    color: categoryOf(data, x.categoryID)?.colorHex ?? "#8E8E93", isDone: false, isSkipped: false, sortMinute: 9999 }));
+  const todayTodos = todosOn(data, today);
+  const todos = [...todayTodos, ...anytime.filter((a) => !todayTodos.some((x) => refKey(x.ref) === refKey(a.ref)))];
   const targetItem = t.target && todos.find((x) => refKey(x.ref) === refKey(t.target!));
   const goal = data.settings.dailyGoalMinutes * 60;
   const studied = studyOn(data, today);

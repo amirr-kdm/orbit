@@ -48,6 +48,10 @@ struct TimerView: View {
     private var timerPanel: some View {
         @Bindable var timer = timer
         var todos = store.todos(on: Date())
+        // tasks with no day ("No specific time") can be studied too
+        for t in store.anytimeTasks where !todos.contains(where: { $0.ref == .task(t.id) }) {
+            if let item = store.todoItem(for: .task(t.id)) { todos.append(item) }
+        }
         if let ref = timer.target, !todos.contains(where: { $0.ref == ref }), let item = store.todoItem(for: ref) {
             todos.insert(item, at: 0)
         }
