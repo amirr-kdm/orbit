@@ -101,12 +101,7 @@ struct TimerView: View {
             }
 
             if !timer.isActive {
-                QuickAddField(placeholder: "Quick task: type and press Enter to create & start…") { t in
-                    let item = store.addAnytime(t)
-                    timer.select(.task(item.id))
-                    timer.start()
-                }
-                .frame(maxWidth: 440)
+                QuickStartBar()
             }
 
             // What, category, note — on glass
@@ -452,5 +447,42 @@ struct ManualSessionSheet: View {
         }
         .frame(width: 460)
         .environment(\.calendar, store.settings.primaryCalendar.calendar)
+    }
+}
+
+
+/// Timer page: type a task, pick its category, press Enter to create it and start
+private struct QuickStartBar: View {
+    @Environment(AppStore.self) private var store
+    @Environment(TimerEngine.self) private var timer
+    @State private var text = ""
+    @State private var category: UUID?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "plus.circle.fill").foregroundStyle(.white)
+            TextField("", text: $text, prompt: Text("Quick task, then Enter").foregroundColor(.white.opacity(0.75)))
+                .textFieldStyle(.plain).foregroundStyle(.white).onSubmit(go)
+            Picker("", selection: $category) {
+                Text("No category").tag(UUID?.none)
+                ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
+            }
+            .labelsHidden().fixedSize()
+            Button("Start", action: go).disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding(10).frame(maxWidth: 440)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.55)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.2)))
+    }
+
+    private func go() {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        var item = store.addAnytime(t)
+        item.categoryID = category
+        store.upsertTask(item)
+        text = ""
+        timer.select(.task(item.id))
+        timer.start()
     }
 }

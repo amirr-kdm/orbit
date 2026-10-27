@@ -79,6 +79,7 @@ struct QuickTaskSheet: View {
     @Environment(Router.self) private var router
     @State private var title = ""
     @State private var when = 0   // 0 whenever, 1 today
+    @State private var category: UUID?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -90,6 +91,10 @@ struct QuickTaskSheet: View {
                 Text("No specific time").tag(0)
                 Text("Today").tag(1)
             }.pickerStyle(.segmented).labelsHidden()
+            Picker("Category", selection: $category) {
+                Text("None").tag(UUID?.none)
+                ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
+            }
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
@@ -106,7 +111,7 @@ struct QuickTaskSheet: View {
         let t = title.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return }
         var item = TaskItem(title: t, dueDate: when == 1 ? Cal.persian.startOfDay(for: Date()) : nil)
-        item.createdAt = Date()
+        item.categoryID = category
         store.upsertTask(item)
         if start { timer.select(.task(item.id)); router.selection = .timer }
         dismiss()
