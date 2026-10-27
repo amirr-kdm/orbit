@@ -76,10 +76,16 @@ struct ContentView: View {
                 ForEach(SidebarItem.sections, id: \.title) { section in
                     Section(section.title) {
                         ForEach(section.items) { item in
-                            HStack(spacing: 6) {
-                                Label(item.title, systemImage: item.icon)
-                                Spacer(minLength: 4)
-                                sidebarBadge(item)
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack(spacing: 6) {
+                                    Label(item.title, systemImage: item.icon)
+                                    Spacer(minLength: 4)
+                                    sidebarBadge(item)
+                                }
+                                if item == .galaxy {
+                                    Text("\(store.galaxy.count) planets · \(store.solarSystems.count) suns")
+                                        .font(.caption2).foregroundStyle(.secondary).padding(.leading, 26)
+                                }
                             }
                             .tag(item)
                         }

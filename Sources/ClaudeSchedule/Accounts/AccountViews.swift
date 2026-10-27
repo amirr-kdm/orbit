@@ -393,7 +393,9 @@ struct AccountChip: View {
                     Avatar(name: account.profile?.name ?? "?", color: .accentColor, size: 26, planet: store.avatarPlanet)
                     VStack(alignment: .leading, spacing: 0) {
                         Text("@\(account.profile?.username ?? account.profile?.name ?? "")").font(.callout.weight(.semibold)).lineLimit(1)
-                        Text(account.syncError == nil ? "Synced" : "Offline").font(.caption2).foregroundStyle(.secondary)
+                        Text("Lv \(store.galaxyProgress().level) · \(store.rocketBalance) 🚀")
+                            .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                            .help(account.syncError == nil ? "Synced" : "Offline")
                     }
                     Spacer()
                     StreakChip()
