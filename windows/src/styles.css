@@ -284,3 +284,21 @@ option, optgroup { background-color: var(--card); color: var(--text); }
 .nav .sub { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
 .nav.active .sub { color: rgba(255,255,255,.8); }
 .nav .nbadge { margin-left: auto; font-size: 11px; font-weight: 800; color: white; border-radius: 99px; padding: 1px 7px; }
+
+/* Today page, new look */
+.t2-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 26px; border-radius: 22px; color: white; position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--accent), #6D28D9 65%, #1E1B4B); box-shadow: 0 10px 26px color-mix(in srgb, var(--accent) 38%, transparent); }
+.t2-hero::after { content: ""; position: absolute; width: 240px; height: 240px; border-radius: 50%; background: rgba(255,255,255,.08); right: 90px; top: -120px; }
+.t2-hero h1 { margin: 2px 0; font-size: 38px; font-weight: 900; letter-spacing: -.5px; }
+.t2-kicker { font-size: 11px; font-weight: 800; letter-spacing: 2.4px; opacity: .8; }
+.t2-date { opacity: .85; font-size: 15px; }
+.t2 .card { border-radius: 18px; padding: 18px; }
+.t2 .card h3 { font-size: 15px; font-weight: 800; margin-bottom: 14px; }
+.t2-ico { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 16px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.t2 .grid2 { gap: 16px; }
+.t2 .stat { padding: 16px 18px; }
+.t2 .stat .bubble { width: 46px; height: 46px; border-radius: 14px; }
+.t2 .stat .value { font-size: 22px; font-weight: 800; }
+.t2 .quick-add { border: 1px dashed var(--line); background: color-mix(in srgb, var(--accent) 6%, var(--card2)); border-radius: 12px; padding: 6px 12px; margin-bottom: 6px; }
+.t2 .list-row { padding: 10px 6px; border-radius: 10px; border-bottom: none; }
+.t2 .list-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }

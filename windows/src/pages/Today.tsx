@@ -47,10 +47,16 @@ export default function Today() {
   const now = slot ? entryAt(data, weekdayIndex(today), slot.id, today) : undefined;
 
   return (
-    <div className="page">
-      <div>
-        <h1 className="page-title">To-do · {WEEKDAYS[weekdayIndex(today)]}</h1>
-        <div className="subtitle">{dualDate(today)}, {today.getFullYear()} · {parity(data, today) === "even" ? "Even week" : "Odd week"}</div>
+    <div className="page t2">
+      <div className="t2-hero">
+        <div>
+          <div className="t2-kicker">{parity(data, today) === "even" ? "EVEN WEEK" : "ODD WEEK"}</div>
+          <h1>{WEEKDAYS[weekdayIndex(today)]}</h1>
+          <div className="t2-date">{dualDate(today)}, {today.getFullYear()}</div>
+        </div>
+        <Ring progress={goal ? studied / goal : 0} size={96} width={9} color="white">
+          <div style={{ textAlign: "center", color: "white" }}><b style={{ fontSize: 20 }}>{Math.round(goal ? Math.min(999, (studied / goal) * 100) : 0)}%</b><div style={{ fontSize: 10, opacity: 0.8 }}>of goal</div></div>
+        </Ring>
       </div>
 
       <div className="grid2">
@@ -71,25 +77,25 @@ export default function Today() {
       )}
 
       <div className="card">
-        <h3>🗓️ From your weekly schedule</h3>
+        <h3><span className="t2-ico">🗓️</span>From your weekly schedule</h3>
         {!sched.length && <div className="row muted">No To-do cells for today. Mark cells as “To-do” in the weekly schedule and they appear here.<span className="spacer" /><button className="btn" onClick={() => nav.go("schedule")}>Open Schedule</button></div>}
         {sched.map((t) => <TodoRow key={refKey(t.ref)} item={t} day={today} />)}
       </div>
 
       <div className="card">
-        <h3>📋 Other tasks today</h3>
+        <h3><span className="t2-ico">📋</span>Other tasks today</h3>
         <QuickAdd onAdd={(t) => actions.addTask(t, today)} />
         {tasks.map((t) => <TodoRow key={refKey(t.ref)} item={t} day={today} />)}
       </div>
 
       <div className="card">
-        <h3>🗂 No specific time</h3>
+        <h3><span className="t2-ico">🗂</span>No specific time</h3>
         <AnytimeBox today={today} onStudy={(id) => { timer.setTarget({ kind: "task", id }); nav.go("timer"); }} />
       </div>
 
       {overdue.length > 0 && (
         <div className="card">
-          <h3>⚠️ Overdue</h3>
+          <h3><span className="t2-ico">⚠️</span>Overdue</h3>
           {overdue.map((t) => (
             <div className="list-row" key={t.id}>
               <button className="check" onClick={() => actions.toggleDone({ kind: "task", id: t.id }, today)} />
@@ -101,7 +107,7 @@ export default function Today() {
       )}
 
       <div className="card">
-        <h3>⏱️ Today's sessions</h3>
+        <h3><span className="t2-ico">⏱️</span>Today's sessions</h3>
         {!sessions.length && <div className="muted">No sessions yet. Pick a to-do above and press Study.</div>}
         {sessions.map((s) => { const sub = subjectOf(data, s); return (
           <div className="list-row" key={s.id}>
