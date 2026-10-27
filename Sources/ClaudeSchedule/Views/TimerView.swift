@@ -459,20 +459,26 @@ private struct QuickStartBar: View {
     @State private var category: UUID?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "plus.circle.fill").foregroundStyle(.white)
-            TextField("", text: $text, prompt: Text("Quick task, then Enter").foregroundColor(.white.opacity(0.75)))
-                .textFieldStyle(.plain).foregroundStyle(.white).onSubmit(go)
-            Picker("", selection: $category) {
-                Text("No category").tag(UUID?.none)
-                ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(.white)
+                TextField("", text: $text, prompt: Text("Type a task, press Enter").foregroundColor(.white.opacity(0.9)))
+                    .textFieldStyle(.plain).foregroundStyle(.white).onSubmit(go)
             }
-            .labelsHidden().fixedSize()
-            Button("Start", action: go).disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+            HStack(spacing: 8) {
+                Picker("", selection: $category) {
+                    Text("No category").tag(UUID?.none)
+                    ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
+                }
+                .labelsHidden()
+                Button("Create & start", action: go).buttonStyle(.borderedProminent)
+                    .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
         }
-        .padding(10).frame(maxWidth: 440)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.black.opacity(0.55)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.2)))
+        .font(.system(size: 15, weight: .semibold, design: .rounded))
+        .padding(12).frame(maxWidth: 440)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.black.opacity(0.7)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.25)))
     }
 
     private func go() {
