@@ -29,7 +29,7 @@ export default function TimerPage() {
     : `Today ${duration(studied + t.elapsed)} of ${duration(goal)} goal`;
   const glass: React.CSSProperties = { background: "rgba(255,255,255,.08)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,.12)", color: "white" };
   const glassBtn: React.CSSProperties = { ...glass, height: 40, padding: "0 18px", borderRadius: 99, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
-  const field: React.CSSProperties = { flex: 1, minWidth: 0, background: "transparent", border: "none", color: "white" };
+  const field: React.CSSProperties = { flex: 1, minWidth: 0, background: "#1B1D26", border: "none", color: "white", colorScheme: "dark", borderRadius: 6, padding: "4px 6px" };
 
   return (
     <div className="timer-page" style={{ display: "flex", height: "100%", minHeight: "100vh", color: "white", position: "relative", overflow: "hidden", background: "#05060C" }}>

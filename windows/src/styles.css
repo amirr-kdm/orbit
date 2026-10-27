@@ -264,7 +264,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
    (white text on the default white list made them unreadable) */
 option, optgroup { background-color: var(--card); color: var(--text); }
 /* The Timer is always dark, whatever the app's mode: its dropdowns open dark with light text */
-.timer-page select { color-scheme: dark; }
+.timer-page select { color-scheme: dark; background-color: #1B1D26; color: #FFFFFF; }
 .timer-page option, .timer-page optgroup { background-color: #1B1D26; color: #FFFFFF; }
 /* Controls on the dark space panels (galaxy, level pass...) are always dark with light text, in light mode too */
 .space select, .space input:not([type="range"]), .space .btn:not(.primary):not(.danger),
