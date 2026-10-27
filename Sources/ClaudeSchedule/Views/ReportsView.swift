@@ -54,12 +54,41 @@ struct ReportsView: View {
 
     /// Charts show each subcategory on its own (default), or roll subcategories up into their main category
     @AppStorage("reports.mainCategoriesOnly") private var mainOnly = false
+    /// Mouse over the daily chart: which day, how high up the bar, and where (to show what each colour was)
+    @State private var hover: (day: Date, minutes: Double, at: CGPoint)?
     private var hasSubcategories: Bool { store.categories.contains { $0.parentID != nil } }
 
     /// The main category a session's category belongs to (itself if it is one)
     private func mainCategory(_ s: StudySession) -> Category? {
         guard let c = store.category(s.categoryID) else { return nil }
         return store.category(c.parentID) ?? c
+    }
+
+    /// The small card shown over the daily chart: that day's sessions (the one under the mouse in bold)
+    private func daySessionsTip(day: Date, minutes: Double, sessions: [StudySession]) -> AnyView? {
+        let list = sessions.filter { cal.isDate($0.start, inSameDayAs: day) }
+        guard !list.isEmpty else { return nil }
+        // the bar stacks sessions bottom-up in this order; find the one at the mouse's height
+        var acc = 0.0, hit: UUID?
+        for s in list { acc += s.duration / 60; if minutes <= acc { hit = s.id; break } }
+        return AnyView(VStack(alignment: .leading, spacing: 4) {
+            Text(Fmt.date(day, "EEEE d MMM", .gregorian)).font(.caption.weight(.bold)).foregroundStyle(.secondary)
+            ForEach(list) { s in
+                HStack(spacing: 6) {
+                    Circle().fill(group(s).color).frame(width: 8, height: 8)
+                    Text(store.itemTitle(of: s)).lineLimit(1).frame(maxWidth: 180, alignment: .leading)
+                    Spacer(minLength: 8)
+                    Text(Fmt.shortDuration(s.duration)).monospacedDigit().foregroundStyle(.secondary)
+                }
+                .font(.caption.weight(s.id == hit ? .bold : .regular))
+                .padding(.horizontal, 4).padding(.vertical, 1)
+                .background(RoundedRectangle(cornerRadius: 5).fill(s.id == hit ? Color.primary.opacity(0.12) : .clear))
+            }
+        }
+        .padding(10).frame(width: 260)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.12)))
+        .shadow(color: .black.opacity(0.3), radius: 10, y: 4))
     }
 
     /// What the "Time by subject" chart groups a session under
@@ -205,6 +234,27 @@ struct ReportsView: View {
                             }
                         }
                         .chartLegend(position: .bottom, spacing: 12)
+                        .chartOverlay { proxy in
+                            GeometryReader { geo in
+                                let frame = proxy.plotFrame.map { geo[$0] } ?? .zero
+                                Rectangle().fill(.clear).contentShape(Rectangle())
+                                    .onContinuousHover { phase in
+                                        switch phase {
+                                        case .active(let loc):
+                                            let x = loc.x - frame.minX, y = loc.y - frame.minY
+                                            if let label = proxy.value(atX: x, as: String.self), let m = proxy.value(atY: y, as: Double.self),
+                                               let day = days.first(where: { dayLabel($0) == label }) {
+                                                hover = (day, m, loc)
+                                            } else { hover = nil }
+                                        case .ended: hover = nil
+                                        }
+                                    }
+                                if let h = hover, let tip = daySessionsTip(day: h.day, minutes: h.minutes, sessions: sessions) {
+                                    tip.fixedSize().position(x: min(max(h.at.x + 150, 150), geo.size.width - 150), y: max(60, h.at.y - 20))
+                                        .allowsHitTesting(false)
+                                }
+                            }
+                        }
                         .frame(height: 270)
                     }
                 }
