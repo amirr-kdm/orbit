@@ -83,7 +83,7 @@ struct ContentView: View {
                                     sidebarBadge(item)
                                 }
                                 if item == .galaxy {
-                                    Text("\(store.galaxy.count) planets · \(store.solarSystems.count) suns")
+                                    Text("🪐 \(store.galaxy.count)  ·  ☀️ \(store.solarSystems.count)")
                                         .font(.caption2).foregroundStyle(.secondary).padding(.leading, 26)
                                 }
                             }

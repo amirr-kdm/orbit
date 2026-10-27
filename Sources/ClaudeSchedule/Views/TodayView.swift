@@ -31,6 +31,12 @@ struct TodayView: View {
                     Text("To-do · \(Fmt.date(today, "EEEE", .gregorian))").font(.largeTitle.weight(.bold))
                     Text(Fmt.dualDate(today) + ", " + Fmt.date(today, "y", .gregorian))
                         .font(.title3).foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        pill("Level \(store.galaxyProgress().level)", "sparkles", .blue)
+                        pill("\(store.streakInfo.days) day streak", "flame.fill", .orange)
+                        pill("\(store.rocketBalance) rockets", "paperplane.fill", .pink)
+                    }
+                    .padding(.top, 6)
                 }
 
                 HStack(spacing: 14) {
@@ -125,6 +131,12 @@ struct TodayView: View {
             }
             .padding(24)
         }
+    }
+
+    private func pill(_ text: String, _ icon: String, _ tint: Color) -> some View {
+        Label(text, systemImage: icon).font(.callout.weight(.semibold)).foregroundStyle(tint)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Capsule().fill(tint.opacity(0.14)))
     }
 
     private func nowBanner(entry: ScheduleEntry, slot: TimeSlot) -> some View {
