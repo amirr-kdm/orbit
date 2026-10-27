@@ -1,3 +1,4 @@
+import { PageHero } from "../components";
 import { slotTime } from "../lib/dates";
 import { Appearance } from "../lib/model";
 import { orderedCategories, useStore } from "../lib/store";
@@ -21,14 +22,14 @@ export default function Settings() {
 
   return (
     <div className="page" style={{ maxWidth: 900 }}>
-      <h1 className="page-title">Settings</h1>
+      <PageHero icon="⚙️" kicker="APP" title="Settings" sub="Make Orbit yours" tint="#475569" />
 
-      <div className="card"><h3>🎨 Appearance</h3>
+      <div className="card"><h3><span className="t2-ico">🎨</span>Appearance</h3>
         <div className="row"><span style={{ width: 140 }}>Mode</span><div className="seg">{(["system", "light", "dark"] as Appearance[]).map((a) => <button key={a} className={s.appearance === a ? "on" : ""} onClick={() => set((x) => { x.appearance = a; })}>{a[0].toUpperCase() + a.slice(1)}</button>)}</div></div>
         <div className="row" style={{ marginTop: 12 }}><span style={{ width: 140 }}>Accent colour</span>{ACCENTS.map((c) => <button key={c} className={`swatch ${s.accent === c ? "on" : ""}`} style={{ background: c }} onClick={() => set((x) => { x.accent = c; })} />)}</div>
       </div>
 
-      <div className="card"><h3>🖼 Template</h3>
+      <div className="card"><h3><span className="t2-ico">🖼</span>Template</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
           {TEMPLATES.map((t) => {
             const on = templateOf(s.template).id === t.id;
@@ -53,7 +54,7 @@ export default function Settings() {
         <div className="small muted" style={{ marginTop: 8 }}>Changes the look of the weekly schedule, the page background and the app's accent colour.</div>
       </div>
 
-      <div className="card"><h3>🔤 Font</h3>
+      <div className="card"><h3><span className="t2-ico">🔤</span>Font</h3>
         <div className="row"><span style={{ width: 140 }}>Font</span>
           <select value={fontOf(s.font).id} onChange={(e) => set((x) => { x.font = e.target.value; })}>
             <optgroup label="Whole app">{FONTS.filter((f) => f.whole).map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}</optgroup>
@@ -72,7 +73,7 @@ export default function Settings() {
         <div className="small muted" style={{ marginTop: 6 }}>“Whole app” fonts change everything. The others style the weekly schedule. Fonts your computer doesn't have fall back to a similar one.</div>
       </div>
 
-      <div className="card"><h3>📆 Calendar</h3>
+      <div className="card"><h3><span className="t2-ico">📆</span>Calendar</h3>
         <div className="row"><span style={{ width: 140 }}>Primary calendar</span><div className="seg">{(["persian", "gregorian"] as const).map((k) => <button key={k} className={s.primaryCalendar === k ? "on" : ""} onClick={() => set((x) => { x.primaryCalendar = k; })}>{k === "persian" ? "Persian" : "Gregorian"}</button>)}</div></div>
         <div className="small muted" style={{ marginTop: 6 }}>The other calendar is always shown alongside. To swap even and odd weeks, right-click the EVEN/ODD WEEK badge in the weekly schedule.</div>
       </div>
@@ -90,7 +91,7 @@ export default function Settings() {
         ))}
       </div>
 
-      <div className="card"><h3>⏱️ Timer & goal</h3>
+      <div className="card"><h3><span className="t2-ico">⏱️</span>Timer & goal</h3>
         {([["Pomodoro focus (min)", "pomodoroMinutes", 5, 120], ["Break (min)", "breakMinutes", 1, 60], ["Daily study goal (min)", "dailyGoalMinutes", 15, 960]] as const).map(([label, key, min, max]) => (
           <div key={key} className="list-row"><span style={{ flex: 1 }}>{label}</span><input type="number" min={min} max={max} value={s[key]} style={{ width: 90 }} onChange={(e) => set((x) => { x[key] = Math.max(min, Math.min(max, +e.target.value || min)); })} /></div>
         ))}
@@ -114,7 +115,7 @@ export default function Settings() {
         </label>
       </div>
 
-      <div className="card"><h3>💾 Data</h3>
+      <div className="card"><h3><span className="t2-ico">💾</span>Data</h3>
         <div className="small muted" style={{ marginBottom: 10 }}>Your data is stored on this computer. Export a backup to keep it safe or move it to another PC.</div>
         <div className="row"><button className="btn" onClick={exportData}>Export backup…</button>
           <label className="btn">Import backup…<input type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importData(e.target.files[0])} /></label></div>

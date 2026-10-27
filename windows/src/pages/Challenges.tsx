@@ -271,7 +271,7 @@ export function Promises() {
   if (!list.length) return null;
   return (
     <div className="card">
-      <h3>🤞 Promises</h3>
+      <h3><span className="t2-ico">🤞</span>Promises</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {list.map((c) => {
           const mine = c.creator === me;

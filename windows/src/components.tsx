@@ -426,3 +426,16 @@ export function CellPalette({ selection, onPick }: { selection?: string; onPick:
 
 /** The streak lightning bolt */
 export const StreakIcon = ({ size = 16 }: { size?: number }) => <img src={streakUrl} alt="" style={{ width: size, height: size, objectFit: "contain", verticalAlign: "-3px" }} />;
+
+/** The gradient banner at the top of a page (same look as Today's) */
+export function PageHero({ icon, kicker, title, sub, tint = "var(--accent)", children }: { icon: string; kicker?: string; title: string; sub?: string; tint?: string; children?: React.ReactNode }) {
+  return (
+    <div className="t2-hero" style={{ background: `linear-gradient(135deg, ${tint}, #6D28D9 65%, #1E1B4B)` }}>
+      <div className="row" style={{ gap: 16, zIndex: 1 }}>
+        <div className="t2-big-ico">{icon}</div>
+        <div>{kicker && <div className="t2-kicker">{kicker}</div>}<h1 style={{ fontSize: 30 }}>{title}</h1>{sub && <div className="t2-date">{sub}</div>}</div>
+      </div>
+      <div className="row" style={{ zIndex: 1, marginRight: 90 }}>{children}</div>
+    </div>
+  );
+}

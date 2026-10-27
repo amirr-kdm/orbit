@@ -1,3 +1,4 @@
+import { PageHero } from "../components";
 import { useEffect, useState } from "react";
 import { useNav } from "../App";
 import { Modal, MenuItem, useContextMenu } from "../components";
@@ -28,6 +29,7 @@ export default function Tasks() {
 
   return (
     <div className="page">
+      <PageHero icon="✅" kicker="PLAN" title="Tasks" sub="Everything you need to do, by day, week or list" tint="#16A34A" />
       <div className="row">
         <div className="seg">{(["day", "week", "list", "graph"] as Mode[]).map((m) => <button key={m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{m[0].toUpperCase() + m.slice(1)}</button>)}</div>
         {mode === "graph" && <b>Tasks and to-dos grouped by category</b>}
@@ -157,9 +159,9 @@ function DayView({ day, matchRow, matchTask, onEdit, inbox }: { day: Date; match
     <>
       {fixed.length > 0 && <div className="small muted">📌 {fixed.map((f) => `${titleOf(f.entry)} ${slotTitle(f.slot)}`).join("  ·  ")}</div>}
       <input placeholder="＋ Add a task for this day and press Enter…" onKeyDown={(e) => { const v = e.currentTarget.value.trim(); if (e.key === "Enter" && v) { actions.addTask(v, day); e.currentTarget.value = ""; } }} />
-      <div className="card"><h3>🗓️ From your weekly schedule</h3>{!rows.length && <div className="muted">No schedule to-dos on this day.</div>}<div style={{ display: "grid", gap: 7 }}>{rows.map((r) => <OccCard key={r.entry.id} r={r} />)}</div></div>
-      <div className="card"><h3>📋 Tasks</h3>{!tasks.length && <div className="muted">No one-off tasks on this day.</div>}<div style={{ display: "grid", gap: 7 }}>{tasks.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div></div>
-      {inbox.length > 0 && <div className="card"><h3>📥 No date</h3>{inbox.map((t) => <div key={t.id} className="list-row"><div style={{ flex: 1 }}>{t.title}</div><button className="btn small" onClick={() => actions.moveTask(t.id, day)}>Move here</button></div>)}</div>}
+      <div className="card"><h3><span className="t2-ico">🗓️</span>From your weekly schedule</h3>{!rows.length && <div className="muted">No schedule to-dos on this day.</div>}<div style={{ display: "grid", gap: 7 }}>{rows.map((r) => <OccCard key={r.entry.id} r={r} />)}</div></div>
+      <div className="card"><h3><span className="t2-ico">📋</span>Tasks</h3>{!tasks.length && <div className="muted">No one-off tasks on this day.</div>}<div style={{ display: "grid", gap: 7 }}>{tasks.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}</div></div>
+      {inbox.length > 0 && <div className="card"><h3><span className="t2-ico">📥</span>No date</h3>{inbox.map((t) => <div key={t.id} className="list-row"><div style={{ flex: 1 }}>{t.title}</div><button className="btn small" onClick={() => actions.moveTask(t.id, day)}>Move here</button></div>)}</div>}
     </>
   );
 }

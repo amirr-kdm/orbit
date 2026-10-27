@@ -302,3 +302,17 @@ option, optgroup { background-color: var(--card); color: var(--text); }
 .t2 .quick-add { border: 1px dashed var(--line); background: color-mix(in srgb, var(--accent) 6%, var(--card2)); border-radius: 12px; padding: 6px 12px; margin-bottom: 6px; }
 .t2 .list-row { padding: 10px 6px; border-radius: 10px; border-bottom: none; }
 .t2 .list-row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+
+.t2-big-ico { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; font-size: 28px; background: rgba(255,255,255,.18); flex-shrink: 0; }
+/* the same softer cards, buttons and rows on every page */
+.page .card { border-radius: 18px; }
+.page .card h3 { font-weight: 800; }
+.page .quick-add { border: 1px dashed var(--line); border-radius: 12px; }
+.page .list-row:hover { background: color-mix(in srgb, var(--text) 4%, transparent); border-radius: 10px; }
+.btn { border-radius: 10px; transition: transform .12s, filter .12s; }
+.btn:active { transform: scale(.97); }
+.btn.primary { box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+.seg { border-radius: 11px; } .seg button { border-radius: 9px; }
+.nav { border-radius: 11px; transition: background .12s; }
+.nav.active { box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+.sidebar { background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 40%); }

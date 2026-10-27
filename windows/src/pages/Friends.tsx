@@ -60,7 +60,7 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
           </div>
         </div>
         <div className="card">
-          <h3>➕ Add a friend</h3>
+          <h3><span className="t2-ico">➕</span>Add a friend</h3>
           <div className="row"><input style={{ flex: 1, fontFamily: "monospace" }} placeholder="Friend's code, e.g. 4F9A2C" value={code} onChange={(e) => setCode(e.target.value)}
             onKeyDown={async (e) => { if (e.key === "Enter" && code.trim().length >= 4) { const n = await f.addFriend(code); setAdded(n); if (n) setCode(""); } }} />
             <button className="btn primary" disabled={code.trim().length < 4} onClick={async () => { const n = await f.addFriend(code); setAdded(n); if (n) setCode(""); }}>Add</button></div>
@@ -71,7 +71,7 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
       {f.error && <div style={{ color: "#ef4444" }}>⚠️ {f.error}</div>}
 
       {f.incoming.length > 0 && (
-        <div className="card"><h3>🙋 Friend requests</h3>
+        <div className="card"><h3><span className="t2-ico">🙋</span>Friend requests</h3>
           {f.incoming.map((id) => { const c = f.people[id]; const g = f.groups.find((x) => x.members.includes(id)); return (
             <div key={id} className="list-row"><Avatar name={c?.profile.name ?? "?"} planet={c?.profile.avatar} size={30} color="#F97316" />
               <div style={{ flex: 1 }}><b>{c?.profile.name ?? "Someone"}</b>{g && <div className="small muted">From your group {g.name}</div>}</div>
@@ -87,7 +87,7 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
 
       {tab === 2 ? <AllOrbiters /> : tab === 1 ? <Groups mine={mine} onGalaxy={setGalaxy} /> : <>
       {live.length > 0 && (
-        <div className="card"><h3>📡 Studying right now</h3>
+        <div className="card"><h3><span className="t2-ico">📡</span>Studying right now</h3>
           {live.map((x) => <div key={x.profile.id} className="row" style={{ padding: "4px 0" }}><Avatar name={x.profile.name} planet={x.profile.avatar} size={28} color="#22C55E" />
             <b>{x.profile.name}</b><span className="muted">is studying</span><b style={{ color: "#22C55E" }}>{studyingNow(x)}</b><span className="spacer" />
             {x.live?.started_at && <span className="muted">for {duration((Date.now() - new Date(x.live.started_at).getTime()) / 1000)}</span>}</div>)}
@@ -96,7 +96,7 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
 
       <Promises />
       <div className="card">
-        <h3>🏆 This week's leaderboard</h3>
+        <h3><span className="t2-ico">🏆</span>This week's leaderboard</h3>
         {!f.friends.length && <div className="muted">Add a friend with their code to start comparing. Share yours: <b>{f.me.friend_code}</b></div>}
         {everyone.map((x, i) => {
           const open = expanded === x.profile.id;
@@ -217,13 +217,13 @@ function Groups({ mine, onGalaxy }: { mine: FriendCard | null; onGalaxy: (c: Fri
       {f.groupPrize && <div className="card row" style={{ background: "rgba(250,204,21,.18)" }}><b>{f.groupPrize}</b><span className="spacer" /><button className="btn small" onClick={f.clearPrize}>Nice!</button></div>}
       <div className="small muted">🏆 Each week, whoever studies the most in a group wins {GROUP_WIN_ROCKETS} rockets (paid after Friday).</div>
       <div className="grid2">
-        <div className="card"><h3>👥 New group</h3>
+        <div className="card"><h3><span className="t2-ico">👥</span>New group</h3>
           <div className="row"><input style={{ flex: 1 }} placeholder="Group name, e.g. IELTS crew" value={name} onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) { f.createGroup(name); setName(""); } }} />
             <button className="btn primary" disabled={!name.trim()} onClick={() => { f.createGroup(name); setName(""); }}>Create</button></div>
           <div className="small muted" style={{ marginTop: 6 }}>You'll get a code to share. Everyone who joins sees each other's study time.</div>
         </div>
-        <div className="card"><h3>🔑 Join a group</h3>
+        <div className="card"><h3><span className="t2-ico">🔑</span>Join a group</h3>
           <div className="row"><input style={{ flex: 1, fontFamily: "monospace" }} placeholder="Group code" value={code} onChange={(e) => setCode(e.target.value)} />
             <button className="btn primary" disabled={code.trim().length < 4} onClick={async () => { const n = await f.joinGroup(code); if (n) { setCode(""); setNote(`You joined ${n} 🎉`); } }}>Join</button></div>
           <div className="small" style={{ marginTop: 6, color: note ? "var(--accent)" : "var(--muted)" }}>{note ?? "Ask a friend for their group's code."}</div>

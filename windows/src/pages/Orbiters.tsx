@@ -30,7 +30,7 @@ export function AllOrbiters() {
   const top = Math.max(1, list?.[0]?.minutes ?? 1);
   return (
     <div className="card">
-      <h3>🌍 All Orbiters · this week</h3>
+      <h3><span className="t2-ico">🌍</span>All Orbiters · this week</h3>
       <div className="small muted" style={{ marginBottom: 8 }}>Everyone using Orbit, ranked by study time this week. You see hours only — add someone as a friend to see what they study.</div>
       {!list && <div className="muted">Loading…</div>}
       {list?.map((o, i) => (

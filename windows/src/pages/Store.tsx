@@ -55,7 +55,7 @@ export default function StorePage() {
       </div>
 
       <div className="row">
-        <h2 style={{ margin: 0 }}>Planet Store</h2><span className="spacer" />
+        <h2 style={{ margin: 0 }}>🛍️ Planet Store</h2><span className="spacer" />
         <div className="seg">
           <button className={!rarity ? "on" : ""} onClick={() => setRarity("")}>All</button>
           {RARITIES.map((r) => <button key={r} className={rarity === r ? "on" : ""} onClick={() => setRarity(r)}>{cap(r)}</button>)}
