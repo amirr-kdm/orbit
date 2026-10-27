@@ -31,12 +31,6 @@ struct TodayView: View {
                     Text("To-do · \(Fmt.date(today, "EEEE", .gregorian))").font(.largeTitle.weight(.bold))
                     Text(Fmt.dualDate(today) + ", " + Fmt.date(today, "y", .gregorian))
                         .font(.title3).foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
-                        pill("Level \(store.galaxyProgress().level)", "sparkles", .blue)
-                        pill("\(store.streakInfo.days) day streak", "flame.fill", .orange)
-                        pill("\(store.rocketBalance) rockets", "paperplane.fill", .pink)
-                    }
-                    .padding(.top, 6)
                 }
 
                 HStack(spacing: 14) {
