@@ -28,6 +28,10 @@
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
+/* The window itself never scrolls or bounces: only the inner panels scroll, and their edges don't pass the gesture on */
+html, body { overflow: hidden; overscroll-behavior: none; touch-action: pan-x pan-y; }
+.app { overflow: hidden; }
+.sidebar, .main, .modal, .admin-panel, .sched-wrap, .notice-pop, [style*="overflow"] { overscroll-behavior: none; }
 body { background: var(--bg); color: var(--text); font-size: 14px; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
