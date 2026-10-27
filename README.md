@@ -18,7 +18,7 @@ and team up with friends to take down space monsters before they escape. 👾<br
 [![Release](https://img.shields.io/github/v/release/amirr-kdm/orbit?color=8b5cf6)](https://github.com/amirr-kdm/orbit/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-<img src="docs/screenshots/schedule.png" alt="Weekly schedule" width="32%"> <img src="docs/screenshots/galaxy.png" alt="My Galaxy" width="32%"> <img src="docs/screenshots/store.png" alt="Planet store" width="32%">
+<img src="docs/screenshots/today.png" alt="Today" width="32%"> <img src="docs/screenshots/galaxy.png" alt="My Galaxy" width="32%"> <img src="docs/screenshots/challenges.png" alt="Challenges" width="32%">
 
 </div>
 
@@ -46,32 +46,34 @@ Orbit tells you when a new version is out.
 
 | | |
 |---|---|
-| ☀️ **Today** | Your to-dos for the day, a live *Now / Next* card and one-tap **Study → Start**. |
-| 📅 **Weekly schedule** | Even/odd weeks, colours, categories, repeat rules, and cells that are fixed classes or to-dos. |
-| ✅ **Tasks** | Day / Week / List views with drag and drop, skipped to-dos, and an Obsidian-style **graph** of your subjects. |
+| ☀️ **Today** | Your to-dos for the day, a live *Now / Next* card and one-tap **Study → Start**. A **No specific time** box keeps tasks that have no day yet; move them to today when you're ready. |
+| 📅 **Weekly schedule** | Even/odd weeks, colours, categories, repeat rules, and cells that are fixed classes or to-dos. A slim strip under the table holds your "whenever" tasks. |
+| ✅ **Tasks** | Day / Week / List views with drag and drop, skipped to-dos, and an Obsidian-style **graph** of your subjects. Press **⌘N / Ctrl+N** anywhere to add a task, with a category, for today or for whenever. |
 | 📆 **Calendar** | Persian & Gregorian, with your study and to-dos on each day. |
-| 🧠 **Notes & Brainstorm** | Rich notes (checklists, tables, RTL text) in folders with drag and drop. Draft a future week and add it to your schedule. Notes open on both Mac and Windows. |
-| ⏱ **Study timer** | Stopwatch or Pomodoro. Every session is saved and counts everywhere. |
-| 📊 **Reports** | Weekly and monthly charts, time per subject, unfinished to-dos. |
+| 🧠 **Notes & Brainstorm** | Rich notes (checklists, tables, RTL text) in folders with drag and drop. Draft a future week and add it to your schedule. |
+| ⏱ **Study timer** | Stopwatch or Pomodoro. Every session is saved and counts everywhere. Any task, even one with no day, can be picked to study. |
+| 📊 **Reports** | Weekly and monthly charts, time per subject, unfinished to-dos. Roll subcategories into their main category, and hover any colour of the daily chart to see the tasks behind it. |
+| 🎨 **24 themes** | Calm, warm, paper, grey and pure black looks, plus fonts. Your choice syncs between devices. |
 
 ### 🌌 Rewards
 
 | | |
 |---|---|
-| 🌌 **My Galaxy** | **+1 level for every 3 hours** of study (up to 60). Unlock planets, build solar systems of up to 8, and arrange them on an endless map. Zoom with a pinch (Ctrl + wheel on Windows) and tune orbit, sun and planet sizes. |
-| 🏁 **Level Pass** | Your ship flies forward after every study session. Claim rockets every level (25; 75 from level 10, 125 from level 20, +50 with every ten levels) and a special animated planet every 10 levels. Choose one of three ships. |
-| 🛍 **Store** | Spend 🚀 rockets on 40+ hand-made planets: Common, Rare, Epic and Legendary (some animated). |
+| 🌌 **My Galaxy** | **+1 level for every 3 hours** of study (up to 60). Unlock planets, build solar systems of up to 8, and arrange them on an endless map. The sidebar counts your planets 🪐 and suns ☀️. |
+| 🏁 **Level Pass** | Your ship flies forward after every study session. Claim rockets on every level (**25** up to level 9, **75** from level 10, **125** from level 20, +50 with every ten levels) and a special animated planet every 10 levels. |
+| 🛍 **Store** | Spend 🚀 rockets on 50+ hand-made planets: Common, Rare, Epic and Legendary (some animated, plenty of food). |
 | ⚡ **Streaks** | Days in a row with study, with **3 automatic streak freezes** every month. |
 
 ### 👥 Together
 
 | | |
 |---|---|
-| 👥 **Friends & groups** | Friend codes, live *studying now*, weekly leaderboards, and groups with a weekly prize. |
-| 🏆 **Challenges** | Group challenges with an entry fee: if everyone finishes, the fees are doubled. If some fail, those who finish share their fees. |
-| 🤝 **Promises** | Promise a friend you'll study X hours by a deadline, with rockets at stake. Keep it and the stake comes back; miss it and it's theirs. |
-| 💥 **Fight Club** | Summon a space monster for a study goal (5 sizes), alone or with friends and whole groups. Every minute you study is a bullet. Fly your ship with ← → and fire with Space; only hits count. Beat it before the deadline and the rocket prize is split by damage. |
-| 🔔 **Notifications** | Gifts, prizes, Fight Club invitations and new versions. |
+| 👥 **Friends** | Friend codes, live *studying now*, weekly leaderboards. |
+| 🫂 **Groups** | Their own page: members' study, a weekly prize for the top studier, and **group challenges** that only members can join. |
+| 🏆 **Challenges** | **Public** (everyone), **private** (invite code) or **group**. Join any time until it ends and study counts from the moment you join. Everyone pays an entry fee: if all finish, the fees are doubled; if some fail, those who finish share the fees. The detail page shows what each person studied and who is studying right now. |
+| 🤝 **Promises** | Promise a friend you'll study X hours by a deadline, with rockets at stake. |
+| 💥 **Fight Club** | A **World Boss** appears every week for the whole community, and you can summon monsters for your own goals. Every minute you study is a bullet; fly with ← → and fire with Space. Beat it before the deadline and the prize is split by damage. |
+| 🔔 **Notification bell** | Top right, with an unread count: new challenges, gifts, prizes and new versions. Rest the mouse on one to mark it read. |
 
 ### 🔐 Account
 
@@ -88,7 +90,8 @@ Orbit tells you when a new version is out.
 2. **Build your week** in *Weekly Schedule*. Set a cell's type to **To-do** for things to study.
 3. **Study** from *Today*: press **Study → Start**, then **Finish & Save**.
 4. **Grow**: claim rockets on the Level Pass, buy planets, and add friends with your code in *Friends*.
-5. **Fight**: summon a monster in *Fight Club* and invite your friends.
+5. **Compete**: join a **Challenge**, make a **Group** with your class, and hit the weekly **World Boss** in *Fight Club*.
+6. **Capture ideas fast**: press **⌘N / Ctrl+N** to add a task with no specific time and plan it later.
 
 ---
 
@@ -97,19 +100,18 @@ Orbit tells you when a new version is out.
 | | |
 |---|---|
 | ⭐ **Levels** | Start at level 1, **+1 level per 3 hours** studied, up to **60**. |
-| 🚀 **Rockets** | 200 to start · **25 per level** (claim them on the Level Pass) · weekly bonus from 10 hours up (100 → 400) · **100** for topping a group's weekly board · challenge, promise and Fight Club prizes. |
-| 👾 **Fight Club prize** | **45 rockets per hour** of the goal, +15% for each monster size above the first; split by damage. |
+| 🚀 **Rockets** | New Orbiters start with **800** · Level Pass rewards (25 → 75 → 125 …) · weekly bonus from 10 hours up (100 → 400) · **100** for topping a group's weekly board · challenge, promise and Fight Club prizes. |
+| 👾 **Fight Club prize** | The weekly World Boss pays **1000 rockets**, split by damage. Your own monsters pay **45 rockets per hour** of the goal, +15% per size above the first. |
 | 🪐 **Store planets** | 100–1000 rockets by rarity. 3 refund tickets for everyone. |
 
 <details>
 <summary><b>📸 More screenshots</b></summary>
 <br>
 
-<img src="docs/screenshots/today.png" alt="Today" width="49%"> <img src="docs/screenshots/tasks-week.png" alt="Tasks" width="49%">
-<img src="docs/screenshots/graph.png" alt="Tasks graph" width="49%"> <img src="docs/screenshots/planner.png" alt="Planner" width="49%">
+<img src="docs/screenshots/schedule.png" alt="Weekly schedule" width="49%"> <img src="docs/screenshots/tasks-week.png" alt="Tasks" width="49%">
 <img src="docs/screenshots/timer.png" alt="Timer" width="49%"> <img src="docs/screenshots/reports.png" alt="Reports" width="49%">
-<img src="docs/screenshots/solar-system.png" alt="Solar system" width="49%"> <img src="docs/screenshots/friends.png" alt="Friends" width="49%">
-<img src="docs/screenshots/calendar.png" alt="Calendar" width="49%"> <img src="docs/screenshots/settings.png" alt="Settings" width="49%">
+<img src="docs/screenshots/store.png" alt="Store" width="49%"> <img src="docs/screenshots/planner.png" alt="Notes & Brainstorm" width="49%">
+<img src="docs/screenshots/calendar.png" alt="Calendar" width="49%"> <img src="docs/screenshots/settings.png" alt="Settings and themes" width="49%">
 
 </details>
 
@@ -151,7 +153,7 @@ npm install
 npm run tauri build
 ```
 
-**Your own server:** create a [Supabase](https://supabase.com) project, run, in this order, [`schema.sql`](supabase/schema.sql), [`groups.sql`](supabase/groups.sql), [`accounts.sql`](supabase/accounts.sql), [`gifts.sql`](supabase/gifts.sql), [`challenges.sql`](supabase/challenges.sql) and [`bosses.sql`](supabase/bosses.sql), and turn off *Confirm email*. Put the URL and **publishable** key in `Resources/Supabase.plist` (Mac) or `VITE_SUPABASE_URL` / `VITE_SUPABASE_KEY` (Windows).
+**Your own server:** create a [Supabase](https://supabase.com) project, run, in this order, [`schema.sql`](supabase/schema.sql), [`groups.sql`](supabase/groups.sql), [`accounts.sql`](supabase/accounts.sql), [`gifts.sql`](supabase/gifts.sql), [`challenges.sql`](supabase/challenges.sql) and [`bosses.sql`](supabase/bosses.sql), [`wallet.sql`](supabase/wallet.sql), [`world_boss.sql`](supabase/world_boss.sql), [`challenges_v2.sql`](supabase/challenges_v2.sql) and [`level_rewards.sql`](supabase/level_rewards.sql), and turn off *Confirm email*. Put the URL and **publishable** key in `Resources/Supabase.plist` (Mac) or `VITE_SUPABASE_URL` / `VITE_SUPABASE_KEY` (Windows).
 
 </details>
 

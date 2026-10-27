@@ -811,12 +811,20 @@ struct SeededRandom {
 enum PlanetSheet {
     /// `store: true` renders the 20 store planets by rarity instead
     static func render(to url: URL, store: Bool = false) {
+        // rows of at most 12 planets: (label, planets)
+        var rows: [(String, [PlanetDef])] = []
+        for level in 1...(store ? 4 : 10) {
+            let label = store ? String(Rarity.allCases[level - 1].title.prefix(1)) : "L\(level)"
+            let list = store ? PlanetCatalog.storeAvailable.filter { $0.rarity == Rarity.allCases[level - 1] } : PlanetCatalog.all.filter { $0.level == level }
+            for (i, start) in stride(from: 0, to: max(list.count, 1), by: 12).enumerated() {
+                rows.append((i == 0 ? label : "", Array(list[start..<min(start + 12, list.count)])))
+            }
+        }
         let view = VStack(alignment: .leading, spacing: 6) {
-            ForEach(1...(store ? 4 : 10), id: \.self) { level in
+            ForEach(rows.indices, id: \.self) { i in
                 HStack(spacing: 6) {
-                    Text(store ? Rarity.allCases[level - 1].title.prefix(1) + "" : "L\(level)").font(.headline).foregroundStyle(.white).frame(width: 34)
-                    ForEach(store ? PlanetCatalog.storeAvailable.filter { $0.rarity == Rarity.allCases[level - 1] }
-                                  : PlanetCatalog.all.filter { $0.level == level }) { p in
+                    Text(rows[i].0).font(.headline).foregroundStyle(.white).frame(width: 34)
+                    ForEach(rows[i].1) { p in
                         VStack(spacing: 2) {
                             PlanetView(planet: p, size: 130, phase: 0.1)
                             Text(p.name).font(.caption).foregroundStyle(.white)
