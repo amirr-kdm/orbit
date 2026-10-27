@@ -185,7 +185,7 @@ export default function App() {
             <button className="icon-btn" style={{ fontSize: 18 }} title="New task (Ctrl+N)" onClick={() => setQuick(true)}>＋</button>
             <Bell onOpenNotice={openNotice} />
           </div>
-          <Page />
+          <div className="main-scroll"><Page /></div>
         </main>
         <Toast onOpenNotice={openNotice} />
         {quick && <QuickTaskModal onClose={() => setQuick(false)} onStudy={(id) => { timer.setTarget({ kind: "task", id }); nav.go("timer"); }} />}

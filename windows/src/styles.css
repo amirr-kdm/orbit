@@ -55,7 +55,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .mini-timer { margin-top: auto; background: var(--card); border-radius: 12px; padding: 10px 12px; cursor: pointer; box-shadow: var(--shadow); }
 .mini-timer b { font-variant-numeric: tabular-nums; font-size: 18px; }
 
-.main { flex: 1; min-width: 0; overflow: auto; background-image: var(--ambient, none); }
+.main { flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; background-image: var(--ambient, none); }
 .page { padding: 24px 28px; max-width: 1500px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
 .page-title { font-size: 28px; font-weight: 800; margin: 0; }
 .subtitle { color: var(--muted); }
@@ -274,7 +274,8 @@ option, optgroup { background-color: var(--card); color: var(--text); }
 .space option, .space optgroup, .space-controls option, .space-controls optgroup { background-color: #1B1D26; color: #FFFFFF; }
 
 /* notification bell, toast, top bar */
-.topbar { position: fixed; top: 10px; right: 26px; z-index: 40; display: flex; align-items: center; gap: 2px; padding: 3px 8px; border-radius: 99px; background: color-mix(in srgb, var(--card) 88%, transparent); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.25); backdrop-filter: blur(8px); }
+.topbar { flex-shrink: 0; display: flex; justify-content: flex-end; align-items: center; gap: 2px; padding: 8px 20px 0; height: 44px; position: relative; z-index: 40; }
+.topbar > * { background: color-mix(in srgb, var(--card) 88%, transparent); border-radius: 99px; }
 .bell-count { position: absolute; top: -4px; right: -6px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 99px; background: #ef4444; color: white; font-size: 9px; font-weight: 800; display: grid; place-items: center; }
 .notice-pop { position: absolute; top: 34px; right: 0; width: 340px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 34px rgba(0,0,0,.35); z-index: 50; overflow: hidden; }
 .notice-row { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; padding: 10px 14px; border: none; border-bottom: 1px solid var(--line); background: none; color: var(--text); }
@@ -316,3 +317,6 @@ option, optgroup { background-color: var(--card); color: var(--text); }
 .nav { border-radius: 11px; transition: background .12s; }
 .nav.active { box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent); }
 .sidebar { background-image: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 40%); }
+
+.main-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: none; }
+.main > .banner { flex-shrink: 0; }

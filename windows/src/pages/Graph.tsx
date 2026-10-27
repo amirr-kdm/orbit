@@ -292,7 +292,7 @@ export default function Graph({ catFilter }: { catFilter: string }) {
 
   return (
     <div className="row" style={{ alignItems: "stretch", gap: 14 }}>
-      <div ref={wrap} className="card" style={{ flex: 1, height: "calc(100vh - 150px)", minHeight: 460, padding: 0, position: "relative", overflow: "hidden" }}>
+      <div ref={wrap} className="card" style={{ flex: 1, height: "calc(100vh - 205px)", minHeight: 460, padding: 0, position: "relative", overflow: "hidden" }}>
         <canvas ref={canvas} style={{ display: "block", cursor: "grab", touchAction: "none" }}
           onPointerDown={(e) => { const [x, y] = local(e); (e.target as HTMLElement).setPointerCapture(e.pointerId); drag.current = { node: hit(x, y), sx: x, sy: y, px: shared.view.panX, py: shared.view.panY, moved: false }; }}
           onPointerMove={(e) => {
@@ -427,7 +427,7 @@ function Details({ node, items, showDone, onSelect, onClose }: { node: GInfo; it
   }
 
   return (
-    <div className="card" style={{ width: 300, display: "flex", flexDirection: "column", gap: 12, alignSelf: "flex-start", maxHeight: "calc(100vh - 150px)", overflow: "auto" }}>
+    <div className="card" style={{ width: 300, display: "flex", flexDirection: "column", gap: 12, alignSelf: "flex-start", maxHeight: "calc(100vh - 205px)", overflow: "auto" }}>
       <div className="row"><span className="small muted">{node.hub ? "🏷 Category" : node.schedule ? "🗓 Weekly to-do" : "☑ Task"}</span><span className="spacer" /><button className="icon-btn" onClick={onClose}>✕</button></div>
       <div className="row"><span className="dot" style={{ width: 12, height: 12, background: node.color }} /><b style={{ fontSize: 17 }}>{node.title}</b></div>
       {body}
