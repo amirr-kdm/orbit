@@ -48,7 +48,7 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
 
   return (
     <div className="page">
-      <div className="grid2">
+      {!only && <div className="grid2">
         <div className="card row" style={{ gap: 14, borderColor: "var(--accent)" }}>
           <Avatar name={f.me.name} planet={data.avatarPlanet} size={56} color="var(--accent)" />
           <div style={{ flex: 1 }}>
@@ -66,7 +66,7 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
             <button className="btn primary" disabled={code.trim().length < 4} onClick={async () => { const n = await f.addFriend(code); setAdded(n); if (n) setCode(""); }}>Add</button></div>
           <div className="small" style={{ marginTop: 6, color: added ? "#22C55E" : "var(--muted)" }}>{added ? `You and ${added} are now friends 🎉` : "Ask your friend for their code from this page in their app."}</div>
         </div>
-      </div>
+      </div>}
 
       {f.error && <div style={{ color: "#ef4444" }}>⚠️ {f.error}</div>}
 
