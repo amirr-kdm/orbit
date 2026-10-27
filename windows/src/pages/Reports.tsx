@@ -46,6 +46,8 @@ export default function Reports() {
     const c = categoryOf(data, s.categoryID);
     return data.settings.categoryColors && c ? { name: categoryLabel(data, c.id) ?? c.name, color: c.colorHex } : subjectOf(data, s);
   };
+  // mouse over a colour of the daily chart: which sessions (tasks) it was made of
+  const [hov, setHov] = useState<{ d: Date; name: string; color: string; x: number; y: number } | null>(null);
   const perDay = days.map((d) => { const ss = sessionsIn(data, startOfDay(d), addDays(startOfDay(d), 1)); return { d, total: sum(ss), by: totals(ss, group) }; });
   const groups = totals(sessions, group), subjects = totals(sessions, (s) => { const top = mainOnly ? mainOf(s) : undefined; return top ? { name: top.name, color: top.colorHex } : subjectOf(data, s); });
   const items = totals(sessions, (s) => ({ name: itemTitle(data, s), color: subjectOf(data, s).color }));
@@ -146,17 +148,30 @@ export default function Reports() {
               const today = startOfDay(p.d).getTime() === startOfDay(now).getTime();
               return (
                 <div key={p.d.toDateString()} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end", borderRadius: 8,
-                  background: today ? `${accent}14` : undefined }} title={`${duration(p.total)}${p.by.length ? "\n" + p.by.map((b) => `${b.name} ${duration(b.secs)}`).join("\n") : ""}`}>
+                  background: today ? `${accent}14` : undefined }}>
                   {today && <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1, color: accent }}>TODAY</div>}
                   <div className="small muted">{p.total && period === "week" ? shortDuration(p.total) : ""}</div>
                   <div style={{ width: "100%", maxWidth: 70, display: "flex", flexDirection: "column-reverse", height: `${(p.total / max) * 85}%`, borderRadius: 5, overflow: "hidden" }}>
-                    {p.by.map((v) => <div key={v.name} style={{ background: v.color, height: `${(v.secs / Math.max(1, p.total)) * 100}%` }} />)}
+                    {p.by.map((v) => <div key={v.name} style={{ background: v.color, height: `${(v.secs / Math.max(1, p.total)) * 100}%`, cursor: "default", filter: hov && hov.d.getTime() === p.d.getTime() && hov.name === v.name ? "brightness(1.25)" : undefined }}
+                      onMouseMove={(e) => setHov({ d: p.d, name: v.name, color: v.color, x: e.clientX, y: e.clientY })} onMouseLeave={() => setHov(null)} />)}
                   </div>
                   <div className="small muted" style={{ whiteSpace: "nowrap" }}>{label(p.d)}</div>
                 </div>
               );
             })}
           </div>
+          {hov && (() => {
+            const list = sessionsIn(data, startOfDay(hov.d), addDays(startOfDay(hov.d), 1)).filter((x) => group(x).name === hov.name);
+            const byTitle = new Map<string, number>(); for (const x of list) byTitle.set(itemTitle(data, x), (byTitle.get(itemTitle(data, x)) ?? 0) + x.duration);
+            return (
+              <div style={{ position: "fixed", left: Math.min(hov.x + 14, window.innerWidth - 280), top: Math.max(8, hov.y - 14 - 26 * (byTitle.size + 1)), width: 260, zIndex: 100, pointerEvents: "none",
+                background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, padding: 10, boxShadow: "0 8px 24px rgba(0,0,0,.35)" }}>
+                <div className="small muted" style={{ fontWeight: 700 }}>{monthDay(hov.d, kind)}</div>
+                <div className="row" style={{ gap: 6, margin: "2px 0 4px" }}><span className="dot" style={{ background: hov.color }} /><b>{hov.name}</b></div>
+                {[...byTitle].map(([t, secs]) => <div key={t} className="row small"><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t}</span><span className="muted">{shortDuration(secs)}</span></div>)}
+              </div>
+            );
+          })()}
           <div className="row small" style={{ flexWrap: "wrap", gap: 12, marginTop: 10 }}>{groups.map((g) => <span key={g.name} className="row" style={{ gap: 5 }}><span className="dot" style={{ background: g.color }} />{g.name}</span>)}</div>
         </>}
       </Card>
