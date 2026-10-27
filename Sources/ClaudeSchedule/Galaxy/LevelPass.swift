@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Level Pass: one long line of levels with a ship showing where you are.
-/// Under every level waits a reward (25 rockets, plus a special planet on levels 10, 20 … 60) that you click to take.
+/// Under every level waits a reward (25 rockets — 75 from level 10, 125 from level 20 … — plus a special planet on levels 10, 20 … 60) that you click to take.
 struct LevelPassView: View {
     /// Study hours before the session that opened this (the ship flies from there); nil = no flight
     var fromHours: Double?
@@ -188,7 +188,7 @@ struct LevelPassView: View {
                     }
                     HStack(spacing: 3) {
                         RocketIcon(size: 14)
-                        Text("+\(AppStore.rocketsPerLevel)").font(.caption.weight(.bold).monospacedDigit())
+                        Text("+\(AppStore.rocketsForLevel(lv))").font(.caption.weight(.bold).monospacedDigit())
                     }
                     Text(claimed ? "Taken ✓" : canTake ? "Claim" : "Locked")
                         .font(.caption2.weight(.semibold))
@@ -209,7 +209,7 @@ struct LevelPassView: View {
             .popover(isPresented: Binding(get: { preview == lv }, set: { if !$0 { preview = nil } }), arrowEdge: .bottom) {
                 if let planet { PlanetPreview(planet: planet, level: lv, reached: reached, claimed: claimed) }
             }
-            .help(planet.map { "Level \(lv): 25 rockets + \($0.name)" } ?? "Level \(lv): 25 rockets")
+            .help(planet.map { "Level \(lv): \(AppStore.rocketsForLevel(lv)) rockets + \($0.name)" } ?? "Level \(lv): \(AppStore.rocketsForLevel(lv)) rockets")
         }
     }
 }

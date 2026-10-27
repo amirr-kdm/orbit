@@ -62,16 +62,17 @@ extension AppStore {
     var rocketsFromStudy: Int {
         Int(sessions.filter { $0.start < Self.levelPassStart }.reduce(0) { $0 + $1.duration } / 3600 * Double(Self.rocketsPerHour))
     }
-    /// Rockets claimed on the Level Pass (25 per level)
-    static let rocketsPerLevel = 25
-    var rocketsFromLevels: Int { claimedLevels.count * Self.rocketsPerLevel }
+    /// Rockets a Level Pass level gives: 25 up to level 9, 75 from level 10, then 50 more with every further ten
+    /// levels (20 → 125, 30 → 175, 40 → 225, 50 → 275, 60 → 325). The server uses the same table (supabase/level_rewards.sql).
+    static func rocketsForLevel(_ level: Int) -> Int { level < 10 ? 25 : 75 + 50 * (level / 10 - 1) }
+    var rocketsFromLevels: Int { claimedLevels.reduce(0) { $0 + Self.rocketsForLevel($1) } }
 
     /// Levels 10, 20 … 60 also give a special planet
     static func levelPlanet(_ level: Int) -> String? { level % 10 == 0 && level > 0 ? "lv_t\(level / 10)" : nil }
 
     func canClaim(level: Int) -> Bool { level >= 1 && level <= galaxyProgress().level && !claimedLevels.contains(level) }
 
-    /// Take a level's rewards: 25 rockets, plus a planet on every 10th level
+    /// Take a level's rewards: its rockets, plus a planet on every 10th level
     func claim(level: Int) {
         guard canClaim(level: level) else { return }
         claimedLevels.append(level)

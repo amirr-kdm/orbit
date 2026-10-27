@@ -207,7 +207,7 @@ begin
 end;
 $$;
 
--- Level Pass: 25 rockets per level (and a planet every 10 levels), once each, up to your level
+-- Level Pass: rockets per level (see level_rewards.sql: 25, 75 from level 10, 125 from level 20 …) and a planet every 10 levels, once each, up to your level
 create or replace function public.claim_level(lvl int)
 returns void language plpgsql security definer set search_path = public as $$
 declare me uuid := auth.uid(); w wallets;

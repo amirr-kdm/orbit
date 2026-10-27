@@ -252,7 +252,7 @@ struct ChallengesPage: View {
         if !list.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Label("\(title) · \(list.count)", systemImage: icon).font(.headline).foregroundStyle(tint)
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 16)], spacing: 16) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 16, alignment: .top)], spacing: 16) {
                     ForEach(list) { c in ChallengeCard(challenge: c, now: now) { selected = c.id } }
                 }
             }
@@ -340,6 +340,8 @@ struct ChallengeDetailView: View {
     var onBack: () -> Void
     @Environment(ChallengeService.self) private var service
     @Environment(FriendsService.self) private var friends
+    @Environment(AppStore.self) private var store
+    @Environment(TimerEngine.self) private var timer
     @State private var confirmCancel = false
     @State private var copied = false
     @State private var showing: ProfileTarget?
@@ -491,10 +493,37 @@ struct ChallengeDetailView: View {
         }
     }
 
+    /// What someone studied during the challenge: me from my own sessions; friends and group-mates from the daily
+    /// summaries they share with me (everyone else shares hours only)
+    private func studied(_ m: ChallengeMember, c: Challenge, me: UUID?) -> [SubjectStat] {
+        let from = max(c.starts_at, m.joined_at ?? c.starts_at), to = min(Date(), c.ends_at)
+        guard to > from else { return [] }
+        var totals: [String: SubjectStat] = [:]
+        if m.user_id == me {
+            for s in store.sessions(in: DateInterval(start: from, end: to)) where !s.isManual {
+                let name = store.subject(of: s).name
+                totals[name, default: SubjectStat(name: name, minutes: 0, color: store.subjectHex(of: s))].minutes += Int(s.duration / 60)
+            }
+        } else if let card = friends.people[m.user_id] {
+            var day = Cal.persian.startOfDay(for: from)
+            while day <= to {
+                for s in card.stats[Cal.dayKey(day)]?.subjects ?? [] {
+                    totals[s.name, default: SubjectStat(name: s.name, minutes: 0, color: s.color)].minutes += s.minutes
+                }
+                day = Cal.persian.date(byAdding: .day, value: 1, to: day) ?? to.addingTimeInterval(86400)
+            }
+        }
+        return totals.values.filter { $0.minutes > 0 }.sorted { $0.minutes > $1.minutes }
+    }
+
     private func participantRow(_ i: Int, _ m: ChallengeMember, c: Challenge, me: UUID?) -> some View {
         let name = service.displayName(m.user_id, me: me, friends: friends)
         let done = m.minutes >= c.target_minutes
         let late = (m.joined_at ?? c.starts_at) > c.starts_at.addingTimeInterval(300)
+        let isMe = m.user_id == me
+        let sees = isMe || friends.people[m.user_id] != nil
+        let subjects = studied(m, c: c, me: me)
+        let liveNow = isMe ? friends.myCard(timer: timer)?.studyingNow : friends.people[m.user_id]?.studyingNow
         return HStack(spacing: 12) {
             Text(i < 3 ? ["🥇", "🥈", "🥉"][i] : "\(i + 1)")
                 .font(i < 3 ? .title3 : .callout.weight(.bold).monospacedDigit()).frame(width: 28)
@@ -510,6 +539,28 @@ struct ChallengeDetailView: View {
                     if late { Text("joined later").font(.caption2).foregroundStyle(.tertiary) }
                 }
                 ProgressView(value: min(1, Double(m.minutes) / Double(max(1, c.target_minutes)))).tint(done ? .green : c.type.tint)
+                // what they studied, and what they're studying right now
+                HStack(spacing: 6) {
+                    if let liveNow {
+                        Label("Studying \(liveNow) now", systemImage: "dot.radiowaves.left.and.right")
+                            .font(.caption2.weight(.bold)).foregroundStyle(.green)
+                            .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.green.opacity(0.15)))
+                    }
+                    ForEach(Array(subjects.prefix(3).enumerated()), id: \.offset) { _, s in
+                        HStack(spacing: 4) {
+                            Circle().fill(Color(hex: s.color)).frame(width: 7, height: 7)
+                            Text("\(s.name) \(hm(s.minutes))").font(.caption2).lineLimit(1)
+                        }
+                        .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.primary.opacity(0.07)))
+                    }
+                    if subjects.count > 3 { Text("+\(subjects.count - 3) more").font(.caption2).foregroundStyle(.secondary) }
+                    if !sees {
+                        Label("Hours only — add as a friend to see what they study", systemImage: "lock.fill")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                    } else if subjects.isEmpty && liveNow == nil {
+                        Text("Nothing logged yet").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
             }
             VStack(alignment: .trailing, spacing: 1) {
                 Text(hm(m.minutes)).font(.headline.monospacedDigit())

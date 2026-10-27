@@ -58,7 +58,7 @@ struct StoreView: View {
             }
             Spacer()
             VStack(alignment: .leading, spacing: 8) {
-                Label("\(AppStore.rocketsPerLevel) rockets for every level — claim them on the Level Pass", systemImage: "flag.checkered")
+                Label("Every level gives rockets (25; 75 from level 10, 125 from level 20 …) — claim them on the Level Pass", systemImage: "flag.checkered")
                     .font(.callout.weight(.medium))
                 Text("Weekly bonus when Friday ends:").font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 6) {

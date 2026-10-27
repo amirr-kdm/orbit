@@ -59,7 +59,7 @@ Orbit tells you when a new version is out.
 | | |
 |---|---|
 | 🌌 **My Galaxy** | **+1 level for every 3 hours** of study (up to 60). Unlock planets, build solar systems of up to 8, and arrange them on an endless map. Zoom with a pinch (Ctrl + wheel on Windows) and tune orbit, sun and planet sizes. |
-| 🏁 **Level Pass** | Your ship flies forward after every study session. Claim **25 rockets** every level and a special animated planet every 10 levels. Choose one of three ships. |
+| 🏁 **Level Pass** | Your ship flies forward after every study session. Claim rockets every level (25; 75 from level 10, 125 from level 20, +50 with every ten levels) and a special animated planet every 10 levels. Choose one of three ships. |
 | 🛍 **Store** | Spend 🚀 rockets on 40+ hand-made planets: Common, Rare, Epic and Legendary (some animated). |
 | ⚡ **Streaks** | Days in a row with study, with **3 automatic streak freezes** every month. |
 

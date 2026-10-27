@@ -112,7 +112,7 @@ struct GroupsPage: View {
                         .frame(maxWidth: .infinity)
                 } else {
                     Label("Your groups · \(friends.groups.count)", systemImage: "person.3.fill").font(.headline).foregroundStyle(ChallengeType.group.tint)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 16)], spacing: 16) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 16, alignment: .top)], spacing: 16) {
                         ForEach(friends.groups) { g in
                             GroupCard(group: g, mine: mine) { selected = g.id }
                         }
@@ -306,7 +306,7 @@ struct GroupDetailView: View {
                         .frame(maxWidth: .infinity).padding(22)
                         .background(RoundedRectangle(cornerRadius: 16).fill(Color.primary.opacity(0.04)))
                 } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 16)], spacing: 16) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 16, alignment: .top)], spacing: 16) {
                         ForEach(challenges) { c in ChallengeCard(challenge: c, now: now) { selectedChallenge = c.id } }
                     }
                 }
