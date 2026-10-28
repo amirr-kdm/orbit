@@ -739,11 +739,12 @@ final class AppStore {
     }
 
     func addSession(_ s: StudySession) {
-        let before = sessions.reduce(0) { $0 + $1.duration } / 3600
+        // Only timed study counts towards levels (manual logs don't), so the ship flies from where it really is
+        let before = sessions.filter { !$0.isManual }.reduce(0) { $0 + $1.duration } / 3600
         sessions.append(s)
         sessions.sort { $0.start < $1.start }
-        // Show the ship moving along the Level Pass
-        if s.duration >= 60 { passMoment = PassMoment(fromHours: before, toHours: before + s.duration / 3600) }
+        // Show the ship moving along the Level Pass (a manual log earns nothing, so no flight)
+        if s.duration >= 60 && !s.isManual { passMoment = PassMoment(fromHours: before, toHours: before + s.duration / 3600) }
     }
 
     func deleteSession(_ id: UUID) {

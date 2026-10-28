@@ -531,7 +531,7 @@ function withWallet(a: ReturnType<typeof makeActions>, get: () => AppData, updat
     addSession: (s: StudySession) => {
       const before = totalHours(get());
       a.addSession(s);
-      if (s.duration >= 60) setPassMoment({ from: before, to: before + s.duration / 3600, id: Date.now() });
+      if (s.duration >= 60 && !s.isManual) setPassMoment({ from: before, to: before + s.duration / 3600, id: Date.now() });
     },
   };
 }

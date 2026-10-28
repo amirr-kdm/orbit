@@ -1026,6 +1026,7 @@ struct BattleView: View {
 
 /// Fight Club: this week's World Boss for every Orbiter
 struct FightClubPage: View {
+    @Environment(\.colorScheme) private var scheme
     @Environment(FightClubService.self) private var fc
     @Environment(FriendsService.self) private var friends
     @State private var battle: Boss?
@@ -1056,7 +1057,6 @@ struct FightClubPage: View {
             }
             .padding(24)
         }
-        .environment(\.colorScheme, .dark)
         .navigationTitle("Fight Club")
         .task { await fc.load() }
         .sheet(item: $battle) { BattleView(bossID: $0.id) }
@@ -1123,7 +1123,7 @@ struct FightClubPage: View {
                 VStack(alignment: .leading, spacing: 6) {
                     GeometryReader { g in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.08))
+                            Capsule().fill(Color.primary.opacity(0.08))
                             Capsule().fill(LinearGradient(colors: [Color(hex: "#FF4D4D"), Color(hex: "#B91C1C")], startPoint: .leading, endPoint: .trailing))
                                 .frame(width: g.size.width * share)
                                 .shadow(color: .red.opacity(0.6), radius: 8)
@@ -1162,8 +1162,9 @@ struct FightClubPage: View {
         }
         .padding(24)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
-            .fill(LinearGradient(colors: [Color(hex: "#2A0A12").opacity(0.92), Color(hex: "#0B1020").opacity(0.92)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Color.red.opacity(0.35)))
+            .fill(LinearGradient(colors: scheme == .dark ? [Color(hex: "#2A0A12").opacity(0.92), Color(hex: "#0B1020").opacity(0.92)]
+                                                         : [Color(hex: "#FFE4E1"), Color(hex: "#FFF1E8")], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Color.red.opacity(scheme == .dark ? 0.35 : 0.25)))
     }
 
     private func countdown(to end: Date) -> some View {
@@ -1174,7 +1175,7 @@ struct FightClubPage: View {
                 ForEach([(s / 86400, "d"), ((s % 86400) / 3600, "h"), ((s % 3600) / 60, "m")], id: \.1) { v, u in
                     Text("\(v)\(u)").font(.callout.weight(.bold).monospacedDigit())
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.08)))
+                        .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.08)))
                 }
                 Text("left").font(.caption).foregroundStyle(.secondary)
             }
@@ -1187,7 +1188,7 @@ struct FightClubPage: View {
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.07)))
     }
 
     private var steps: some View {
@@ -1211,8 +1212,8 @@ struct FightClubPage: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
     }
 
     private func leaderboard(_ b: Boss) -> some View {
@@ -1220,7 +1221,7 @@ struct FightClubPage: View {
         let list = fc.fighters(of: b).filter { $0.damage > 0 }.sorted { $0.damage > $1.damage }
         let total = max(1, list.reduce(0) { $0 + $1.damage })
         return VStack(alignment: .leading, spacing: 12) {
-            Label("Most damage this week", systemImage: "trophy.fill").font(.headline).foregroundStyle(.yellow)
+            Label("Most damage this week", systemImage: "trophy.fill").font(.headline).foregroundStyle(scheme == .dark ? Color.yellow : Color(hex: "#B7791F"))
             if list.isEmpty {
                 Text("No hits yet — be the first!").foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 60)
             }
@@ -1249,8 +1250,8 @@ struct FightClubPage: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
     }
 
     /// Earlier weeks' monsters and how they ended
@@ -1283,7 +1284,7 @@ struct FightClubPage: View {
         }
         .padding(18)
         .frame(width: 280, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
     }
 }

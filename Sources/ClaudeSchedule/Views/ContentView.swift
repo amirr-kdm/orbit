@@ -68,6 +68,8 @@ struct ContentView: View {
     @Environment(\.colorScheme) private var scheme
     /// Midnight Black in dark mode: the whole app turns pure black (sidebar and pages)
     private var allBlack: Bool { store.settings.template == .midnight && scheme == .dark }
+    /// Page colour behind everything: pure black for Midnight Black in dark mode, warm cream in light mode
+    private var pageColor: Color? { allBlack ? .black : (scheme == .light ? store.settings.template.lightPage : nil) }
 
     var body: some View {
         @Bindable var router = router
@@ -93,8 +95,8 @@ struct ContentView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 190, ideal: 210)
-            .scrollContentBackground(allBlack ? .hidden : .automatic)
-            .background(allBlack ? Color.black : Color.clear)
+            .scrollContentBackground(pageColor != nil ? .hidden : .automatic)
+            .background(pageColor ?? Color.clear)
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
                     if timer.isActive { miniTimer }
@@ -106,7 +108,7 @@ struct ContentView: View {
                 banners
                 page
             }
-            .background(allBlack ? Color.black : Color.clear)
+            .background(pageColor ?? Color.clear)
         }
         // About opens as a small window over the current page (the page stays where it was)
         .onChange(of: router.selection) { old, new in
@@ -170,8 +172,12 @@ struct ContentView: View {
         // App-wide look: template accent, font design, light/dark mode
         .tint(store.settings.template.style.accent)
         .fontDesign(store.settings.font.design ?? .default)
-        .onAppear { NSApp.appearance = store.settings.appearance.nsAppearance }
-        .onChange(of: store.settings.appearance) { _, mode in NSApp.appearance = mode.nsAppearance }
+        .onAppear {
+            NSApp.appearance = store.settings.appearance.nsAppearance
+            // Developer tool: CS_APPEARANCE=light|dark forces the look (for screenshots and testing)
+            if let a = ProcessInfo.processInfo.environment["CS_APPEARANCE"] { NSApp.appearance = NSAppearance(named: a == "dark" ? .darkAqua : .aqua) }
+        }
+        .onChange(of: store.settings.appearance) { _, mode in if ProcessInfo.processInfo.environment["CS_APPEARANCE"] == nil { NSApp.appearance = mode.nsAppearance } }
         // Friends: share my daily summary and what I'm studying right now
         .task {
             while !Task.isCancelled {

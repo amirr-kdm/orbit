@@ -152,6 +152,18 @@ struct TemplateStyle {
     var baseOpacity: (light: Double, dark: Double)? = nil
 }
 
+extension ScheduleTemplate {
+    /// Page colour in light mode: a soft warm off-white with a breath of the template's accent, never plain white
+    var lightPage: Color {
+        let cream = NSColor(srgbRed: 0.965, green: 0.958, blue: 0.938, alpha: 1)
+        let accent = NSColor(style.accent).usingColorSpace(.sRGB) ?? cream
+        let k: CGFloat = 0.02
+        func mix(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a * (1 - k) + b * k }
+        return Color(nsColor: NSColor(srgbRed: mix(cream.redComponent, accent.redComponent), green: mix(cream.greenComponent, accent.greenComponent),
+                                      blue: mix(cream.blueComponent, accent.blueComponent), alpha: 1))
+    }
+}
+
 enum ScheduleTemplate: String, Codable, CaseIterable, Identifiable {
     case aurora, glass, pastel, neon, paper, sunset, forest, classic
     case latte, notebook, midnight, matcha, lavender, ocean, ember, sakura
