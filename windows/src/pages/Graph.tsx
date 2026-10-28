@@ -33,7 +33,12 @@ function build(d: AppData, catFilter: string, showDone: boolean, days: Date[] | 
   const kind = d.settings.primaryCalendar;
   const hub = (cat?: string) => {
     const id = `cat:${cat ?? "none"}`;
-    if (!hubs.has(id)) { const c = categoryOf(d, cat); hubs.set(id, { id, title: c?.name ?? "No category", color: c?.colorHex ?? "#8E8E93", hub: true, schedule: false, done: false, skipped: false }); }
+    if (!hubs.has(id)) {
+      const c = categoryOf(d, cat);
+      hubs.set(id, { id, title: c?.name ?? "No category", color: c?.colorHex ?? "#8E8E93", hub: true, schedule: false, done: false, skipped: false });
+      // a subcategory hangs off its main category's hub (IELTS › speaking is linked to IELTS)
+      if (c?.parentID && categoryOf(d, c.parentID)) edges.push([hub(c.parentID), id]);
+    }
     return id;
   };
   const ok = (cat?: string) => !catFilter || isInside(d, cat, catFilter);
@@ -288,7 +293,9 @@ export default function Graph({ catFilter }: { catFilter: string }) {
   const title = !days ? "Everything" : period === "day" ? fullDate(days[0], kind) : period === "month" ? `${monthDay(days[0], kind)} – ${monthDay(days[days.length - 1], kind)}` : `${monthDay(days[0], kind)} – ${monthDay(days[6], kind)}`;
 
   const node = graph.nodes.find((n) => n.id === selected);
-  const items = node?.hub ? graph.edges.filter(([a]) => a === node.id).map(([, b]) => graph.nodes.find((n) => n.id === b)!).filter(Boolean) : [];
+  // a main category lists its own items and its subcategories' items
+  const itemsOf = (id: string): GInfo[] => graph.edges.filter(([a]) => a === id).flatMap(([, b]) => { const n = graph.nodes.find((x) => x.id === b); return !n ? [] : n.hub ? itemsOf(n.id) : [n]; });
+  const items = node?.hub ? itemsOf(node.id) : [];
 
   return (
     <div className="row" style={{ alignItems: "stretch", gap: 14 }}>
