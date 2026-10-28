@@ -721,6 +721,7 @@ struct NewBossSheet: View {
 /// The fight: a living monster drifts and dodges up top; move your jet with the mouse (or ← →)
 /// and click or press Space to fire. Only bullets that hit do damage — misses still cost a bullet.
 struct BattleView: View {
+    @Environment(\.colorScheme) private var scheme
     let bossID: UUID
     @Environment(FightClubService.self) private var fc
     @Environment(FriendsService.self) private var friends
@@ -763,8 +764,9 @@ struct BattleView: View {
                 footer(b, ammo: ammo)
             }
             .frame(width: 760, height: 660)
-            .background(Color(hex: "#070B1A"))
-            .environment(\.colorScheme, .dark)
+            // night: deep space; day: a bright sky
+            .background(scheme == .dark ? AnyShapeStyle(Color(hex: "#070B1A"))
+                                         : AnyShapeStyle(LinearGradient(colors: [Color(hex: "#8FBFF3"), Color(hex: "#DCEAFB"), Color(hex: "#FFF1DC")], startPoint: .top, endPoint: .bottom)))
             .focusable()
             .focused($focused)
             .focusEffectDisabled()
@@ -940,13 +942,13 @@ struct BattleView: View {
                     }
                     if b.isAlive && ammo == 0 {
                         Text("Out of bullets — study to reload 📚").font(.callout.weight(.semibold))
-                            .padding(.horizontal, 12).padding(.vertical, 6).background(Capsule().fill(.black.opacity(0.6)))
+                            .padding(.horizontal, 12).padding(.vertical, 6).background(Capsule().fill(scheme == .dark ? Color.black.opacity(0.6) : Color.white.opacity(0.75)))
                             .position(x: w / 2, y: h / 2)
                     }
                 }
             }
             // the starfield is drawn once behind the moving parts, not every frame
-            .background(StarsBackground().drawingGroup())
+            .background { if scheme == .dark { StarsBackground().drawingGroup() } }
             .contentShape(Rectangle())
             .onTapGesture { focused = true }   // clicking the arena gives the keyboard back to the game
             .onAppear { arenaSize = geo.size }
@@ -967,7 +969,7 @@ struct BattleView: View {
                 }
                 HStack(spacing: 2) {
                     ForEach(0..<30, id: \.self) { i in
-                        Capsule().fill(i < min(30, ammo) ? Color.yellow : Color.white.opacity(0.1)).frame(width: 5, height: 16)
+                        Capsule().fill(i < min(30, ammo) ? (scheme == .dark ? Color.yellow : Color.orange) : Color.primary.opacity(0.12)).frame(width: 5, height: 16)
                     }
                     if ammo > 30 { Text("+\(ammo - 30)").font(.caption2).foregroundStyle(.secondary) }
                 }

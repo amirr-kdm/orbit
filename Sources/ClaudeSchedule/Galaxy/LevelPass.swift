@@ -6,6 +6,7 @@ struct LevelPassView: View {
     /// Study hours before the session that opened this (the ship flies from there); nil = no flight
     var fromHours: Double?
     @Environment(AppStore.self) private var store
+    @Environment(\.colorScheme) private var scheme
     @Environment(\.dismiss) private var dismiss
     /// Where the ship is drawn, in levels (1.0 = level 1, 1.5 = halfway to level 2)
     @State private var shipAt: Double = 1
@@ -75,11 +76,12 @@ struct LevelPassView: View {
                 }
             }
             .onDisappear { if let monitor { NSEvent.removeMonitor(monitor) } }
-            .background(StarsBackground())
+            .background { if scheme == .dark { StarsBackground() } }
         }
         .frame(width: 900)
-        .background(Color(hex: "#0B1020"))
-        .environment(\.colorScheme, .dark)
+        // night: deep space; day: a bright sky
+        .background(scheme == .dark ? AnyShapeStyle(Color(hex: "#0B1020"))
+                                     : AnyShapeStyle(LinearGradient(colors: [Color(hex: "#A8CDF5"), Color(hex: "#E2EEFB"), Color(hex: "#FFF3E0")], startPoint: .top, endPoint: .bottom)))
     }
 
     private func header(_ p: GalaxyProgress, claimable: [Int]) -> some View {
@@ -104,7 +106,7 @@ struct LevelPassView: View {
                         }
                         .frame(width: 34, height: 34)
                         .padding(3)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(ship == n ? Color.orange.opacity(0.25) : Color.white.opacity(0.05)))
+                        .background(RoundedRectangle(cornerRadius: 8).fill(ship == n ? Color.orange.opacity(0.25) : Color.primary.opacity(0.06)))
                         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(ship == n ? Color.orange : .clear, lineWidth: 1.5))
                     }
                     .buttonStyle(.plain)
@@ -131,7 +133,7 @@ struct LevelPassView: View {
         let shipX = Self.spacing * CGFloat(shipAt - 1)
         return ZStack(alignment: .topLeading) {
             // the line: done part glows
-            Capsule().fill(Color.white.opacity(0.12)).frame(width: width, height: 6).offset(y: 118)
+            Capsule().fill(Color.primary.opacity(0.14)).frame(width: width, height: 6).offset(y: 118)
             Capsule().fill(LinearGradient(colors: [.orange, .pink], startPoint: .leading, endPoint: .trailing))
                 .frame(width: max(6, shipX), height: 6).offset(y: 118)
                 .shadow(color: .orange.opacity(0.6), radius: 6)
@@ -170,8 +172,8 @@ struct LevelPassView: View {
             Text("\(lv)")
                 .font(.system(size: 13, weight: .heavy, design: .rounded))
                 .frame(width: 30, height: 30)
-                .background(Circle().fill(reached ? Color.orange : Color.white.opacity(0.12)))
-                .overlay(Circle().strokeBorder(Color.white.opacity(reached ? 0.6 : 0.15), lineWidth: 1.5))
+                .background(Circle().fill(reached ? Color.orange : Color.primary.opacity(0.14)))
+                .overlay(Circle().strokeBorder(Color.primary.opacity(reached ? 0.5 : 0.18), lineWidth: 1.5))
             // reward card
             Button {
                 if canTake {
@@ -196,9 +198,9 @@ struct LevelPassView: View {
                 }
                 .frame(width: 104, height: planet == nil ? 64 : 136)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(canTake ? Color.orange.opacity(0.18) : Color.white.opacity(0.05)))
+                    .fill(canTake ? Color.orange.opacity(0.18) : Color.primary.opacity(0.06)))
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(canTake ? Color.orange : planet != nil ? Color.purple.opacity(0.6) : Color.white.opacity(0.08),
+                    .strokeBorder(canTake ? Color.orange : planet != nil ? Color.purple.opacity(0.6) : Color.primary.opacity(0.1),
                                   lineWidth: canTake ? 2 : 1))
                 .shadow(color: canTake ? .orange.opacity(0.5) : .clear, radius: 8)
                 .scaleEffect(justClaimed == lv ? 1.08 : 1)
@@ -235,6 +237,5 @@ private struct PlanetPreview: View {
                 .foregroundStyle(claimed ? .green : reached ? .orange : .secondary)
         }
         .padding(18)
-        .environment(\.colorScheme, .dark)
     }
 }

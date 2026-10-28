@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct TimerView: View {
+    @Environment(\.colorScheme) private var scheme
+    /// Text and strokes: white on the night scene, dark navy on the day scene
+    private var ink: Color { scheme == .dark ? .white : Color(hex: "#1E2540") }
     @Environment(TimerEngine.self) private var timer
     @Environment(AppStore.self) private var store
     @State private var showManual = false
@@ -14,7 +17,6 @@ struct TimerView: View {
                 .background(.ultraThinMaterial)
         }
         .background { TimerBackdrop(rest: timer.phase == .rest, lift: liftProgress) }
-        .environment(\.colorScheme, .dark)
         .navigationTitle("Timer")
         .sheet(isPresented: $showManual) { ManualSessionSheet() }
     }
@@ -67,7 +69,7 @@ struct TimerView: View {
                     .lineLimit(1)
                     .shadow(color: .black.opacity(0.6), radius: 8)
                 if let targetItem, timer.phase == .focus {
-                    Text(targetItem.detail).font(.callout).foregroundStyle(.white.opacity(0.7))
+                    Text(targetItem.detail).font(.callout).foregroundStyle(ink.opacity(0.7))
                 }
             }
 
@@ -101,7 +103,7 @@ struct TimerView: View {
                     .monospacedDigit()
                     .contentTransition(.numericText())
                     .shadow(color: ringColor.opacity(timer.isRunning ? 0.55 : 0), radius: 16)
-                Text(subtitle).font(.caption).foregroundStyle(.white.opacity(0.6))
+                Text(subtitle).font(.caption).foregroundStyle(ink.opacity(0.6))
             }
 
             // What, category, note — on glass
@@ -133,7 +135,7 @@ struct TimerView: View {
             .padding(.vertical, 4)
             .frame(maxWidth: 440)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.ultraThinMaterial))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.1)))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(ink.opacity(0.12)))
 
             // Controls
             HStack(spacing: 12) {
@@ -166,7 +168,7 @@ struct TimerView: View {
             }
         }
         .padding(28)
-        .foregroundStyle(.white)
+        .foregroundStyle(ink)
     }
 
     private func row<Content: View>(_ icon: String, @ViewBuilder _ content: () -> Content) -> some View {
@@ -185,7 +187,7 @@ struct TimerView: View {
             .font(.callout.weight(.semibold))
             .padding(.horizontal, title == nil ? 14 : 18).frame(height: 40)
             .background(Capsule().fill(.ultraThinMaterial))
-            .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
+            .overlay(Capsule().strokeBorder(ink.opacity(0.18)))
         }
         .buttonStyle(.plain)
     }
@@ -250,16 +252,18 @@ struct TimerView: View {
 /// to the height behind the dial, rising a little as today's study climbs toward the goal;
 /// during a break, a calm green night.
 private struct TimerBackdrop: View {
+    @Environment(\.colorScheme) private var scheme
     let rest: Bool
     let lift: Double
 
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color(hex: "#05060C")
+                if scheme == .dark { Color(hex: "#05060C") }
+                else { LinearGradient(colors: [Color(hex: "#7FB4F2"), Color(hex: "#CFE3FB"), Color(hex: "#FFF1DC")], startPoint: .top, endPoint: .bottom) }
                 if let img = PlanetPainter.bundleImage("timer-launch") {
                     // a tall picture on black: fit it to the height and let its edges fade into the night
-                    Image(nsImage: img).resizable().scaledToFit()
+                    Image(nsImage: scheme == .light ? DayLaunch.image(from: img) : img).resizable().scaledToFit()
                         .frame(height: geo.size.height * 1.12)
                         .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.18),
                                                      .init(color: .black, location: 0.82), .init(color: .clear, location: 1)],
@@ -269,7 +273,7 @@ private struct TimerBackdrop: View {
                         .frame(width: geo.size.width, height: geo.size.height)
                         .clipped()
                 } else {
-                    Canvas { ctx, size in StarsBackground.paint(&ctx, size: size) }
+                    if scheme == .dark { Canvas { ctx, size in StarsBackground.paint(&ctx, size: size) } }
                     LinearGradient(colors: [.clear, Color(hex: "#C9C3A8").opacity(0.18)], startPoint: .center, endPoint: .bottom)
                 }
                 if rest {
@@ -278,7 +282,11 @@ private struct TimerBackdrop: View {
                         .transition(.opacity)
                 }
                 // keep the text readable over the picture
-                LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.2), .black.opacity(0.55)], startPoint: .leading, endPoint: .trailing)
+                if scheme == .dark {
+                    LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.2), .black.opacity(0.55)], startPoint: .leading, endPoint: .trailing)
+                } else {
+                    LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.15), .white.opacity(0.55)], startPoint: .leading, endPoint: .trailing)
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .animation(.easeInOut(duration: 0.8), value: rest)
@@ -287,9 +295,36 @@ private struct TimerBackdrop: View {
     }
 }
 
+/// In daylight the launch picture's black sky becomes see-through (alpha grows with brightness, so the dark rocket
+/// body still shows), and only the rocket and its smoke remain over the daylight sky
+private enum DayLaunch {
+    nonisolated(unsafe) private static var cache: NSImage?
+    static func image(from src: NSImage) -> NSImage {
+        if let c = cache { return c }
+        guard let cg = src.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return src }
+        let w = cg.width, h = cg.height
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return src }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        for i in stride(from: 0, to: px.count, by: 4) {
+            let r = Double(px[i]), g = Double(px[i + 1]), b = Double(px[i + 2])
+            let lum = (0.3 * r + 0.59 * g + 0.11 * b) / 255
+            let a = min(1, max(0, (lum - 0.04) * 5.5 + max(0, r - max(g, b)) / 255 * 2))   // red parts (the rocket nose) stay solid
+            px[i] = UInt8(min(255, r * a)); px[i + 1] = UInt8(min(255, g * a)); px[i + 2] = UInt8(min(255, b * a)); px[i + 3] = UInt8(a * 255)
+        }
+        guard let out = ctx.makeImage() else { return src }
+        let img = NSImage(cgImage: out, size: src.size)
+        cache = img
+        return img
+    }
+}
+
 /// A solar-system clock: planets on blue orbits around a sun, red hands for the time, a dotted rim with
 /// markers, and a glowing arc for progress (daily goal, or the Pomodoro phase). Planets move only while running.
 private struct SolarDial: View {
+    @Environment(\.colorScheme) private var scheme
+    private var ink: Color { scheme == .dark ? .white : Color(hex: "#1E2540") }
     let time: TimeInterval
     /// Elapsed seconds — drives the planets so they stop when paused
     let spin: TimeInterval
@@ -318,25 +353,25 @@ private struct SolarDial: View {
         func point(_ r: Double, _ a: Double) -> CGPoint { CGPoint(x: c.x + cos(a) * r, y: c.y + sin(a) * r) }
 
         // glassy disc
-        ctx.fill(circle(R * 0.93), with: .color(.black.opacity(0.55)))
+        ctx.fill(circle(R * 0.93), with: .color(scheme == .dark ? Color.black.opacity(0.55) : Color.white.opacity(0.82)))
 
         // dotted rim with diamonds at the hours
         for i in 0..<120 where i % 10 != 0 {
             let p = point(R * 0.97, Double(i) / 120 * .pi * 2)
-            ctx.fill(circle(1).applying(.init(translationX: p.x - c.x, y: p.y - c.y)), with: .color(.white.opacity(0.55)))
+            ctx.fill(circle(1).applying(.init(translationX: p.x - c.x, y: p.y - c.y)), with: .color(ink.opacity(0.55)))
         }
         for i in 0..<12 {
             let a = Double(i) / 12 * .pi * 2, p = point(R * 0.97, a), s = i % 3 == 0 ? 5.5 : 3.5
             var d = Path()
             d.move(to: CGPoint(x: p.x, y: p.y - s)); d.addLine(to: CGPoint(x: p.x + s * 0.6, y: p.y))
             d.addLine(to: CGPoint(x: p.x, y: p.y + s)); d.addLine(to: CGPoint(x: p.x - s * 0.6, y: p.y)); d.closeSubpath()
-            ctx.fill(d, with: .color(.white.opacity(0.9)))
+            ctx.fill(d, with: .color(ink.opacity(0.9)))
         }
 
         // progress arc just inside the rim
         let pr = R * 0.89
         var track = Path(); track.addArc(center: c, radius: pr, startAngle: .degrees(-90), endAngle: .degrees(270), clockwise: false)
-        ctx.stroke(track, with: .color(.white.opacity(0.08)), style: StrokeStyle(lineWidth: 6))
+        ctx.stroke(track, with: .color(ink.opacity(scheme == .dark ? 0.08 : 0.14)), style: StrokeStyle(lineWidth: 6))
         let p = max(0, min(1, progress))
         if p > 0 {
             var arc = Path(); arc.addArc(center: c, radius: pr, startAngle: .degrees(-90), endAngle: .degrees(-90 + 360 * p), clockwise: false)
@@ -349,7 +384,7 @@ private struct SolarDial: View {
         let orbitColor = rest ? Color(hex: "#3E8E5E") : Color(hex: "#2F6FD8")
         let radii = (0..<7).map { R * (0.24 + Double($0) * 0.095) }
         for (i, r) in radii.enumerated() {
-            ctx.stroke(circle(r), with: .color(orbitColor.opacity(i == 1 ? 0.35 : 0.75)),
+            ctx.stroke(circle(r), with: .color(orbitColor.opacity(i == 1 ? 0.35 : (scheme == .dark ? 0.75 : 0.9))),
                        style: StrokeStyle(lineWidth: 1.4, dash: i == 1 ? [2, 4] : []))
         }
         // a few stars between the orbits
@@ -357,7 +392,7 @@ private struct SolarDial: View {
         for _ in 0..<40 {
             let a = rng.next() * .pi * 2, r = R * (0.2 + rng.next() * 0.68)
             let q = point(r, a)
-            ctx.fill(circle(0.9).applying(.init(translationX: q.x - c.x, y: q.y - c.y)), with: .color(.white.opacity(0.35 + rng.next() * 0.4)))
+            ctx.fill(circle(0.9).applying(.init(translationX: q.x - c.x, y: q.y - c.y)), with: .color(ink.opacity(0.35 + rng.next() * 0.4)))
         }
 
         // planets
@@ -369,8 +404,11 @@ private struct SolarDial: View {
                 ring = ring.applying(.init(translationX: -q.x, y: -q.y).concatenating(.init(rotationAngle: -0.4)).concatenating(.init(translationX: q.x, y: q.y)))
                 ctx.stroke(ring, with: .color(Color(hex: "#E6D3A3")), lineWidth: 1.6)
             }
-            ctx.fill(circle(s).applying(.init(translationX: q.x - c.x, y: q.y - c.y)), with: .color(Color(hex: pl.color)))
-            ctx.fill(circle(s * 0.45).applying(.init(translationX: q.x - c.x - s * 0.3, y: q.y - c.y - s * 0.3)), with: .color(.white.opacity(0.18)))
+            // daylight: planets are a little bigger and get a dark rim so they stand out on the light disc
+            let big = scheme == .dark ? s : s * 1.25
+            ctx.fill(circle(big).applying(.init(translationX: q.x - c.x, y: q.y - c.y)), with: .color(Color(hex: pl.color)))
+            if scheme == .light { ctx.stroke(circle(big).applying(.init(translationX: q.x - c.x, y: q.y - c.y)), with: .color(Color(hex: "#1E2540").opacity(0.55)), lineWidth: 1.4) }
+            ctx.fill(circle(s * 0.45).applying(.init(translationX: q.x - c.x - s * 0.3, y: q.y - c.y - s * 0.3)), with: .color(ink.opacity(0.18)))
         }
 
         // the sun
