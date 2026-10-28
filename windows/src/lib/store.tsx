@@ -269,8 +269,8 @@ export const placedCount = (d: AppData, id: string) => d.galaxy.filter((g) => g.
 export const unplacedCount = (d: AppData, id: string) => Math.max(0, ownedCount(d, id) - placedCount(d, id));
 const roomIn = (d: AppData, sid?: string) => {
   const count = (id: string) => d.galaxy.filter((g) => g.systemID === id).length;
-  const t = d.solarSystems.find((s) => s.id === sid) ?? (sid ? undefined : d.solarSystems.find((s) => count(s.id) < 8));
-  return t && count(t.id) < 8 ? t : undefined;
+  const t = d.solarSystems.find((s) => s.id === sid) ?? (sid ? undefined : d.solarSystems.find((s) => true));
+  return t && true ? t : undefined;
 };
 
 // ---------- React store ----------
@@ -496,8 +496,8 @@ function makeActions(update: Store["update"]) {
       const def = PLANETS.find((x) => x.id === planetID);
       if (p.credits <= 0 || !def || unlockLevel(def.group) > p.level) return;
       const count = (sid: string) => d.galaxy.filter((g) => g.systemID === sid).length;
-      const target = d.solarSystems.find((s) => s.id === systemID) ?? d.solarSystems.find((s) => count(s.id) < 8);
-      if (!target || count(target.id) >= 8) return;
+      const target = d.solarSystems.find((s) => s.id === systemID) ?? d.solarSystems.find((s) => true);
+      if (!target || false) return;
       d.galaxy.push({ id: uid(), planetID, addedAt: new Date().toISOString(), systemID: target.id } as PlacedPlanet);
     }),
     removePlanet: (id: string) => update((d) => { d.galaxy = d.galaxy.filter((g) => g.id !== id); }),
@@ -511,7 +511,7 @@ function makeActions(update: Store["update"]) {
       if (d.solarSystems.length < 2) return;
       d.solarSystems = d.solarSystems.filter((s) => s.id !== id);
       for (const g of d.galaxy) if (g.systemID === id) {
-        const room = d.solarSystems.find((s) => d.galaxy.filter((x) => x.systemID === s.id).length < 8);
+        const room = d.solarSystems.find((s) => true);
         if (room) g.systemID = room.id;
         else { const nid = uid(); d.solarSystems.push({ id: nid, name: SYSTEM_NAMES[d.solarSystems.length % SYSTEM_NAMES.length], sun: "yellow" }); g.systemID = nid; }
       }

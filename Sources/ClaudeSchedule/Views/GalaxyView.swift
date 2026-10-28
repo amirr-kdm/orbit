@@ -147,7 +147,7 @@ struct GalaxyPage: View {
                         .buttonStyle(.plain)
                         .foregroundStyle(.white.opacity(0.8))
                         Text(focused.name).font(.title2.weight(.bold)).foregroundStyle(.white)
-                        Text("\(focused.sun.name) · \(focused.planets.count)/\(SolarSystem.capacity) planets")
+                        Text("\(focused.sun.name) · \(focused.planets.count) planets")
                             .font(.callout).foregroundStyle(.white.opacity(0.75))
                     } else {
                         Text("MY GALAXY").font(.system(size: 11, weight: .heavy)).tracking(2).foregroundStyle(.white.opacity(0.7))
@@ -261,7 +261,7 @@ struct GalaxyPage: View {
                 Picker("Place in", selection: $targetSystem) {
                     Text("First system with room").tag(UUID?.none)
                     ForEach(store.solarSystems) { s in
-                        Text("\(s.name) (\(store.planets(in: s).count)/\(SolarSystem.capacity))").tag(Optional(s.id))
+                        Text("\(s.name) (\(store.planets(in: s).count))").tag(Optional(s.id))
                     }
                 }
                 .frame(width: 280)
@@ -328,7 +328,7 @@ struct GalaxyPage: View {
                     HStack {
                         Picker("Add to", selection: Binding(get: { target?.id }, set: { targetSystem = $0 })) {
                             ForEach(systems) { s in
-                                Text("\(s.name) (\(store.planets(in: s).count)/\(SolarSystem.capacity))").tag(Optional(s.id))
+                                Text("\(s.name) (\(store.planets(in: s).count))").tag(Optional(s.id))
                             }
                         }
                         .frame(width: 230)
@@ -354,7 +354,7 @@ struct GalaxyPage: View {
                         Menu("Move to") {
                             ForEach(systems.filter { $0.id != copy.systemID }) { s in
                                 let full = store.planets(in: s).count >= SolarSystem.capacity
-                                Button("\(s.name) (\(store.planets(in: s).count)/\(SolarSystem.capacity))") {
+                                Button("\(s.name) (\(store.planets(in: s).count))") {
                                     if store.movePlaced(copy.id, to: s.id) { showToast("\(planet.name) moved to \(s.name)") }
                                 }
                                 .disabled(full)
@@ -457,7 +457,7 @@ struct GalaxyPage: View {
                     HStack {
                         Picker("Add to", selection: Binding(get: { target?.id }, set: { targetSystem = $0 })) {
                             ForEach(systems) { s in
-                                Text("\(s.name) (\(store.planets(in: s).count)/\(SolarSystem.capacity))").tag(Optional(s.id))
+                                Text("\(s.name) (\(store.planets(in: s).count))").tag(Optional(s.id))
                             }
                         }
                         .frame(width: 230)

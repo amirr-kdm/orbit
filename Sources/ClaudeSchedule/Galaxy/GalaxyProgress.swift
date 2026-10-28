@@ -59,7 +59,8 @@ struct SolarSystem: Codable, Identifiable, Hashable {
     var y: Double?
 
     /// Planets one solar system can hold
-    static let capacity = 8
+    /// No limit on planets around a sun (the system view shrinks to fit)
+    static let capacity = Int.max
     static let names = ["Home System", "Nova Reach", "Amber Drift", "Cobalt Veil", "Starfall", "Moonwake",
                         "Echo Nebula", "Solace", "Crimson Arc", "Halcyon", "Lumen Gate", "Zephyr Belt"]
 }

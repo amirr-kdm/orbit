@@ -52,7 +52,7 @@ export default function Galaxy() {
           <div style={{ pointerEvents: "auto" }}>
             {sys ? <>
               <button className="btn small" onClick={back}>‹ Galaxy</button>
-              <h2 style={{ margin: "6px 0 0" }}>{sys.name}</h2><div style={{ opacity: 0.75 }}>{SUNS[sys.sun].name} · {sys.planets.length}/8 planets</div>
+              <h2 style={{ margin: "6px 0 0" }}>{sys.name}</h2><div style={{ opacity: 0.75 }}>{SUNS[sys.sun].name} · {sys.planets.length} planets</div>
             </> : <>
               <div className="small" style={{ fontWeight: 800, letterSpacing: 2, opacity: 0.7 }}>MY GALAXY</div>
               <h2 style={{ margin: 0 }}>{gd.systems.length} solar system{gd.systems.length > 1 ? "s" : ""} · {data.galaxy.length} planets</h2>
@@ -90,8 +90,8 @@ export default function Galaxy() {
       {selected && (() => {
         const pl = planetByID(selected)!; const unlocked = unlockLevel(pl.group) <= p.level;
         const count = (sid: string) => data.galaxy.filter((g) => g.systemID === sid).length;
-        const tgt = data.solarSystems.find((s) => s.id === (target ?? focused)) ?? data.solarSystems.find((s) => count(s.id) < 8);
-        const full = !tgt || count(tgt.id) >= 8;
+        const tgt = data.solarSystems.find((s) => s.id === (target ?? focused)) ?? data.solarSystems.find((s) => true);
+        const full = !tgt || false;
         const last = [...data.galaxy].reverse().find((g) => g.planetID === pl.id);
         return (
           <div className="card row" style={{ gap: 18, borderColor: "var(--accent)" }}>
@@ -101,7 +101,7 @@ export default function Galaxy() {
               <div className="muted">{pl.blurb}</div>
               {unlocked ? <>
                 <div className="row">
-                  <select value={tgt?.id ?? ""} onChange={(e) => setTarget(e.target.value)}>{data.solarSystems.map((s) => <option key={s.id} value={s.id}>{s.name} ({count(s.id)}/8)</option>)}</select>
+                  <select value={tgt?.id ?? ""} onChange={(e) => setTarget(e.target.value)}>{data.solarSystems.map((s) => <option key={s.id} value={s.id}>{s.name} ({count(s.id)})</option>)}</select>
                   <button className="btn primary" disabled={!p.credits || full} onClick={() => { actions.addPlanet(pl.id, tgt?.id); show(`🎉 ${pl.name} joined ${tgt?.name}!`); }}>
                     {!p.credits ? `Reach level ${p.level + 1} for a new planet` : full ? "System is full" : "＋ Add planet"}</button>
                 </div>

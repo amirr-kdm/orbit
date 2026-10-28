@@ -157,7 +157,7 @@ export function StoreShelf({ onToast }: { onToast: (t: string) => void }) {
               <div className="row">
                 <select value={target} onChange={(e) => setTarget(e.target.value)}>
                   <option value="">First system with room</option>
-                  {data.solarSystems.map((s) => <option key={s.id} value={s.id}>{s.name} ({count(s.id)}/8)</option>)}
+                  {data.solarSystems.map((s) => <option key={s.id} value={s.id}>{s.name} ({count(s.id)})</option>)}
                 </select>
                 <button className="btn primary" disabled={!credits} onClick={() => { actions.placeOwned(p.id, target || undefined); onToast(`🎉 ${p.name} joined your galaxy!`); }}>
                   {credits ? `＋ Place (${unplacedCount(data, p.id)} waiting)` : `Reach level ${progress(data).level + 1} for a free spot`}</button>
@@ -168,7 +168,7 @@ export function StoreShelf({ onToast }: { onToast: (t: string) => void }) {
                 <span>☀️ In {data.solarSystems.find((s) => s.id === copy.systemID)?.name ?? "your galaxy"}</span>
                 <select value="" disabled={data.solarSystems.length < 2} onChange={(e) => { if (e.target.value) { actions.movePlaced(copy.id, e.target.value); onToast(`${p.name} moved`); } }}>
                   <option value="">Move to…</option>
-                  {data.solarSystems.filter((s) => s.id !== copy.systemID).map((s) => <option key={s.id} value={s.id} disabled={count(s.id) >= 8}>{s.name} ({count(s.id)}/8)</option>)}
+                  {data.solarSystems.filter((s) => s.id !== copy.systemID).map((s) => <option key={s.id} value={s.id} disabled={false}>{s.name} ({count(s.id)})</option>)}
                 </select>
                 <button className="btn small danger" onClick={() => { actions.removePlanet(copy.id); onToast(`${p.name} is back on your shelf`); }}>Remove</button>
               </div>
