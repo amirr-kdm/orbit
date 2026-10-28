@@ -321,3 +321,23 @@ option, optgroup { background-color: var(--card); color: var(--text); }
 
 .main-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: none; }
 .main > .banner { flex-shrink: 0; }
+
+.timer-page.day select { color-scheme: light; background-color: #FFFFFF; color: #1E2540; }
+.timer-page.day option, .timer-page.day optgroup { background-color: #FFFFFF; color: #1E2540; }
+.timer-page.day .small, .timer-page.day .btn { color: inherit; }
+
+/* Fight Club: night by default, a bright day version in light mode */
+.fc { --fc-bg: #0B0F1E; --fc-fg: #ffffff; --fc-panel: rgba(255,255,255,.05); --fc-line: rgba(255,255,255,.06); --fc-chip: rgba(255,255,255,.06); --fc-bar: rgba(255,255,255,.08);
+  --fc-hero: linear-gradient(135deg, rgba(42,10,18,.92), rgba(11,16,32,.92)); --fc-battle: #070B1A; --fc-hint: rgba(0,0,0,.6); }
+:root[data-theme="light"] .fc { --fc-bg: var(--bg); --fc-fg: #1B1A17; --fc-panel: rgba(60,40,10,.045); --fc-line: rgba(60,40,10,.1); --fc-chip: rgba(60,40,10,.06); --fc-bar: rgba(60,40,10,.1);
+  --fc-hero: linear-gradient(135deg, #FFE4E1, #FFF1E8); --fc-battle: linear-gradient(#8FBFF3, #DCEAFB 60%, #FFF1DC); --fc-hint: rgba(255,255,255,.75); }
+:root[data-theme="light"] .fc .muted, :root[data-theme="light"] .fc .small { color: #5b564c; }
+
+/* Level Pass: night by default, a bright sky in light mode */
+.modal.pass { --pl-line: rgba(255,255,255,.12); --pl-edge-on: rgba(255,255,255,.6); --pl-edge-off: rgba(255,255,255,.15); --pl-fg: white; --pl-tile: rgba(255,255,255,.05); --pl-tile-edge: rgba(255,255,255,.08); --pl-dim: rgba(255,255,255,.5); }
+:root[data-theme="light"] .modal.pass { --pl-line: rgba(30,37,64,.16); --pl-edge-on: rgba(30,37,64,.5); --pl-edge-off: rgba(30,37,64,.2); --pl-fg: #1E2540; --pl-tile: rgba(255,255,255,.55); --pl-tile-edge: rgba(30,37,64,.14); --pl-dim: rgba(30,37,64,.55); }
+:root[data-theme="light"] .modal.pass .space { background: linear-gradient(#A8CDF5, #E2EEFB 60%, #FFF3E0); color: #1E2540; }
+:root[data-theme="light"] .modal.pass .space canvas { opacity: .9; }
+
+/* the battle arena: a bright sky by day */
+:root[data-theme="light"] .modal .space { background: linear-gradient(#9CC8F6, #DCEAFB 65%, #FFF1DC); color: #1E2540; }

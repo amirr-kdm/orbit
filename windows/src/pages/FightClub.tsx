@@ -25,7 +25,7 @@ const rel = (d: Date) => {
   return m >= 0 ? `in ${t}` : `${t} ago`;
 };
 const RED = "linear-gradient(#FF4D4D, #B91C1C)";
-const panel: React.CSSProperties = { padding: 18, borderRadius: 18, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.06)" };
+const panel: React.CSSProperties = { padding: 18, borderRadius: 18, background: "var(--fc-panel)", border: "1px solid var(--fc-line)" };
 
 /** Fight Club: this week's World Boss for every Orbiter */
 export default function FightClubPage() {
@@ -37,7 +37,7 @@ export default function FightClubPage() {
   const older = fc.bosses.filter((b) => !isWorld(b) && b.status === "alive" && (fc.fighters[b.id] ?? []).some((x) => x.user_id === fc.me));
 
   return (
-    <div className="page" style={{ color: "white", background: "#0B0F1E", minHeight: "100%" }}>
+    <div className="page fc" style={{ color: "var(--fc-fg)", background: "var(--fc-bg)", minHeight: "100%" }}>
       <div className="row" style={{ gap: 14 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 3, color: "#EF4444" }}>FIGHT CLUB</div>
@@ -96,12 +96,12 @@ function Hero({ b, onFight }: { b: Boss; onFight: () => void }) {
   const people = (fc.fighters[b.id] ?? []).filter((x) => x.minutes > 0 || x.damage > 0).length;
   const share = left / Math.max(1, b.hp);
   const chip = (icon: string, value: string, label: string) => (
-    <div style={{ padding: "8px 12px", borderRadius: 12, background: "rgba(255,255,255,.06)" }}>
+    <div style={{ padding: "8px 12px", borderRadius: 12, background: "var(--fc-chip)" }}>
       <b>{icon} {value}</b><div className="small" style={{ opacity: 0.6 }}>{label}</div></div>
   );
   return (
     <div className="row" style={{ gap: 28, padding: 24, borderRadius: 26, border: "1px solid rgba(239,68,68,.35)",
-      background: "linear-gradient(135deg, rgba(42,10,18,.92), rgba(11,16,32,.92))", flexWrap: "wrap" }}>
+      background: "var(--fc-hero)", flexWrap: "wrap" }}>
       <div style={{ width: 260, height: 260, display: "grid", placeItems: "center", position: "relative",
         background: `radial-gradient(circle, rgba(239,68,68,${alive ? 0.45 : 0.15}), transparent 60%)` }}>
         {alive ? <img className="monster-idle" src={monsterImg(b.monster)} alt="" style={{ width: 210, height: 210, objectFit: "contain" }} />
@@ -116,7 +116,7 @@ function Hero({ b, onFight }: { b: Boss; onFight: () => void }) {
         </div>
         <div style={{ fontSize: 30, fontWeight: 900 }}>{b.title}</div>
         <div>
-          <div style={{ height: 16, borderRadius: 99, background: "rgba(255,255,255,.08)", overflow: "hidden" }}>
+          <div style={{ height: 16, borderRadius: 99, background: "var(--fc-bar)", overflow: "hidden" }}>
             <div style={{ width: `${share * 100}%`, height: "100%", borderRadius: 99, background: "linear-gradient(90deg,#FF4D4D,#B91C1C)", boxShadow: "0 0 8px rgba(239,68,68,.6)" }} /></div>
           <div className="row" style={{ marginTop: 6, fontWeight: 600 }}><span style={{ color: "#EF4444" }}>❤️ {hm(left)} of {hm(b.hp)} health left</span><span className="spacer" />
             <span style={{ opacity: 0.6 }}>{Math.round((1 - share) * 100)}% down</span></div>
@@ -141,7 +141,7 @@ function Countdown({ end }: { end: Date }) {
   const s = Math.max(0, Math.floor((end.getTime() - Date.now()) / 1000));
   return (
     <span className="row" style={{ gap: 6 }}>⏳{([[Math.floor(s / 86400), "d"], [Math.floor((s % 86400) / 3600), "h"], [Math.floor((s % 3600) / 60), "m"]] as const).map(([v, u]) => (
-      <b key={u} style={{ padding: "3px 8px", borderRadius: 7, background: "rgba(255,255,255,.08)" }}>{v}{u}</b>))}<span className="small" style={{ opacity: 0.6 }}>left</span></span>
+      <b key={u} style={{ padding: "3px 8px", borderRadius: 7, background: "var(--fc-bar)" }}>{v}{u}</b>))}<span className="small" style={{ opacity: 0.6 }}>left</span></span>
   );
 }
 
@@ -340,7 +340,7 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
   const pool = prizeOf(b);
   return (
     <div className="modal-bg" onMouseDown={onClose}>
-      <div className="modal" style={{ width: 800, padding: 0, background: "#070B1A", color: "white", overflow: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ width: 800, padding: 0, background: "var(--fc-battle)", color: "var(--fc-fg)", overflow: "hidden" }} onMouseDown={(e) => e.stopPropagation()}>
         <div style={{ padding: 16 }}>
           <div className="row"><h2 style={{ margin: 0 }}>{b.title}</h2>{!isWorld(b) && <span className="badge" style={{ background: "#DC262660" }}>LV {b.monster}</span>}<span className="spacer" />
             <span className="small" style={{ opacity: 0.7 }}>{b.status === "defeated" ? "Defeated 🏆" : b.status === "escaped" ? "Escaped 💨" : `Escapes ${rel(new Date(b.deadline))}`}</span>
@@ -348,7 +348,7 @@ function Battle({ bossID, onClose }: { bossID: string; onClose: () => void }) {
           <div className="row" style={{ marginTop: 8 }}>❤️<div className="progress" style={{ flex: 1 }}><div style={{ width: `${(left / b.hp) * 100}%`, background: "#DC2626" }} /></div><b>{left} / {b.hp}</b></div>
         </div>
         <div className="space" style={{ height: H, borderRadius: 0 }}><canvas ref={cv} style={{ width: W, height: H, display: "block", margin: "0 auto" }} />
-          {b.status === "alive" && ammo === 0 && <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", background: "rgba(0,0,0,.6)", padding: "6px 12px", borderRadius: 99, fontWeight: 600 }}>Out of bullets — study to reload 📚</div>}</div>
+          {b.status === "alive" && ammo === 0 && <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", background: "var(--fc-hint)", padding: "6px 12px", borderRadius: 99, fontWeight: 600 }}>Out of bullets — study to reload 📚</div>}</div>
         <div className="row" style={{ padding: 16, alignItems: "flex-start", gap: 20 }}>
           <div style={{ flex: 1 }}>
             <div className="row" style={{ gap: 6 }}><span>⚡</span><b>{ammo} bullets</b><span className="small" style={{ opacity: 0.6 }}>· 1 per minute {subject ? `of ${subject}` : "studied"} since it appeared</span></div>

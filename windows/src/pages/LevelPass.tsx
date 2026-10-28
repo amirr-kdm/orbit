@@ -74,7 +74,7 @@ export default function LevelPass({ fromHours, onClose }: { fromHours?: number; 
           onMouseMove={(e) => { if (drag.current) setLook(clampLook(drag.current.look + e.clientX - drag.current.x)); }}
           onMouseUp={() => (drag.current = null)} onMouseLeave={() => (drag.current = null)}>
           <div style={{ position: "absolute", left: offset, top: 0, width: SPACING * (MAX_LEVEL - 1), height: 330 }}>
-            <div style={{ position: "absolute", top: 118, left: 0, right: 0, height: 6, borderRadius: 3, background: "rgba(255,255,255,.12)" }} />
+            <div style={{ position: "absolute", top: 118, left: 0, right: 0, height: 6, borderRadius: 3, background: "var(--pl-line)" }} />
             <div style={{ position: "absolute", top: 118, left: 0, height: 6, borderRadius: 3, width: Math.max(6, SPACING * (shipAt - 1)), background: "linear-gradient(90deg,#F97316,#EC4899)", boxShadow: "0 0 8px rgba(249,115,22,.6)" }} />
             {Array.from({ length: MAX_LEVEL }, (_, i) => i + 1).map((lv) => {
               const reached = lv <= p.level, claimed = (data.claimedLevels ?? []).includes(lv), take = reached && !claimed;
@@ -82,16 +82,16 @@ export default function LevelPass({ fromHours, onClose }: { fromHours?: number; 
               return (
                 <div key={lv} style={{ position: "absolute", left: SPACING * (lv - 1) - SPACING / 2, top: 104, width: SPACING, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13,
-                    background: reached ? "#F97316" : "rgba(255,255,255,.12)", border: `1.5px solid rgba(255,255,255,${reached ? 0.6 : 0.15})` }}>{lv}</div>
+                    background: reached ? "#F97316" : "var(--pl-line)", border: `1.5px solid ${reached ? "var(--pl-edge-on)" : "var(--pl-edge-off)"}` }}>{lv}</div>
                   <button disabled={!take && !planet}
                     onClick={() => { if (take) actions.claimLevel(lv); else if (planet) setPreview(lv); }}
                     title={planet ? `Level ${lv}: ${rocketsForLevel(lv)} rockets + ${planet.name}` : `Level ${lv}: ${rocketsForLevel(lv)} rockets`}
-                    style={{ width: 104, height: planet ? 136 : 64, borderRadius: 12, color: "white", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
-                      background: take ? "rgba(249,115,22,.18)" : "rgba(255,255,255,.05)", border: `${take ? 2 : 1}px solid ${take ? "#F97316" : planet ? "rgba(168,85,247,.6)" : "rgba(255,255,255,.08)"}`,
+                    style={{ width: 104, height: planet ? 136 : 64, borderRadius: 12, color: "var(--pl-fg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                      background: take ? "rgba(249,115,22,.18)" : "var(--pl-tile)", border: `${take ? 2 : 1}px solid ${take ? "#F97316" : planet ? "rgba(168,85,247,.6)" : "var(--pl-tile-edge)"}`,
                       boxShadow: take ? "0 0 10px rgba(249,115,22,.5)" : undefined, opacity: reached || planet ? 1 : 0.55, cursor: take || planet ? "pointer" : "default" }}>
                     {planet && <PlanetCanvas planet={planet} size={70} animate />}
                     <span className="row small" style={{ gap: 3, fontWeight: 700 }}><RocketIcon size={14} />+{rocketsForLevel(lv)}</span>
-                    <span className="small" style={{ fontWeight: 600, color: claimed ? "#22C55E" : take ? "#F97316" : "rgba(255,255,255,.5)" }}>{claimed ? "Taken ✓" : take ? "Claim" : "Locked"}</span>
+                    <span className="small" style={{ fontWeight: 600, color: claimed ? "#22C55E" : take ? "#F97316" : "var(--pl-dim)" }}>{claimed ? "Taken ✓" : take ? "Claim" : "Locked"}</span>
                   </button>
                 </div>
               );

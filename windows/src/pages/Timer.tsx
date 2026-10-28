@@ -4,6 +4,7 @@ import { addDays, clock, duration, startOfDay, time } from "../lib/dates";
 import { uid } from "../lib/model";
 import { categoryLabel, categoryOf, orderedCategories, refKey, sessionsIn, studyOn, subjectOf, todosOn, useStore } from "../lib/store";
 import { useTimer } from "../lib/timer";
+import { isDarkMode } from "../lib/themes";
 import launchUrl from "../assets/timer-launch.png";
 import breakUrl from "../assets/timer-break.png";
 import earthUrl from "../assets/timer-earth.png";
@@ -12,6 +13,11 @@ import earthUrl from "../assets/timer-earth.png";
 export default function TimerPage() {
   const { data, actions } = useStore();
   const t = useTimer();
+  // day or night: the night launch sky, or a daylight sky with a light dial
+  const day = !isDarkMode(data.settings.appearance);
+  const ink = day ? "#1E2540" : "white";
+  const rule = day ? "rgba(30,37,64,.12)" : "rgba(255,255,255,.08)";
+  const dayLaunch = useDayLaunch(launchUrl);
   const [manual, setManual] = useState(false);
   const today = new Date();
   // tasks with no day ("No specific time") can be studied too
@@ -32,37 +38,37 @@ export default function TimerPage() {
   const subtitle = t.mode === "pomodoro"
     ? `${rest ? "until focus" : "left in this focus"} · ${data.settings.pomodoroMinutes}/${data.settings.breakMinutes} min · 🍅 ${t.completed}`
     : `Today ${duration(studied + t.elapsed)} of ${duration(goal)} goal`;
-  const glass: React.CSSProperties = { background: "rgba(255,255,255,.08)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,.12)", color: "white" };
+  const glass: React.CSSProperties = { background: day ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.08)", backdropFilter: "blur(20px)", border: `1px solid ${day ? "rgba(30,37,64,.14)" : "rgba(255,255,255,.12)"}`, color: ink };
   const glassBtn: React.CSSProperties = { ...glass, height: 40, padding: "0 18px", borderRadius: 99, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
-  const field: React.CSSProperties = { flex: 1, minWidth: 0, background: "#1B1D26", border: "none", color: "white", colorScheme: "dark", borderRadius: 6, padding: "4px 6px" };
+  const field: React.CSSProperties = { flex: 1, minWidth: 0, background: day ? "#FFFFFF" : "#1B1D26", border: "none", color: ink, colorScheme: day ? "light" : "dark", borderRadius: 6, padding: "4px 6px" };
 
   return (
-    <div className="timer-page" style={{ display: "flex", height: "100%", color: "white", position: "relative", overflow: "hidden", background: "#05060C" }}>
+    <div className={`timer-page ${day ? "day" : ""}`} style={{ display: "flex", height: "100%", color: ink, position: "relative", overflow: "hidden", background: day ? "linear-gradient(#7FB4F2, #CFE3FB 60%, #FFF1DC)" : "#05060C" }}>
       {/* night sky with a pale glow from the launch pad that grows as today's study climbs toward the goal; a calm green night on a break */}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
         {/* the launch picture behind the dial, fitted to the height, rising a little as today's study climbs */}
         <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, right: 320, overflow: "hidden" }}>
-          <img src={launchUrl} alt="" style={{ position: "absolute", height: "112%", left: "50%", top: 0,
+          <img src={day ? dayLaunch : launchUrl} alt="" style={{ position: "absolute", height: "112%", left: "50%", top: 0,
             transform: `translate(-50%, ${6 + 8 * (0.5 - lift)}%)`, transition: "transform 1.2s ease-in-out",
             WebkitMaskImage: "linear-gradient(90deg, transparent 0, black 18%, black 82%, transparent 100%)",
             maskImage: "linear-gradient(90deg, transparent 0, black 18%, black 82%, transparent 100%)" }} />
         </div>
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.2), rgba(0,0,0,.55))" }} />
+        <div style={{ position: "absolute", inset: 0, background: day ? "linear-gradient(90deg, rgba(255,255,255,.55), rgba(255,255,255,.15), rgba(255,255,255,.55))" : "linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.2), rgba(0,0,0,.55))" }} />
         <div style={{ position: "absolute", inset: 0, transition: "opacity .8s", opacity: rest ? 1 : 0, background: "linear-gradient(rgba(11,27,74,.85), rgba(31,95,58,.75))" }} />
       </div>
 
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "18px 28px", position: "relative" }}>
         <div style={{ textAlign: "center", maxWidth: "100%" }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 3, color }}>{label.toUpperCase()}</div>
-          <div style={{ fontSize: 30, fontWeight: 800, textShadow: "0 0 8px rgba(0,0,0,.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rest ? "Break time" : t.targetTitle ?? "Free study"}</div>
+          <div style={{ fontSize: 30, fontWeight: 800, textShadow: day ? "0 1px 6px rgba(255,255,255,.7)" : "0 0 8px rgba(0,0,0,.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rest ? "Break time" : t.targetTitle ?? "Free study"}</div>
           {targetItem && !rest && <div style={{ opacity: 0.7 }}>{targetItem.detail}</div>}
         </div>
-        <div className="seg" style={{ background: "rgba(255,255,255,.08)", borderColor: "transparent" }}>
-          {(["stopwatch", "pomodoro"] as const).map((m) => <button key={m} style={{ color: "white", background: t.mode === m ? color : undefined, fontWeight: t.mode === m ? 600 : undefined }}
+        <div className="seg" style={{ background: day ? "rgba(255,255,255,.6)" : "rgba(255,255,255,.08)", borderColor: "transparent" }}>
+          {(["stopwatch", "pomodoro"] as const).map((m) => <button key={m} style={{ color: t.mode === m ? "white" : ink, background: t.mode === m ? color : undefined, fontWeight: t.mode === m ? 600 : undefined }}
             disabled={t.active} onClick={() => t.setMode(m)}>{m === "stopwatch" ? "Stopwatch" : "Pomodoro"}</button>)}
         </div>
         <div style={{ position: "relative", width: "min(330px, 42vh)", aspectRatio: "1", flexShrink: 0 }}>
-          <SolarDial time={t.display} spin={t.elapsed} progress={progress} tint={color} moving={t.running} rest={rest} />
+          <SolarDial time={t.display} spin={t.elapsed} progress={progress} tint={color} moving={t.running} rest={rest} day={day} />
           <img src={breakUrl} alt="" style={{ position: "absolute", left: "27%", top: "27%", width: "46%", height: "46%", borderRadius: "50%", objectFit: "cover",
             border: "2px solid rgba(126,224,129,.7)", boxShadow: "0 0 18px rgba(126,224,129,.5)", transition: "transform .5s, opacity .5s",
             transform: rest ? "scale(1)" : "scale(.6)", opacity: rest ? 1 : 0, pointerEvents: "none" }} />
@@ -81,11 +87,11 @@ export default function TimerPage() {
               <option value="">Free study</option>
               {todos.map((x) => <option key={refKey(x.ref)} value={refKey(x.ref)}>{x.isDone ? "✓ " : ""}{x.title} ({x.detail})</option>)}
             </select></div>
-          {!t.target && <div className="row" style={{ padding: "5px 14px", gap: 10, borderTop: "1px solid rgba(255,255,255,.08)" }}><span style={{ color, width: 18 }}>🏷</span>
+          {!t.target && <div className="row" style={{ padding: "5px 14px", gap: 10, borderTop: `1px solid ${rule}` }}><span style={{ color, width: 18 }}>🏷</span>
             <select style={field} value={t.categoryID ?? ""} onChange={(e) => t.setCategoryID(e.target.value || undefined)}>
               <option value="">None</option>{orderedCategories(data).map((c) => <option key={c.id} value={c.id}>{c.parentID ? "   " : ""}{categoryLabel(data, c.id)}</option>)}
             </select></div>}
-          <div className="row" style={{ padding: "5px 14px", gap: 10, borderTop: "1px solid rgba(255,255,255,.08)" }}><span style={{ color, width: 18 }}>✎</span>
+          <div className="row" style={{ padding: "5px 14px", gap: 10, borderTop: `1px solid ${rule}` }}><span style={{ color, width: 18 }}>✎</span>
             <input value={t.note} placeholder="Session note (e.g. chapter 3)" style={field} onChange={(e) => t.setNote(e.target.value)} /></div>
         </div>
 
@@ -102,7 +108,7 @@ export default function TimerPage() {
         </div>
       </div>
 
-      <div style={{ width: 320, flexShrink: 0, padding: 20, position: "relative", background: "rgba(20,20,28,.55)", backdropFilter: "blur(24px)", display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+      <div style={{ width: 320, flexShrink: 0, padding: 20, position: "relative", background: day ? "rgba(255,255,255,.55)" : "rgba(20,20,28,.55)", backdropFilter: "blur(24px)", display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
         <div className="row"><div><b>Today's flights</b><div style={{ opacity: 0.6 }}>{duration(studied)}</div></div>
           <span className="spacer" /><button style={{ ...glassBtn, height: 30, padding: "0 12px", borderRadius: 8 }} title="Log a session you forgot to time" onClick={() => setManual(true)}>＋ Log Manually</button></div>
         {!sessions.length && <div style={{ textAlign: "center", paddingTop: 40 }}>
@@ -137,29 +143,49 @@ const PLANETS: [number, string, number, number, number, boolean][] = [
 // a few fixed stars between the orbits
 const STARS = (() => { let s = 7; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647); return Array.from({ length: 40 }, () => [r(), r(), r()]); })();
 
+/** Daylight version of the launch picture: its black sky becomes see-through (alpha grows with brightness; the red nose stays solid) */
+function useDayLaunch(src: string) {
+  const [url, setUrl] = useState(src);
+  useEffect(() => {
+    const img = new Image(); img.src = src;
+    img.onload = () => {
+      const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const x = c.getContext("2d")!; x.drawImage(img, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+      for (let i = 0; i < p.length; i += 4) {
+        const r = p[i], g = p[i + 1], b = p[i + 2], lum = (0.3 * r + 0.59 * g + 0.11 * b) / 255;
+        p[i + 3] = Math.round(Math.min(1, Math.max(0, (lum - 0.04) * 5.5 + Math.max(0, r - Math.max(g, b)) / 255 * 2)) * 255);
+      }
+      x.putImageData(d, 0, 0); setUrl(c.toDataURL());
+    };
+  }, [src]);
+  return url;
+}
+
 /** A solar-system clock: planets on blue orbits around a sun, red hands for the time, a dotted rim with markers,
  *  and a glowing arc for progress (daily goal, or the Pomodoro phase). Planets move only while running. */
-function SolarDial({ time, spin, progress, tint, moving, rest }: { time: number; spin: number; progress: number; tint: string; moving: boolean; rest: boolean }) {
+function SolarDial({ time, spin, progress, tint, moving, rest, day }: { time: number; spin: number; progress: number; tint: string; moving: boolean; rest: boolean; day: boolean }) {
   const cv = useRef<HTMLCanvasElement>(null);
-  const props = useRef({ time, spin, progress, tint, rest }); props.current = { time, spin, progress, tint, rest };
+  const props = useRef({ time, spin, progress, tint, rest, day }); props.current = { time, spin, progress, tint, rest, day };
   useEffect(() => {
     const draw = () => {
       const c = cv.current; if (!c) return;
-      const { time: t, spin, progress, tint, rest } = props.current;
+      const { time: t, spin, progress, tint, rest, day } = props.current;
+      const ink = day ? "30,37,64" : "255,255,255";
       const S = 330, dpr = devicePixelRatio || 1;
       if (c.width !== S * dpr) { c.width = S * dpr; c.height = S * dpr; }
       const ctx = c.getContext("2d")!; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, S, S);
       const cx = S / 2, cy = S / 2, R = S / 2 - 4;
       const pt = (r: number, a: number) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r] as const;
       const disc = (x: number, y: number, r: number, fill: string) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); };
-      disc(cx, cy, R * 0.93, "rgba(0,0,0,.55)");
-      for (let i = 0; i < 120; i++) if (i % 10) { const [x, y] = pt(R * 0.97, (i / 120) * Math.PI * 2); disc(x, y, 1, "rgba(255,255,255,.55)"); }
+      disc(cx, cy, R * 0.93, day ? "rgba(255,255,255,.82)" : "rgba(0,0,0,.55)");
+      for (let i = 0; i < 120; i++) if (i % 10) { const [x, y] = pt(R * 0.97, (i / 120) * Math.PI * 2); disc(x, y, 1, `rgba(${ink},.55)`); }
       for (let i = 0; i < 12; i++) {
         const [x, y] = pt(R * 0.97, (i / 12) * Math.PI * 2), s = i % 3 === 0 ? 5.5 : 3.5;
-        ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.6, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s * 0.6, y); ctx.closePath(); ctx.fillStyle = "rgba(255,255,255,.9)"; ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.6, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s * 0.6, y); ctx.closePath(); ctx.fillStyle = `rgba(${ink},.9)`; ctx.fill();
       }
       const pr = R * 0.89;
-      ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI * 2); ctx.strokeStyle = "rgba(255,255,255,.08)"; ctx.lineWidth = 6; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, pr, 0, Math.PI * 2); ctx.strokeStyle = `rgba(${ink},${day ? .14 : .08})`; ctx.lineWidth = 6; ctx.stroke();
       const p = Math.max(0, Math.min(1, progress));
       if (p > 0) {
         ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, pr, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p);
@@ -168,13 +194,15 @@ function SolarDial({ time, spin, progress, tint, moving, rest }: { time: number;
       const orbit = rest ? "62,142,94" : "47,111,216";
       const radii = Array.from({ length: 7 }, (_, i) => R * (0.24 + i * 0.095));
       radii.forEach((r, i) => { ctx.beginPath(); ctx.setLineDash(i === 1 ? [2, 4] : []); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${orbit},${i === 1 ? 0.35 : 0.75})`; ctx.lineWidth = 1.4; ctx.stroke(); });
+        ctx.strokeStyle = `rgba(${orbit},${i === 1 ? 0.35 : day ? 0.9 : 0.75})`; ctx.lineWidth = 1.4; ctx.stroke(); });
       ctx.setLineDash([]);
-      for (const [a, r, o] of STARS) { const [x, y] = pt(R * (0.2 + r * 0.68), a * Math.PI * 2); disc(x, y, 0.9, `rgba(255,255,255,${0.35 + o * 0.4})`); }
+      for (const [a, r, o] of STARS) { const [x, y] = pt(R * (0.2 + r * 0.68), a * Math.PI * 2); disc(x, y, 0.9, `rgba(${ink},${0.35 + o * 0.4})`); }
       for (const [ring, col, size, speed, start, ringed] of PLANETS) {
         const [x, y] = pt(radii[ring], start + spin * speed), s = R * size;
         if (ringed) { ctx.save(); ctx.translate(x, y); ctx.rotate(-0.4); ctx.beginPath(); ctx.ellipse(0, 0, s * 1.9, s * 0.55, 0, 0, Math.PI * 2); ctx.strokeStyle = "#E6D3A3"; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore(); }
-        disc(x, y, s, col); disc(x - s * 0.3, y - s * 0.3, s * 0.45, "rgba(255,255,255,.18)");
+        const big = day ? s * 1.25 : s; disc(x, y, big, col);
+        if (day) { ctx.beginPath(); ctx.arc(x, y, big, 0, Math.PI * 2); ctx.strokeStyle = "rgba(30,37,64,.55)"; ctx.lineWidth = 1.4; ctx.stroke(); }
+        disc(x - s * 0.3, y - s * 0.3, s * 0.45, `rgba(${ink},.18)`);
       }
       ctx.save(); ctx.shadowColor = "rgba(255,201,64,.9)"; ctx.shadowBlur = 20; disc(cx, cy, R * 0.075, "#FFD447"); ctx.restore();
       ctx.beginPath(); ctx.arc(cx, cy, R * 0.075, 0, Math.PI * 2); ctx.strokeStyle = "#E8384F"; ctx.lineWidth = 2; ctx.stroke();
@@ -190,7 +218,7 @@ function SolarDial({ time, spin, progress, tint, moving, rest }: { time: number;
     draw();
     if (!moving) return;
     return frameLoop(draw, 20);
-  }, [moving, time, progress, tint, rest]);
+  }, [moving, time, progress, tint, rest, day]);
   return <canvas ref={cv} style={{ width: "100%", height: "100%", display: "block" }} />;
 }
 
