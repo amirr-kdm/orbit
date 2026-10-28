@@ -241,6 +241,20 @@ final class AppStore {
         return true
     }
 
+    /// Add study sessions another device has that this Mac doesn't (never removes anything): used before this Mac
+    /// overwrites the server copy, so a stale device can't make hours disappear
+    func mergeSessions(from data: Data) {
+        struct OnlySessions: Decodable { let sessions: [StudySession] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let theirs = try? decoder.decode(OnlySessions.self, from: data) else { return }
+        let have = Set(sessions.map(\.id))
+        let extra = theirs.sessions.filter { !have.contains($0.id) }
+        guard !extra.isEmpty else { return }
+        sessions.append(contentsOf: extra)
+        sessions.sort { $0.start < $1.start }
+    }
+
     private func encodeSnapshot() -> Data? {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

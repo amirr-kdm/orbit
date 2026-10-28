@@ -2,7 +2,7 @@
 // Same server and rules as the Mac app. The app keeps working offline on the local copy.
 import { useInbox } from "./inbox";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { AppData } from "./model";
+import { AppData, StudySession } from "./model";
 import { accountData, sharedClient as client, supabaseConfigured, useFriends } from "./friends";
 import { defaultData } from "./model";
 import { useStore } from "./store";
@@ -102,8 +102,22 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     // Only ever upload this account's own data
     if (stateRef.current !== "approved" || !s || meta().account !== s.userID) return;
     setSyncing(true);
+    let payload = dataRef.current;
+    try {
+      // Another device (the Mac, another PC) saved since our last sync: keep the study sessions it has before we overwrite
+      // the server copy, so hours never disappear because one device was behind
+      const rows: { updated_at: string }[] = await client.get(`user_data?user_id=eq.${s.userID.toLowerCase()}&select=updated_at`);
+      if (rows[0] && differs(new Date(rows[0].updated_at).getTime(), meta().at)) {
+        const theirs = await client.raw("GET", `user_data?user_id=eq.${s.userID.toLowerCase()}&select=data`, undefined);
+        const extra: StudySession[] = (theirs?.[0]?.data?.sessions ?? []).filter((x: StudySession) => !dataRef.current.sessions.some((m) => m.id === x.id));
+        if (extra.length) {
+          payload = { ...payload, sessions: [...payload.sessions, ...extra].sort((a, b) => a.start.localeCompare(b.start)) };
+          update((d) => { d.sessions.push(...extra.filter((x) => !d.sessions.some((m) => m.id === x.id))); d.sessions.sort((a, b) => a.start.localeCompare(b.start)); });
+        }
+      }
+    } catch { /* offline: the upload below fails the same way */ }
     const now = new Date().toISOString();
-    const body = `{"user_id":"${s.userID.toLowerCase()}","updated_at":"${now}","device":"Windows","data":${JSON.stringify(dataRef.current)}}`;
+    const body = `{"user_id":"${s.userID.toLowerCase()}","updated_at":"${now}","device":"Windows","data":${JSON.stringify(payload)}}`;
     try {
       await client.raw("POST", "user_data", body, "resolution=merge-duplicates,return=minimal");
       setMeta({ account: s.userID, at: now, dirty: false });

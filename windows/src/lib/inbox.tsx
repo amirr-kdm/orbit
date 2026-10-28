@@ -20,11 +20,15 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<Notice[]>(() => { try { return JSON.parse(localStorage.getItem(KEY) ?? "[]"); } catch { return []; } });
   const [toast, setToast] = useState<Notice | null>(null);
   const ref = useRef(items); ref.current = items;
+  // ids already shown once: clearing the bell (or old ones dropping off) must never bring the same thing back
+  const seen = useRef<Set<string>>(new Set([...(() => { try { return JSON.parse(localStorage.getItem("orbit-inbox-seen") ?? "[]") as string[]; } catch { return []; } })(), ...items.map((x) => x.id)]));
   const timer = useRef<number>();
   const save = (l: Notice[]) => { setItems(l); ref.current = l; try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* full */ } };
 
   const post: Inbox["post"] = useCallback((n) => {
-    if (ref.current.some((x) => x.id === n.id)) return;
+    if (seen.current.has(n.id) || ref.current.some((x) => x.id === n.id)) return;
+    seen.current.add(n.id);
+    try { localStorage.setItem("orbit-inbox-seen", JSON.stringify([...seen.current].slice(-600))); } catch { /* full */ }
     const item: Notice = { id: n.id, title: n.title, body: n.body, kind: n.kind ?? "info", date: Date.now(), read: false, route: n.route, target: n.target };
     save([item, ...ref.current].slice(0, 60));
     setToast(item);

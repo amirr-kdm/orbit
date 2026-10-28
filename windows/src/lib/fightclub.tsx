@@ -1,7 +1,8 @@
 // Fight Club — a weekly World Boss for every Orbiter, same rules as the Mac app; the server runs them
 // (supabase/bosses.sql + supabase/world_boss.sql). The monster is random, the prize 1000 rockets split by damage.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { notify, useAccount } from "./account";
+import { useAccount } from "./account";
+import { useInbox } from "./inbox";
 import { accountData, sharedClient as client } from "./friends";
 import { isInside, useStore } from "./store";
 import { dayKey, weekStart } from "./dates";
@@ -47,6 +48,7 @@ const Ctx = createContext<FightClub | null>(null);
 export function FightClubProvider({ children }: { children: React.ReactNode }) {
   const { data, update } = useStore();
   const account = useAccount();
+  const inbox = useInbox();
   const [bosses, setBosses] = useState<Boss[]>([]);
   const [fighters, setFighters] = useState<Record<string, BossFighter[]>>({});
   const [invites, setInvites] = useState<BossInvite[]>([]);
@@ -108,7 +110,7 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
       for (const i of inv.filter((x) => x.user_id === mine && !notified.current.has(x.boss_id))) {
         notified.current.add(i.boss_id);
         const b = list.find((x) => x.id === i.boss_id);
-        if (b) notify(`👾 You're invited to fight “${b.title}”`, "Open Fight Club to join — study to earn bullets and share the prize.");
+        if (b) inbox.post({ id: `boss-${b.id}`, kind: "boss", route: "fightClub", title: `👾 You're invited to fight “${b.title}”`, body: "Open Fight Club to join — study to earn bullets and share the prize." });
       }
       return { list, by };
     } catch { return undefined; }

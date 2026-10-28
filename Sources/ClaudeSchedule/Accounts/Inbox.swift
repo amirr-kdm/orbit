@@ -50,17 +50,24 @@ final class Inbox {
     var unread: Int { items.filter { !$0.read }.count }
 
     @ObservationIgnored private let key = "inbox.v1"
+    /// Ids that were already shown once. Clearing the bell or old ones dropping off the list must never make the same
+    /// thing pop up again (a pending invitation, a gift, a new version…).
+    @ObservationIgnored private let seenKey = "inbox.seen.v1"
+    @ObservationIgnored private var seen: Set<String> = []
     @ObservationIgnored private var toastTask: Task<Void, Never>?
 
     private init() {
         if let data = UserDefaults.standard.data(forKey: key),
            let saved = try? JSONDecoder().decode([AppNotice].self, from: data) { items = saved }
+        seen = Set(UserDefaults.standard.stringArray(forKey: seenKey) ?? []).union(items.map(\.id))
     }
 
     /// Add a notification once (the same id is never added twice)
     func post(id: String, title: String, body: String, kind: AppNotice.Kind = .info, route: SidebarItem? = nil, target: String? = nil,
               system: Bool = true) {
-        guard !items.contains(where: { $0.id == id }) else { return }
+        guard !seen.contains(id), !items.contains(where: { $0.id == id }) else { return }
+        seen.insert(id)
+        UserDefaults.standard.set(Array(seen.suffix(600)), forKey: seenKey)
         let n = AppNotice(id: id, title: title, body: body, date: Date(), kind: kind, route: route?.rawValue, target: target)
         items.insert(n, at: 0)
         if items.count > 60 { items.removeLast(items.count - 60) }

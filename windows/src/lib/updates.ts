@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import pkg from "../../package.json";
-import { notify } from "./account";
 
 export const APP_VERSION: string = pkg.version;
 export const RELEASES_PAGE = "https://github.com/amirr-kdm/orbit/releases/latest";
@@ -22,10 +21,6 @@ export function useUpdateCheck() {
         const latest = String((await r.json()).tag_name ?? "").replace(/^v/i, "");
         if (!latest || !newer(latest, APP_VERSION)) return;
         setAvailable(latest);
-        if (localStorage.getItem("orbit-notified-version") !== latest) {
-          localStorage.setItem("orbit-notified-version", latest);
-          notify(`Orbit ${latest} is out ✨`, "Download the new version from GitHub. Your data stays as it is.");
-        }
       } catch { /* offline */ }
     };
     check();

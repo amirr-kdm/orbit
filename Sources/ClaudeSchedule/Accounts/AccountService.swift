@@ -280,7 +280,8 @@ final class AccountService {
                 // New install or a different account on this Mac: use the server copy, keep ours aside
                 try await download(uid, backup: "data-before-login-\(Int(Date().timeIntervalSince1970)).json")
             } else if Self.differs(server, syncedAt) {
-                if dirty && local > server { await upload() } else { try await download(uid, backup: dirty ? "data-replaced-\(Int(Date().timeIntervalSince1970)).json" : nil) }
+                // the file we're about to replace is always kept next to the new one
+                if dirty && local > server { await upload() } else { try await download(uid, backup: "data-replaced-\(Int(Date().timeIntervalSince1970)).json") }
             } else if dirty {
                 await upload()
             }
@@ -306,10 +307,20 @@ final class AccountService {
 
     /// Send the whole data file up (last change wins)
     func upload() async {
-        guard state == .approved, let uid = await client.userID, syncedAccount == uid.uuidString,
-              let data = store.exportData() else { return }
+        guard state == .approved, let uid = await client.userID, syncedAccount == uid.uuidString else { return }
         syncing = true
         defer { syncing = false }
+        // Another device (Windows, another Mac) saved since our last sync: keep the study sessions it has before we
+        // overwrite the server copy, so hours never disappear because one device was behind
+        struct Row: Decodable { let updated_at: Date }
+        if let server = try? await client.select("user_data?user_id=eq.\(uid.uuidString)&select=updated_at", as: [Row].self).first?.updated_at,
+           Self.differs(server, syncedAt),
+           let raw = try? await client.raw("GET", "user_data?user_id=eq.\(uid.uuidString)&select=data", json: nil),
+           let arr = try? JSONSerialization.jsonObject(with: raw) as? [[String: Any]], let obj = arr.first?["data"],
+           let theirs = try? JSONSerialization.data(withJSONObject: obj) {
+            store.mergeSessions(from: theirs)
+        }
+        guard let data = store.exportData() else { return }
         let now = Date()
         let stamp = ISO8601DateFormatter().string(from: now)
         var body = Data(#"{"user_id":""#.utf8) + Data(uid.uuidString.lowercased().utf8) + Data(#"","updated_at":""#.utf8)
@@ -335,7 +346,7 @@ final class AccountService {
         struct Row: Decodable { let updated_at: Date }
         guard let server = try? await client.select("user_data?user_id=eq.\(uid.uuidString)&select=updated_at", as: [Row].self).first?.updated_at,
               Self.differs(server, syncedAt), !dirty else { return }
-        do { try await download(uid, backup: nil); syncError = nil } catch {}
+        do { try await download(uid, backup: "data-replaced-\(Int(Date().timeIntervalSince1970)).json"); syncError = nil } catch {}
     }
 
     /// Times saved by different devices: more than a second apart counts as a change
