@@ -161,6 +161,9 @@ struct AppSettings: Codable, Equatable {
     var pomodoroMinutes = 25
     var breakMinutes = 5
     var dailyGoalMinutes = 240
+    /// Sound played when a Pomodoro phase ends (a macOS system sound) and how loud (0…1)
+    var alarmSound = "Alarm Clock"
+    var alarmVolume = 0.8
     var timeSlots: [TimeSlot] = TimeSlot.defaults
     /// Text size inside weekly schedule cells
     var scheduleFontSize: Double = 14
@@ -286,6 +289,8 @@ extension AppSettings {
         pomodoroMinutes = try c.decodeIfPresent(Int.self, forKey: .pomodoroMinutes) ?? d.pomodoroMinutes
         breakMinutes = try c.decodeIfPresent(Int.self, forKey: .breakMinutes) ?? d.breakMinutes
         dailyGoalMinutes = try c.decodeIfPresent(Int.self, forKey: .dailyGoalMinutes) ?? d.dailyGoalMinutes
+        alarmSound = (try c.decodeIfPresent(String.self, forKey: .alarmSound)).flatMap { $0 == "Glass" ? nil : $0 } ?? d.alarmSound   // "Glass" was the old quiet default
+        alarmVolume = try c.decodeIfPresent(Double.self, forKey: .alarmVolume) ?? d.alarmVolume
         timeSlots = try c.decodeIfPresent([TimeSlot].self, forKey: .timeSlots) ?? d.timeSlots
         scheduleFontSize = try c.decodeIfPresent(Double.self, forKey: .scheduleFontSize) ?? d.scheduleFontSize
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? d.appearance

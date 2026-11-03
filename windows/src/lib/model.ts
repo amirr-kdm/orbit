@@ -68,6 +68,8 @@ export interface Settings {
   pomodoroMinutes: number;
   breakMinutes: number;
   dailyGoalMinutes: number;
+  /** Timer alarm: which tone (lib/sound.ts) and how loud (0…1) */
+  alarmTone?: string; alarmVolume?: number;
   timeSlots: TimeSlot[];
   appearance: Appearance;
   accent: string;

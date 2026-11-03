@@ -8,6 +8,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+tauri-plugin-notification = "2"
 
 [profile.release]
 strip = true

@@ -120,6 +120,20 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Timer sound") {
+                Picker("Alarm sound", selection: $store.settings.alarmSound) {
+                    ForEach(TimerEngine.alarmSounds, id: \.self) { Text($0).tag($0) }
+                }
+                HStack(spacing: 10) {
+                    Image(systemName: store.settings.alarmVolume == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill").frame(width: 22)
+                    Slider(value: $store.settings.alarmVolume, in: 0...1)
+                    Text("\(Int((store.settings.alarmVolume * 100).rounded()))%").monospacedDigit().foregroundStyle(.secondary).frame(width: 44, alignment: .trailing)
+                    Button("Test") { TimerEngine.playAlarm(sound: store.settings.alarmSound, volume: store.settings.alarmVolume) }
+                }
+                Text("Played when a Pomodoro focus or break ends. You also get a macOS notification, so you notice it when Orbit is in the background.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section {
                 Toggle(isOn: $store.settings.categoryColors) {
                     VStack(alignment: .leading, spacing: 2) {

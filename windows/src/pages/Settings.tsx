@@ -1,5 +1,6 @@
 import { PageHero } from "../components";
 import { slotTime } from "../lib/dates";
+import { ALARM_TONES, DEFAULT_TONE, DEFAULT_VOLUME, playAlarm } from "../lib/sound";
 import { Appearance } from "../lib/model";
 import { orderedCategories, useStore } from "../lib/store";
 import { ambient, cellLook, FONTS, fontOf, isDarkMode, TEMPLATES, templateOf } from "../lib/themes";
@@ -95,6 +96,17 @@ export default function Settings() {
         {([["Pomodoro focus (min)", "pomodoroMinutes", 5, 120], ["Break (min)", "breakMinutes", 1, 60], ["Daily study goal (min)", "dailyGoalMinutes", 15, 960]] as const).map(([label, key, min, max]) => (
           <div key={key} className="list-row"><span style={{ flex: 1 }}>{label}</span><input type="number" min={min} max={max} value={s[key]} style={{ width: 90 }} onChange={(e) => set((x) => { x[key] = Math.max(min, Math.min(max, +e.target.value || min)); })} /></div>
         ))}
+      </div>
+
+      <div className="card"><h3><span className="t2-ico">🔔</span>Timer sound</h3>
+        <div className="list-row"><span style={{ flex: 1 }}>Alarm sound</span>
+          <select value={s.alarmTone ?? DEFAULT_TONE} onChange={(e) => { set((x) => { x.alarmTone = e.target.value; }); playAlarm(e.target.value, s.alarmVolume); }}>
+            {ALARM_TONES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
+        <div className="list-row"><span style={{ width: 22 }}>{(s.alarmVolume ?? DEFAULT_VOLUME) === 0 ? "🔇" : "🔊"}</span>
+          <input type="range" min={0} max={1} step={0.01} value={s.alarmVolume ?? DEFAULT_VOLUME} style={{ flex: 1, padding: 0 }} onChange={(e) => set((x) => { x.alarmVolume = +e.target.value; })} />
+          <span className="muted small" style={{ width: 44, textAlign: "right" }}>{Math.round((s.alarmVolume ?? DEFAULT_VOLUME) * 100)}%</span>
+          <button className="btn small" onClick={() => playAlarm(s.alarmTone, s.alarmVolume)}>Test</button></div>
+        <div className="small muted">Played when a Pomodoro focus or break ends. You also get a notification, so you notice it when Orbit is in the background.</div>
       </div>
 
       <div className="card"><div className="row"><h3 style={{ margin: 0 }}>🏷 Task categories</h3><span className="spacer" /><button className="btn small" onClick={actions.addCategory}>＋ Add</button></div>

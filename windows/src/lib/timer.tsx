@@ -1,3 +1,4 @@
+import { playAlarm } from "./sound";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { uid } from "./model";
 import { categoryLabel, categoryOf, TodoRef, titleOf, useStore } from "./store";
@@ -18,12 +19,53 @@ interface Timer {
 }
 const Ctx = createContext<Timer | null>(null);
 
-function beep() {
+// ---- Pomodoro alerts ---------------------------------------------------------------------------------------------------
+// In the Windows app (Tauri) notifications go through the system's toast, and a timer in Rust keeps the alarm on time even when
+// the window is minimised (a web page's own timers are slowed right down then). In a plain browser the web Notification API is used.
+
+const inTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+async function ensureNotifyPermission(): Promise<boolean> {
   try {
-    const a = new AudioContext(); const o = a.createOscillator(); const g = a.createGain();
-    o.frequency.value = 880; o.connect(g); g.connect(a.destination); g.gain.setValueAtTime(0.25, a.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 1.2); o.start(); o.stop(a.currentTime + 1.2);
-  } catch { /* no audio */ }
+    if (inTauri()) {
+      const n = await import("@tauri-apps/plugin-notification");
+      if (await n.isPermissionGranted()) return true;
+      return (await n.requestPermission()) === "granted";
+    }
+    if (!("Notification" in window)) return false;
+    if (Notification.permission === "default") await Notification.requestPermission();
+    return Notification.permission === "granted";
+  } catch { return false; }
+}
+
+const phaseText = (focusEnded: boolean, what: string | undefined, breakMinutes: number) => ({
+  title: focusEnded ? "Focus session finished 🍅" : "Break is over ⏰",
+  body: focusEnded ? `${what ? `${what}: ` : ""}nice work! Take a ${breakMinutes}-minute break.` : "Time to get back to studying.",
+});
+
+/** Ask the system to notify at the end of the phase (cancelled when the timer is paused or stopped) */
+async function scheduleAlarm(seconds: number, focusEnded: boolean, what: string | undefined, breakMinutes: number) {
+  if (!inTauri()) return;
+  try {
+    if (!(await ensureNotifyPermission())) return;
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("schedule_alarm", { seconds: Math.max(1, Math.round(seconds)), ...phaseText(focusEnded, what, breakMinutes) });
+  } catch { /* not available */ }
+}
+async function cancelAlarm() {
+  if (!inTauri()) return;
+  try { const { invoke } = await import("@tauri-apps/api/core"); await invoke("cancel_alarm"); } catch { /* not available */ }
+}
+
+/** The phase ended while the page was running: a notification too if the window isn't in front (the Rust alarm may be the one that fired) */
+function notifyPhaseEnd(focusEnded: boolean, what: string | undefined, breakMinutes: number) {
+  if (inTauri()) return;   // the Rust alarm already showed it
+  try {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const t = phaseText(focusEnded, what, breakMinutes);
+    const n = new Notification(t.title, { body: t.body, tag: "orbit-pomodoro", requireInteraction: true, silent: true });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch { /* not supported */ }
 }
 
 export function TimerProvider({ children }: { children: React.ReactNode }) {
@@ -73,7 +115,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   };
 
   const reset = () => { setAccumulated(0); setRunStart(null); setSessionStart(null); };
-  const start = () => { if (running) return; if (!active) setSessionStart(Date.now()); setRunStart(Date.now()); setNow(Date.now()); };
+  const start = () => { if (running) return; if (!active) setSessionStart(Date.now()); setRunStart(Date.now()); setNow(Date.now()); if (mode === "pomodoro") void ensureNotifyPermission(); };
   const pause = () => { if (!running) return; setAccumulated(elapsed); setRunStart(null); };
   const stop = (save = true) => { if (save && phase === "focus") saveSession(elapsed); reset(); setPhase("focus"); };
 
@@ -83,10 +125,29 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(t);
   }, [running]);
 
+  // Tell the system when this phase ends (and take it back when the timer pauses, stops or changes phase)
+  useEffect(() => {
+    if (!running || !phaseLength) { void cancelAlarm(); return; }
+    void scheduleAlarm(phaseLength - elapsed, phase === "focus", targetTitle ?? undefined, data.settings.breakMinutes);
+    return () => { void cancelAlarm(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, phase, phaseLength, runStart]);
+
+  // A hidden or minimised window slows its timers right down: wake up exactly when the phase ends, and when the window comes back
+  useEffect(() => {
+    if (!running) return;
+    const wake = () => setNow(Date.now());
+    const t = phaseLength ? window.setTimeout(wake, Math.max(0, (phaseLength - elapsed) * 1000) + 50) : undefined;
+    document.addEventListener("visibilitychange", wake); window.addEventListener("focus", wake);
+    return () => { if (t) window.clearTimeout(t); document.removeEventListener("visibilitychange", wake); window.removeEventListener("focus", wake); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, phase, phaseLength, runStart]);
+
   // Pomodoro phase end
   useEffect(() => {
     if (!phaseLength || !running || elapsed < phaseLength) return;
-    beep();
+    playAlarm(data.settings.alarmTone, data.settings.alarmVolume);
+    notifyPhaseEnd(phase === "focus", targetTitle ?? undefined, data.settings.breakMinutes);
     if (phase === "focus") {
       saveSession(phaseLength); setCompleted((c) => c + 1); reset(); setPhase("rest");
       setTimeout(() => { setSessionStart(Date.now()); setRunStart(Date.now()); }, 0);
