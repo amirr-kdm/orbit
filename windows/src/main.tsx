@@ -19,12 +19,7 @@ registerPicture("ufo", ufo);
 registerPicture("satellite", satellite);
 registerPicture("meteor", meteor);
 // Every other store picture in assets/ (s4_… and animated frames s4_name_0, _1, …)
-for (const [path, url] of Object.entries(import.meta.glob(["./assets/s4_*.png", "./assets/s5_*.png", "./assets/lv_*.png", "./assets/pass_ship*.png"], { eager: true, import: "default" }))) {
-  registerPicture(path.split("/").pop()!.replace(".png", ""), url as string);
-}
-
-// Cut-out illustrations (s6_…): personal art kept out of the repository (assets/local is git-ignored); missing files are simply skipped
-for (const [path, url] of Object.entries(import.meta.glob("./assets/local/s6_*.png", { eager: true, import: "default" }))) {
+for (const [path, url] of Object.entries(import.meta.glob(["./assets/s4_*.png", "./assets/s5_*.png", "./assets/s6_*.png", "./assets/lv_*.png", "./assets/pass_ship*.png"], { eager: true, import: "default" }))) {
   registerPicture(path.split("/").pop()!.replace(".png", ""), url as string);
 }
 
