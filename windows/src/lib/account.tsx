@@ -1,6 +1,7 @@
 // Accounts (email + username + password), owner approval, cloud backup of the data and the owner's admin tools.
 // Same server and rules as the Mac app. The app keeps working offline on the local copy.
 import { useInbox } from "./inbox";
+import { systemNotify } from "./notify";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppData, StudySession } from "./model";
 import { accountData, sharedClient as client, supabaseConfigured, useFriends } from "./friends";
@@ -280,11 +281,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       const fresh = list.filter((u) => !u.approved && !notified.current.has(u.id));
       const firstLoad = notified.current.size === 0 && users.length === 0;
       list.filter((u) => !u.approved).forEach((u) => notified.current.add(u.id));
-      if (fresh.length && !firstLoad && "Notification" in window) {
-        const show = () => fresh.forEach((u) => new Notification("New Orbit sign-up", { body: `${u.username ?? u.name} (${u.email ?? "no email"}) is waiting for your approval.` }));
-        if (Notification.permission === "granted") show();
-        else if (Notification.permission !== "denied") Notification.requestPermission().then((p) => p === "granted" && show());
-      }
+      if (fresh.length && !firstLoad) fresh.forEach((u) => systemNotify("New Orbit sign-up", `${u.username ?? u.name} (${u.email ?? "no email"}) is waiting for your approval.`));
       setUsers(list);
     } catch (e: any) { setMessage(e?.message ?? String(e)); }
   }, [isAdmin, users.length]);
@@ -418,10 +415,4 @@ export function useAccount(): Account {
 }
 
 /** A system notification when allowed (falls back silently; the in-app banner always shows) */
-export function notify(title: string, body: string) {
-  try {
-    if (!("Notification" in window)) return;
-    if (Notification.permission === "granted") new Notification(title, { body });
-    else if (Notification.permission !== "denied") Notification.requestPermission().then((p) => { if (p === "granted") new Notification(title, { body }); });
-  } catch { /* not supported in this webview */ }
-}
+export function notify(title: string, body: string) { void systemNotify(title, body); }

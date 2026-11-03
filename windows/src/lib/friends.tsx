@@ -59,6 +59,18 @@ export function weekSubjects(f: FriendCard): SubjectStat[] {
 
 // ---------- tiny REST client ----------
 
+/** What a member sees when the server can't be reached (offline, bad Wi-Fi, a VPN in the way, or no answer in time) */
+export const OFFLINE_MESSAGE = "No internet connection. Check your Wi-Fi or VPN and try again.";
+export const isOfflineError = (e: unknown) => e instanceof Error && e.message === OFFLINE_MESSAGE;
+
+/** fetch that gives up after 20 seconds, and turns "can't connect" into the plain message above */
+async function netFetch(url: string, init: RequestInit): Promise<Response> {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 20_000);
+  try { return await fetch(url, { ...init, signal: ctl.signal }); }
+  catch { throw new Error(OFFLINE_MESSAGE); }
+  finally { clearTimeout(timer); }
+}
+
 export class Client {
   session: Session | null = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null");
 
@@ -71,7 +83,7 @@ export class Client {
     const headers: Record<string, string> = { apikey: KEY_, "Content-Type": "application/json" };
     if (auth && this.session) headers.Authorization = `Bearer ${this.session.accessToken}`;
     if (prefer) headers.Prefer = prefer;
-    const res = await fetch(URL_ + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await netFetch(URL_ + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     const text = await res.text();
     const json = text ? JSON.parse(text) : null;
     if (!res.ok) throw new Error(json?.message ?? json?.msg ?? json?.error_description ?? json?.error ?? `Server error (${res.status})`);
@@ -109,7 +121,7 @@ export class Client {
     await this.fresh();
     const headers: Record<string, string> = { apikey: KEY_, "Content-Type": "application/json", Authorization: `Bearer ${this.session!.accessToken}` };
     if (prefer) headers.Prefer = prefer;
-    const res = await fetch(URL_ + "/rest/v1/" + path, { method, headers, body });
+    const res = await netFetch(URL_ + "/rest/v1/" + path, { method, headers, body });
     const text = await res.text();
     const json = text ? JSON.parse(text) : null;
     if (!res.ok) throw new Error(json?.message ?? `Server error (${res.status})`);

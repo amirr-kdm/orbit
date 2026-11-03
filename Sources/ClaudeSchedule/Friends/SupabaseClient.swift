@@ -23,6 +23,10 @@ actor SupabaseClient {
         var errorDescription: String? { message }
     }
 
+    /// What a member sees when the server can't be reached (offline, bad Wi-Fi, a VPN in the way, or no answer in time)
+    static let offlineMessage = "No internet connection. Check your Wi-Fi or VPN and try again."
+    static func isOffline(_ error: Error) -> Bool { (error as? APIError)?.status == 0 && (error as? APIError)?.message == offlineMessage }
+
     private(set) var session: Session?
     private let base = SupabaseConfig.url
     private let key = SupabaseConfig.publishableKey
@@ -165,7 +169,12 @@ actor SupabaseClient {
         if let body { req.httpBody = try Self.encoder.encode(body) }
         if let rawBody { req.httpBody = rawBody }
 
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let data: Data, response: URLResponse
+        do { (data, response) = try await URLSession.shared.data(for: req) }
+        catch let e as URLError where [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost,
+                                       .dnsLookupFailed, .dataNotAllowed, .internationalRoamingOff, .secureConnectionFailed].contains(e.code) {
+            throw APIError(status: 0, message: Self.offlineMessage)
+        }
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
             throw APIError(status: status, message: Self.errorMessage(data) ?? "Server error (\(status))")

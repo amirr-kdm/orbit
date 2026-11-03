@@ -98,17 +98,24 @@ extension AppStore {
         }
     }
 
-    /// Take a Level Pass level's rewards
-    func walletClaim(level: Int) async {
-        guard walletLive else { claim(level: level); return }
-        guard canClaim(level: level) else { return }
-        // the server checks your level: make sure it has the latest
-        if let uid = await client.userID {
-            _ = try? await client.update("profiles?id=eq.\(uid.uuidString)", ["level": galaxyProgress().level])
+    /// Take a Level Pass level's rewards. Returns a message when it didn't work (offline, or the server said no); nil when taken.
+    /// Nothing is lost when it fails: the level stays claimable until the server has paid it.
+    func walletClaim(level: Int) async -> String? {
+        guard walletLive else { claim(level: level); return nil }
+        guard canClaim(level: level) else { return nil }
+        do {
+            // the server checks your level: make sure it has the latest
+            if let uid = await client.userID {
+                try await client.update("profiles?id=eq.\(uid.uuidString)", ["level": galaxyProgress().level])
+            }
+            struct L: Encodable { let lvl: Int }
+            _ = try await client.rpc("claim_level", L(lvl: level))
+        } catch {
+            if SupabaseClient.isOffline(error) { return SupabaseClient.offlineMessage + " Your reward is safe: open the Level Pass again once you're online and press Claim." }
+            return (error as? SupabaseClient.APIError)?.message ?? "Couldn't take the reward. Try again in a moment."
         }
-        struct L: Encodable { let lvl: Int }
-        _ = try? await client.rpc("claim_level", L(lvl: level))
         await walletRefresh()
+        return canClaim(level: level) ? "The server didn't confirm the reward yet. Try again in a moment." : nil
     }
 
     /// Last week's group prize, worked out by the server. True when it was paid now.

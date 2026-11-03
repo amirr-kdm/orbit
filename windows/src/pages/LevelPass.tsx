@@ -24,6 +24,16 @@ export default function LevelPass({ fromHours, onClose }: { fromHours?: number; 
   const [look, setLook] = useState(0);
   const [ship, setShip] = useState(() => Number(localStorage.getItem("pass-ship") ?? 1));
   const [preview, setPreview] = useState<number | null>(null);
+  /** Taking rewards needs the server: while it works the buttons wait, and if it can't be reached the member is told (and can leave) */
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const claim = async (levels: number[]) => {
+    if (busy) return;
+    setBusy(true); setNotice(null);
+    try {
+      for (const lv of levels) { const err = await actions.claimLevel(lv); if (err) { setNotice(err); break; } }
+    } finally { setBusy(false); }
+  };
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; look: number } | null>(null);
 
@@ -65,9 +75,15 @@ export default function LevelPass({ fromHours, onClose }: { fromHours?: number; 
             ))}
           </div>
           <span className="row" style={{ gap: 6, fontWeight: 700 }}><RocketIcon size={18} /> {wallet(data).balance.toLocaleString()}</span>
-          {claimable.length > 0 && <button className="btn primary" style={{ background: "#F97316" }} onClick={async () => { for (const lv of claimable) await actions.claimLevel(lv); }}>Claim All ({claimable.length})</button>}
+          {claimable.length > 0 && <button className="btn primary" style={{ background: "#F97316" }} disabled={busy} onClick={() => claim(claimable)}>{busy ? "Claiming…" : `Claim All (${claimable.length})`}</button>}
           <button className="btn" onClick={onClose}>Done</button>
         </div>
+        {notice && (
+          <div className="row" style={{ margin: "0 20px 12px", padding: "10px 14px", borderRadius: 12, background: "rgba(249,115,22,.16)", border: "1px solid rgba(249,115,22,.55)", gap: 10 }}>
+            <span>📡</span><span style={{ flex: 1 }}>{notice}</span>
+            <button className="btn small" onClick={() => setNotice(null)}>OK</button><button className="btn small" onClick={onClose}>Leave</button>
+          </div>
+        )}
         <div ref={box} className="space" style={{ height: 330, borderRadius: 0, cursor: "grab", userSelect: "none" }}
           onWheel={(e) => setLook((l) => clampLook(l - (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY)))}
           onMouseDown={(e) => { drag.current = { x: e.clientX, look }; }}
@@ -83,8 +99,8 @@ export default function LevelPass({ fromHours, onClose }: { fromHours?: number; 
                 <div key={lv} style={{ position: "absolute", left: SPACING * (lv - 1) - SPACING / 2, top: 104, width: SPACING, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 13,
                     background: reached ? "#F97316" : "var(--pl-line)", border: `1.5px solid ${reached ? "var(--pl-edge-on)" : "var(--pl-edge-off)"}` }}>{lv}</div>
-                  <button disabled={!take && !planet}
-                    onClick={() => { if (take) actions.claimLevel(lv); else if (planet) setPreview(lv); }}
+                  <button disabled={(!take && !planet) || (take && busy)}
+                    onClick={() => { if (take) claim([lv]); else if (planet) setPreview(lv); }}
                     title={planet ? `Level ${lv}: ${rocketsForLevel(lv)} rockets + ${planet.name}` : `Level ${lv}: ${rocketsForLevel(lv)} rockets`}
                     style={{ width: 104, height: planet ? 136 : 64, borderRadius: 12, color: "var(--pl-fg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
                       background: take ? "rgba(249,115,22,.18)" : "var(--pl-tile)", border: `${take ? 2 : 1}px solid ${take ? "#F97316" : planet ? "rgba(168,85,247,.6)" : "var(--pl-tile-edge)"}`,

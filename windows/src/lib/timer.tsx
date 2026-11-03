@@ -1,3 +1,4 @@
+import { ensureNotifyPermission, inTauri } from "./notify";
 import { playAlarm } from "./sound";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { uid } from "./model";
@@ -22,21 +23,6 @@ const Ctx = createContext<Timer | null>(null);
 // ---- Pomodoro alerts ---------------------------------------------------------------------------------------------------
 // In the Windows app (Tauri) notifications go through the system's toast, and a timer in Rust keeps the alarm on time even when
 // the window is minimised (a web page's own timers are slowed right down then). In a plain browser the web Notification API is used.
-
-const inTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-async function ensureNotifyPermission(): Promise<boolean> {
-  try {
-    if (inTauri()) {
-      const n = await import("@tauri-apps/plugin-notification");
-      if (await n.isPermissionGranted()) return true;
-      return (await n.requestPermission()) === "granted";
-    }
-    if (!("Notification" in window)) return false;
-    if (Notification.permission === "default") await Notification.requestPermission();
-    return Notification.permission === "granted";
-  } catch { return false; }
-}
 
 const phaseText = (focusEnded: boolean, what: string | undefined, breakMinutes: number) => ({
   title: focusEnded ? "Focus session finished 🍅" : "Break is over ⏰",

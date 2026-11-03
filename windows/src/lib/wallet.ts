@@ -3,7 +3,7 @@
 // data can't change rockets and two devices can't spend the same rockets twice.
 // Until a member's wallet exists (the first time an app runs online it's moved over once), the local reckoning counts.
 import { AppData } from "./model";
-import { accountData, sharedClient as client } from "./friends";
+import { accountData, isOfflineError, OFFLINE_MESSAGE, sharedClient as client } from "./friends";
 import { addDays, dayKey, weekStart } from "./dates";
 import { canClaim, progress, serverWallet, wallet } from "./store";
 
@@ -90,14 +90,20 @@ export async function walletRefund(id: string, get: () => AppData, update: Updat
   } catch (e) { return e instanceof Error && !e.message.includes("fetch") ? e.message : "Connect to the internet to refund."; }
 }
 
-/** Take a Level Pass level's rewards */
-export async function walletClaim(level: number, get: () => AppData, update: Update, localClaim: () => void) {
-  if (!walletLive()) { localClaim(); return; }
-  if (!canClaim(get(), level)) return;
-  // the server checks your level: make sure it has the latest
-  try { await client.patch(`profiles?id=eq.${client.session!.userID.toLowerCase()}`, { level: progress(get()).level }); } catch { /* offline */ }
-  try { await client.rpc("claim_level", { lvl: level }); } catch { /* offline */ }
+/** Take a Level Pass level's rewards. Returns a message when it didn't work (offline, or the server said no); null when taken.
+ *  Nothing is lost when it fails: the level stays claimable until the server has paid it. */
+export async function walletClaim(level: number, get: () => AppData, update: Update, localClaim: () => void): Promise<string | null> {
+  if (!walletLive()) { localClaim(); return null; }
+  if (!canClaim(get(), level)) return null;
+  try {
+    // the server checks your level: make sure it has the latest
+    await client.patch(`profiles?id=eq.${client.session!.userID.toLowerCase()}`, { level: progress(get()).level });
+    await client.rpc("claim_level", { lvl: level });
+  } catch (e) {
+    return isOfflineError(e) ? `${OFFLINE_MESSAGE} Your reward is safe: open the Level Pass again once you're online and press Claim.` : e instanceof Error ? e.message : "Couldn't take the reward. Try again in a moment.";
+  }
   await walletRefresh(get, update);
+  return canClaim(get(), level) ? "The server didn't confirm the reward yet. Try again in a moment." : null;
 }
 
 /** Last week's group prize, worked out by the server. True when it was paid now. */

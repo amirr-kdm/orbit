@@ -23,6 +23,12 @@ for (const [path, url] of Object.entries(import.meta.glob(["./assets/s4_*.png", 
   registerPicture(path.split("/").pop()!.replace(".png", ""), url as string);
 }
 
+// The Windows app lets the touchpad pinch reach the page (as Ctrl + wheel) so the galaxy and the task graph can zoom;
+// the window itself must never zoom, so the browser's own zoom (pinch, Ctrl + wheel, Ctrl + / − / 0) is cancelled everywhere
+window.addEventListener("wheel", (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+window.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && ["+", "-", "=", "_", "0"].includes(e.key)) e.preventDefault(); });
+for (const t of ["gesturestart", "gesturechange"]) window.addEventListener(t, (e) => e.preventDefault());
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <InboxProvider><StoreProvider>

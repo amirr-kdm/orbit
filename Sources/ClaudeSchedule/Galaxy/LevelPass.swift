@@ -11,6 +11,9 @@ struct LevelPassView: View {
     /// Where the ship is drawn, in levels (1.0 = level 1, 1.5 = halfway to level 2)
     @State private var shipAt: Double = 1
     @State private var justClaimed: Int?
+    /// Taking rewards needs the server: while it works the buttons wait, and if it can't be reached the member is told (and can leave)
+    @State private var claiming = false
+    @State private var notice: String?
     /// Level whose planet is being previewed
     @State private var preview: Int?
     /// How far the user moved the view away from the ship
@@ -45,6 +48,18 @@ struct LevelPassView: View {
         let claimable = (1...p.level).filter { store.canClaim(level: $0) }
         VStack(spacing: 0) {
             header(p, claimable: claimable)
+            if let notice {
+                HStack(spacing: 10) {
+                    Image(systemName: "wifi.exclamationmark").foregroundStyle(.orange)
+                    Text(notice).font(.callout).frame(maxWidth: .infinity, alignment: .leading)
+                    Button("OK") { self.notice = nil }
+                    Button("Leave") { dismiss() }
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.16)))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.orange.opacity(0.55)))
+                .padding(.horizontal, 4).padding(.bottom, 10)
+            }
             // The camera follows the ship; drag, scroll wheel or trackpad to look along the line
             GeometryReader { geo in
                 track(p)
@@ -84,6 +99,18 @@ struct LevelPassView: View {
                                      : AnyShapeStyle(LinearGradient(colors: [Color(hex: "#A8CDF5"), Color(hex: "#E2EEFB"), Color(hex: "#FFF3E0")], startPoint: .top, endPoint: .bottom)))
     }
 
+    private func claim(_ levels: [Int]) {
+        guard !claiming else { return }
+        claiming = true; notice = nil
+        Task {
+            for lv in levels {
+                if let err = await store.walletClaim(level: lv) { notice = err; break }
+                withAnimation(.spring(duration: 0.4)) { justClaimed = lv }
+            }
+            claiming = false
+        }
+    }
+
     private func header(_ p: GalaxyProgress, claimable: [Int]) -> some View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
@@ -118,10 +145,10 @@ struct LevelPassView: View {
                 Text(store.rocketBalance.formatted()).font(.title3.weight(.bold).monospacedDigit())
             }
             if !claimable.isEmpty {
-                Button("Claim All (\(claimable.count))") {
-                    Task { for lv in claimable { await store.walletClaim(level: lv) } }
+                Button(claiming ? "Claiming…" : "Claim All (\(claimable.count))") {
+                    claim(claimable)
                 }
-                .buttonStyle(.borderedProminent).tint(.orange)
+                .buttonStyle(.borderedProminent).tint(.orange).disabled(claiming)
             }
             Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
         }
@@ -177,7 +204,7 @@ struct LevelPassView: View {
             // reward card
             Button {
                 if canTake {
-                    Task { await store.walletClaim(level: lv); withAnimation(.spring(duration: 0.4)) { justClaimed = lv } }
+                    claim([lv])
                 } else if planet != nil {
                     preview = lv   // locked (or taken) planet: show a preview
                 }

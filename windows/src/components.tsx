@@ -193,8 +193,9 @@ export function SystemCanvas({ sys, width, height, large, res = 1, hideName = fa
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     // res > 1: drawn extra sharp because it is shown zoomed in
-    const cv = ref.current!; const dpr = (window.devicePixelRatio || 1) * res;
-    cv.width = Math.ceil(width * dpr); cv.height = Math.ceil(height * dpr);
+    // (never more than 6000 pixels along a side: a bigger canvas comes out blank in some webviews)
+    const cv = ref.current!; const dpr = Math.min((window.devicePixelRatio || 1) * res, 6000 / Math.max(1, width, height));
+    cv.width = Math.max(1, Math.ceil(width * dpr)); cv.height = Math.max(1, Math.ceil(height * dpr));
     const ctx = cv.getContext("2d")!; const cache = new Map<string, HTMLCanvasElement>();
     // map tiles are painted in "tile units" (330×260 or more) and scaled up, so zooming never changes how big things are
     const uw = units?.w ?? width, uh = units?.h ?? height, sc = width / uw;
@@ -297,6 +298,9 @@ export function useBlockPinchZoom(ref: React.RefObject<HTMLElement | null>) {
   }, [ref]);
 }
 
+/** How much one pinch / Ctrl+wheel event zooms by (smooth for a touchpad, and a mouse-wheel notch never jumps to the end) */
+const wheelFactor = (dy: number) => Math.exp(-Math.max(-60, Math.min(60, dy)) * 0.01);
+
 export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove }: {
   data: GalaxyData; height?: number; focused?: string | null; onSelect: (id: string) => void; onMove?: (id: string, x: number, y: number) => void;
 }) {
@@ -389,6 +393,10 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
     window.addEventListener("mousemove", move); window.addEventListener("mouseup", up); window.addEventListener("blur", cancel);
   };
 
+  const setZoomTo = (v: number) => {
+    const nz = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v));
+    setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz);
+  };
   const w = WORLD_W * z, h = WORLD_H * z;
   // world origin on screen
   const ox = size.w / 2 + px - w / 2, oy = size.h / 2 + py - h / 2;
@@ -401,10 +409,10 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
         if (!e.ctrlKey) return;
         if (focused || cam) {   // flown in on one system: zoom out to see all of a big one (or in for a closer look)
           if (!cam) return;
-          const nz = Math.min(6, Math.max(0.3, cam.z * (1 - e.deltaY * 0.01)));
+          const nz = Math.min(6, Math.max(0.3, cam.z * wheelFactor(e.deltaY)));
           setCam({ z: nz, x: cam.x * nz / cam.z, y: cam.y * nz / cam.z }); return;
         }
-        const nz = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom * (1 - e.deltaY * 0.01)));
+        const nz = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom * wheelFactor(e.deltaY)));
         setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz);
       }}
       onMouseDown={(e) => { if (focused) return; startDrag(e, { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }); }}>
@@ -434,9 +442,12 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
         })}
       </div>
       {!focused && (
-        <div style={{ position: "absolute", right: 16, bottom: 14, display: "flex", gap: 8, alignItems: "center", background: "rgba(0,0,0,.35)", padding: "6px 12px", borderRadius: 99 }}>
-          <span className="small">🔍</span>
-          <input type="range" min={0} max={1} step={0.002} value={zoomToSlider(zoom)} onChange={(e) => { const nz = sliderToZoom(+e.target.value); setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz); }} style={{ width: 130, padding: 0 }} />
+        // (the box's own mouse handlers must not see clicks on the zoom bar: they start a drag and cancel the slider's)
+        <div style={{ position: "absolute", right: 16, bottom: 14, zIndex: 5, display: "flex", gap: 8, alignItems: "center", background: "rgba(0,0,0,.35)", padding: "6px 12px", borderRadius: 99, cursor: "default" }}
+          onMouseDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
+          <button className="icon-btn" title="Zoom out" style={{ color: "white" }} onClick={() => setZoomTo(zoom / 1.3)}>−</button>
+          <input type="range" min={0} max={1} step={0.002} value={zoomToSlider(zoom)} onChange={(e) => setZoomTo(sliderToZoom(+e.target.value))} style={{ width: 130, padding: 0 }} />
+          <button className="icon-btn" title="Zoom in" style={{ color: "white" }} onClick={() => setZoomTo(zoom * 1.3)}>＋</button>
         </div>
       )}
     </div>
