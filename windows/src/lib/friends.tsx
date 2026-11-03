@@ -21,7 +21,7 @@ const SESSION_KEY = "orbit-session-v1";
 export interface SubjectStat { name: string; minutes: number; color: string }
 export interface DailyStat { user_id: string; day: string; minutes: number; todos_done: number; todos_total: number; subjects: SubjectStat[] }
 export interface LiveStatus { user_id: string; studying?: string | null; started_at?: string | null; updated_at?: string | null }
-export interface GalaxyData { systems: { id: string; name: string; sun: string; planets: string[]; x?: number | null; y?: number | null }[] }
+export interface GalaxyData { systems: { id: string; name: string; sun: string; planets: string[]; x?: number | null; y?: number | null; sunSize?: number | null; orbitGap?: number | null }[] }
 export interface Profile { id: string; name: string; friend_code: string; level?: number; avatar?: string | null; galaxy?: GalaxyData | null; rockets?: number; /** their streak as their own app counts it (freezes included) */ streak?: number | null }
 /** A study group: everyone in it sees each other's progress */
 export interface StudyGroup { id: string; name: string; code: string; owner: string; members: string[] }
@@ -39,10 +39,14 @@ function plainStreak(f: FriendCard): number {
   let n = 0; while (minutesOn(f, d) > 0) { n++; d = addDays(d, -1); }
   return n;
 }
+const MAX_LIVE_SESSION = 8 * 3600_000;
 export function studyingNow(f: FriendCard): string | undefined {
   const l = f.live;
   if (!l?.studying || !l.updated_at) return undefined;
-  return Date.now() - new Date(l.updated_at).getTime() < 15 * 60_000 ? l.studying : undefined;
+  if (Date.now() - new Date(l.updated_at).getTime() >= 15 * 60_000) return undefined;
+  // a timer someone forgot running keeps refreshing its status, but nobody studies that long without stopping
+  if (l.started_at && Date.now() - new Date(l.started_at).getTime() > MAX_LIVE_SESSION) return undefined;
+  return l.studying;
 }
 export function weekSubjects(f: FriendCard): SubjectStat[] {
   const tot = new Map<string, SubjectStat>();
@@ -156,7 +160,7 @@ function localStat(d: AppData, day: Date, userID: string): DailyStat {
 }
 
 export function galaxyData(d: AppData): GalaxyData {
-  return { systems: d.solarSystems.map((s) => ({ id: s.id, name: s.name, sun: s.sun, planets: d.galaxy.filter((g) => g.systemID === s.id).map((g) => g.planetID), x: s.x, y: s.y })) };
+  return { systems: d.solarSystems.map((s) => ({ id: s.id, name: s.name, sun: s.sun, planets: d.galaxy.filter((g) => g.systemID === s.id).map((g) => g.planetID), x: s.x, y: s.y, sunSize: s.sunSize, orbitGap: s.orbitGap })) };
 }
 
 // ---------- React context ----------
@@ -285,7 +289,9 @@ export function FriendsProvider({ children }: { children: React.ReactNode }) {
 
   const pushLive = useCallback(async (force = false) => {
     if (!supabaseConfigured || !client.session || !me || !accountData.ready) return;
-    const { title, startedAt, sent } = live.current;
+    const { startedAt, sent } = live.current;
+    // a timer left running for ages isn't "studying now": stop telling friends
+    const title = live.current.title && startedAt && Date.now() - startedAt.getTime() > MAX_LIVE_SESSION ? null : live.current.title;
     if (!force && sent === title) return;
     live.current.sent = title;
     await run(() => client.upsert("live_status", {

@@ -456,6 +456,7 @@ struct AdminPanel: View {
     @Environment(AccountService.self) private var account
     @Environment(FightClubService.self) private var fightClub
     @State private var bossHours = 5
+    @State private var bossPrize = 1000
     @State private var tempPassword: (name: String, value: String)?
     @State private var confirmRemove: AccountService.AdminUser?
     @State private var giftTo: AccountService.AdminUser?
@@ -489,11 +490,19 @@ struct AdminPanel: View {
                     }
                     Text("Next monster: \(members.count) members × \(bossHours)h = \(members.count * bossHours)h of health. Applies from next week; this week's stays as it is.")
                         .font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Stepper("\(bossPrize.formatted()) 🚀 prize", value: $bossPrize, in: 50...100_000, step: 50)
+                        Spacer()
+                        Button("Save") { Task { await fightClub.setPrize(bossPrize) } }
+                            .disabled(bossPrize == fightClub.prizePerWeek)
+                    }
+                    Text("Shared by damage done. Applies from next week's monster.")
+                        .font(.caption).foregroundStyle(.secondary)
                     if let e = fightClub.error { Text(e).font(.caption).foregroundStyle(.red) }
                 }
                 .padding(12)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.08)))
-                .onAppear { bossHours = fightClub.hoursPerMember }
+                .onAppear { bossHours = fightClub.hoursPerMember; bossPrize = fightClub.prizePerWeek }
 
                 // the same gift for everyone
                 VStack(alignment: .leading, spacing: 8) {
@@ -519,10 +528,10 @@ struct AdminPanel: View {
                     Button("Send \(giftAll) 🚀 to everyone") {
                         let amount = giftAll, why = giftAllReason
                         Task {
-                            if let n = await account.giftEveryone(amount: amount, reason: why) { giftDone = "Sent \(amount) 🚀 to \(n) members."; giftAllReason = "" }
+                            if let n = await account.giftEveryone(amount: amount, reason: why) { giftDone = "Sent a gift box with \(amount) 🚀 to \(n) members."; giftAllReason = "" }
                         }
                     }
-                } message: { Text("Everyone gets a notification. This can't be undone.") }
+                } message: { Text("Everyone gets a gift box. The rockets are added only when they open it. This can't be undone.") }
 
                 Text("WAITING FOR APPROVAL").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
                 if pending.isEmpty { Text("No one is waiting.").font(.callout).foregroundStyle(.secondary) }
@@ -556,6 +565,16 @@ struct AdminPanel: View {
                         Spacer()
                         Menu {
                             Button("Give Rockets…") { giftAmount = 100; giftTo = u }
+                            Menu("Give Planet") {
+                                ForEach(PlanetCatalog.gifts) { p in
+                                    let has = account.planetHolders[p.id]?.contains(u.id) ?? false
+                                    Button(has ? "\(p.name) — already has it" : p.name) {
+                                        let name = u.username ?? u.name
+                                        Task { if await account.giftPlanet(u.id, planet: p.id) { giftDone = "Sent a gift box with \(p.name) to @\(name)." } }
+                                    }
+                                    .disabled(has)
+                                }
+                            }
                             if !u.is_admin {
                                 Button("Reset Password…") {
                                     Task { if let p = await account.resetPassword(u.id) { tempPassword = (u.username ?? u.name, p) } }
@@ -574,7 +593,7 @@ struct AdminPanel: View {
             }
             .padding(16)
         }
-        .task { await account.loadUsers() }
+        .task { await account.loadUsers(); await account.loadPlanetHolders() }
         .sheet(item: $giftTo) { u in
             VStack(alignment: .leading, spacing: 14) {
                 Label("Give rockets to @\(u.username ?? u.name)", systemImage: "paperplane.fill").font(.headline)
@@ -583,7 +602,7 @@ struct AdminPanel: View {
                     Text("🚀")
                     ForEach([50, 100, 500, 1000], id: \.self) { n in Button("\(n)") { giftAmount = n }.controlSize(.small) }
                 }
-                Text("Use a negative number to take rockets back. They're added the next time their app checks (within a minute).")
+                Text("A positive amount arrives as a gift box: the rockets are added only when they open it (within a minute they see it). A negative number takes rockets back right away.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Spacer()
@@ -591,7 +610,7 @@ struct AdminPanel: View {
                     Button("Give") {
                         let amount = giftAmount, name = u.username ?? u.name
                         giftTo = nil
-                        Task { if await account.giftRockets(u.id, amount: amount) { giftDone = "Sent \(amount) 🚀 to @\(name)." } }
+                        Task { if await account.giftRockets(u.id, amount: amount) { giftDone = amount > 0 ? "Sent a gift box with \(amount) 🚀 to @\(name)." : "Took back \(-amount) 🚀 from @\(name)." } }
                     }
                     .buttonStyle(.borderedProminent).disabled(giftAmount == 0).keyboardShortcut(.defaultAction)
                 }

@@ -9,6 +9,7 @@ import { AccountProvider } from "./lib/account";
 import { ChallengesProvider } from "./lib/challenges";
 import { FightClubProvider } from "./lib/fightclub";
 import { InboxProvider } from "./lib/inbox";
+import { GiftsProvider } from "./lib/gifts";
 import { registerPicture } from "./lib/planets";
 import ufo from "./assets/ufo.png";
 import satellite from "./assets/satellite.png";
@@ -22,16 +23,21 @@ for (const [path, url] of Object.entries(import.meta.glob(["./assets/s4_*.png", 
   registerPicture(path.split("/").pop()!.replace(".png", ""), url as string);
 }
 
+// Cut-out illustrations (s6_…): personal art kept out of the repository (assets/local is git-ignored); missing files are simply skipped
+for (const [path, url] of Object.entries(import.meta.glob("./assets/local/s6_*.png", { eager: true, import: "default" }))) {
+  registerPicture(path.split("/").pop()!.replace(".png", ""), url as string);
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <InboxProvider><StoreProvider>
       <FriendsProvider>
         <AccountProvider>
-          <ChallengesProvider><FightClubProvider>
+          <ChallengesProvider><FightClubProvider><GiftsProvider>
             <TimerProvider>
               <App />
             </TimerProvider>
-          </FightClubProvider></ChallengesProvider>
+          </GiftsProvider></FightClubProvider></ChallengesProvider>
         </AccountProvider>
       </FriendsProvider>
     </StoreProvider></InboxProvider>

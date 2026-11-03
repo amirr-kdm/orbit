@@ -145,7 +145,7 @@ extension AppStore {
 
     /// Store planets you own, for the My Galaxy shelf
     var ownedStorePlanets: [PlanetDef] {
-        (PlanetCatalog.rewards + PlanetCatalog.store).filter { ownedCount($0.id) > 0 }
+        (PlanetCatalog.rewards + PlanetCatalog.gifts + PlanetCatalog.store).filter { ownedCount($0.id) > 0 }
     }
 
     /// Put an already-bought planet back into the galaxy (free)

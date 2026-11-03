@@ -61,7 +61,7 @@ enum PlanetCatalog {
         return byID[id]
     }
 
-    static let byID: [String: PlanetDef] = Dictionary(uniqueKeysWithValues: (all + store + rewards).map { ($0.id, $0) })
+    static let byID: [String: PlanetDef] = Dictionary(uniqueKeysWithValues: (all + store + rewards + gifts).map { ($0.id, $0) })
 
     static func unlocked(at level: Int) -> [PlanetDef] { all.filter { $0.unlockLevel <= level } }
 
@@ -97,7 +97,7 @@ enum PlanetCatalog {
 
         // Level 3 — Wild Worlds
         PlanetDef(id: "dino", name: "Dino Prime", level: 3, blurb: "A dinosaur egg the size of a planet. It's hatching!",
-                  shape: .egg, colors: ["#ECFCCB", "#A3E635", "#4D7C0F"], pattern: .spots, accent: "#3F6212", emoji: "🦖"),
+                  shape: .egg, colors: ["#ECFCCB", "#A3E635", "#4D7C0F"], pattern: .spots, accent: "#3F6212", emoji: "art:dino"),
         PlanetDef(id: "donut", name: "Donut World", level: 3, blurb: "A planet with a hole. Sprinkles included.",
                   shape: .donut, colors: ["#FBCFE8", "#F472B6", "#BE185D"], pattern: .sprinkles, accent: "#FDE047"),
         PlanetDef(id: "choco", name: "Choco Moon", level: 3, blurb: "A chocolate mushroom with candy spots.",
@@ -105,7 +105,7 @@ enum PlanetCatalog {
         PlanetDef(id: "aurora", name: "Aurora", level: 3, blurb: "Northern lights dance under a golden halo.",
                   colors: ["#A78BFA", "#6D28D9", "#2E1065"], pattern: .waves, accent: "#6EE7B7", features: [.halo], glow: true),
         PlanetDef(id: "honey", name: "Honeycomb", level: 3, blurb: "A hexagon hive, buzzing and golden.",
-                  shape: .hexagon, colors: ["#FEF08A", "#EAB308", "#854D0E"], pattern: .hexgrid, accent: "#713F12", emoji: "🐝"),
+                  shape: .hexagon, colors: ["#FEF08A", "#EAB308", "#854D0E"], pattern: .hexgrid, accent: "#713F12", emoji: "art:bee"),
 
         // Level 4 — Shapes & Snacks
         PlanetDef(id: "kitty", name: "Kitty Planet", level: 4, blurb: "Purrs when you study.",
@@ -133,11 +133,11 @@ enum PlanetCatalog {
                   colors: ["#C4B5FD", "#7C3AED", "#1E1B4B"], pattern: .swirl, accent: "#F0ABFC",
                   ring: .init(color: "#E9D5FF", tilt: 30, width: 0.1, double: true)),
         PlanetDef(id: "coral", name: "Coral Bloom", level: 5, blurb: "A flower world where fish swim in the petals.",
-                  shape: .flower, colors: ["#FECDD3", "#FB7185", "#BE123C"], pattern: .dots, accent: "#FEF3C7", emoji: "🐠"),
+                  shape: .flower, colors: ["#FECDD3", "#FB7185", "#BE123C"], pattern: .dots, accent: "#FEF3C7", emoji: "art:fish"),
 
         // Level 6 — Creatures
         PlanetDef(id: "trex", name: "Stego Rock", level: 6, blurb: "Rocky, spiky, and very old.",
-                  colors: ["#D6D3D1", "#78716C", "#292524"], pattern: .craters, accent: "#1C1917", emoji: "🦕", features: [.spikes]),
+                  colors: ["#D6D3D1", "#78716C", "#292524"], pattern: .craters, accent: "#1C1917", emoji: "art:stego", features: [.spikes]),
         PlanetDef(id: "octo", name: "Octo World", level: 6, blurb: "Eight arms, one ocean, many hugs.",
                   colors: ["#C4B5FD", "#8B5CF6", "#4C1D95"], pattern: .spots, accent: "#DDD6FE",
                   features: [.tentacles, .face]),
@@ -152,7 +152,7 @@ enum PlanetCatalog {
         // Level 7 — Spooky & Bright
         PlanetDef(id: "robo", name: "Robo Core", level: 7, blurb: "Beep boop. Fully automated.",
                   shape: .cube, colors: ["#E2E8F0", "#64748B", "#1E293B"], pattern: .checker, accent: "#38BDF8",
-                  emoji: "🤖", features: [.antenna]),
+                  emoji: "art:robot", features: [.antenna]),
         PlanetDef(id: "ghost", name: "Ghostly", level: 7, blurb: "Boo! (It's friendly.)",
                   shape: .ghost, colors: ["#FFFFFF", "#E0E7FF", "#A5B4FC"], accent: "#C7D2FE", features: [.face], glow: true),
         PlanetDef(id: "pumpkin", name: "Pumpkin", level: 7, blurb: "Spooky season, forever.",
@@ -169,12 +169,12 @@ enum PlanetCatalog {
                   colors: ["#1F2937", "#030712", "#000000"], accent: "#F59E0B",
                   ring: .init(color: "#FB923C", tilt: -10, width: 0.24, double: true), glow: true),
         PlanetDef(id: "snowglobe", name: "Snow Globe", level: 8, blurb: "A snowman lives inside. He's very happy.",
-                  colors: ["#F0F9FF", "#BAE6FD", "#38BDF8"], pattern: .polarCaps, accent: "#FFFFFF", emoji: "⛄️"),
+                  colors: ["#F0F9FF", "#BAE6FD", "#38BDF8"], pattern: .polarCaps, accent: "#FFFFFF", emoji: "art:snowman"),
         PlanetDef(id: "dragonegg", name: "Dragon Egg", level: 8, blurb: "Something with wings is about to hatch…",
                   shape: .egg, colors: ["#6EE7B7", "#059669", "#064E3B"], pattern: .hexgrid, accent: "#FDE047",
                   features: [.spikes, .wings], glow: true),
         PlanetDef(id: "whale", name: "Cosmic Whale", level: 8, blurb: "Swims through space, singing.",
-                  colors: ["#BFDBFE", "#3B82F6", "#1E3A8A"], pattern: .waves, accent: "#DBEAFE", moons: 1, emoji: "🐳"),
+                  colors: ["#BFDBFE", "#3B82F6", "#1E3A8A"], pattern: .waves, accent: "#DBEAFE", moons: 1, emoji: "art:whale"),
         PlanetDef(id: "goldchild", name: "Golden Gear", level: 8, blurb: "The clockwork that keeps time moving.",
                   shape: .gear, colors: ["#FEF3C7", "#F59E0B", "#78350F"], pattern: .swirl, accent: "#FFFBEB", glow: true),
 
@@ -188,15 +188,15 @@ enum PlanetCatalog {
                   shape: .crescent, colors: ["#FEF08A", "#FACC15", "#CA8A04"], pattern: .craters, accent: "#A16207",
                   features: [.face]),
         PlanetDef(id: "alien", name: "Alien Hive", level: 9, blurb: "We come in peace. Mostly.",
-                  colors: ["#BBF7D0", "#22C55E", "#14532D"], pattern: .dots, accent: "#DCFCE7", emoji: "👽", features: [.antenna]),
+                  colors: ["#BBF7D0", "#22C55E", "#14532D"], pattern: .dots, accent: "#DCFCE7", emoji: "art:alien", features: [.antenna]),
         PlanetDef(id: "ufo", name: "UFO Station", level: 9, blurb: "Parking spot for flying saucers.",
                   colors: ["#E2E8F0", "#94A3B8", "#475569"], pattern: .bands, accent: "#22D3EE",
-                  ring: .init(color: "#67E8F9", tilt: 0, width: 0.1), emoji: "🛸"),
+                  ring: .init(color: "#67E8F9", tilt: 0, width: 0.1), emoji: "art:ufo"),
 
         // Level 10 — Legendary
         PlanetDef(id: "phoenix", name: "Phoenix", level: 10, blurb: "Reborn from fire every week.",
                   colors: ["#FDE047", "#F97316", "#991B1B"], pattern: .swirl, accent: "#FEF08A",
-                  emoji: "🔥", features: [.fireWings], glow: true),
+                  emoji: "art:flame", features: [.fireWings], glow: true),
         PlanetDef(id: "unicorn", name: "Unicorn Dream", level: 10, blurb: "A pastel cloud with a magic horn.",
                   shape: .cloud, colors: ["#FBCFE8", "#C4B5FD", "#93C5FD"], pattern: .rainbow, accent: "#FFFFFF",
                   features: [.unicornHorn, .face], glow: true),
@@ -283,7 +283,9 @@ enum PlanetPainter {
                        with: .color(.white.opacity(0.28)))
         }
 
-        if let emoji = p.emoji {
+        if let emoji = p.emoji, emoji.hasPrefix("art:") {
+            drawArt(String(emoji.dropFirst(4)), ctx: &ctx, c: c, r: r, phase: phase)
+        } else if let emoji = p.emoji {
             ctx.fill(Path(ellipseIn: CGRect(x: c.x - r * 0.62, y: c.y - r * 0.58, width: r * 1.24, height: r * 1.24)),
                      with: .radialGradient(Gradient(colors: [.white.opacity(0.45), .white.opacity(0)]),
                                            center: c, startRadius: 0, endRadius: r * 0.65))
@@ -483,9 +485,10 @@ enum PlanetPainter {
                 ctx.stroke(t, with: .color(c1), style: StrokeStyle(lineWidth: r * 0.17, lineCap: .round))
             }
         case .tree:
-            ctx.fill(Path(roundedRect: CGRect(x: c.x - r * 0.1, y: c.y - r * 1.45, width: r * 0.2, height: r * 0.6), cornerRadius: r * 0.05),
+            // the whole tree has to fit inside the picture (the top edge is 1.67 r above the centre)
+            ctx.fill(Path(roundedRect: CGRect(x: c.x - r * 0.08, y: c.y - r * 1.28, width: r * 0.16, height: r * 0.4), cornerRadius: r * 0.04),
                      with: .color(Color(hex: "#78350F")))
-            for (dx, dy, rr) in [(0.0, -1.55, 0.38), (-0.28, -1.38, 0.28), (0.28, -1.38, 0.28)] {
+            for (dx, dy, rr) in [(0.0, -1.36, 0.27), (-0.2, -1.22, 0.2), (0.2, -1.22, 0.2)] {
                 ctx.fill(Path(ellipseIn: CGRect(x: c.x + r * (dx - rr), y: c.y + r * (dy - rr), width: r * rr * 2, height: r * rr * 2)),
                          with: .color(Color(hex: "#22C55E")))
             }
@@ -813,7 +816,7 @@ enum PlanetSheet {
     static func render(to url: URL, store: Bool = false) {
         // rows of at most 12 planets: (label, planets)
         var rows: [(String, [PlanetDef])] = []
-        for level in 1...(store ? 4 : 10) {
+        for level in 1...(store ? Rarity.allCases.count : 10) {
             let label = store ? String(Rarity.allCases[level - 1].title.prefix(1)) : "L\(level)"
             let list = store ? PlanetCatalog.storeAvailable.filter { $0.rarity == Rarity.allCases[level - 1] } : PlanetCatalog.all.filter { $0.level == level }
             for (i, start) in stride(from: 0, to: max(list.count, 1), by: 12).enumerated() {
@@ -841,6 +844,183 @@ enum PlanetSheet {
         if let img = renderer.nsImage, let tiff = img.tiffRepresentation,
            let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
             try? png.write(to: url)
+        }
+    }
+}
+
+
+// MARK: - Hand-drawn creatures
+//
+// Planets with a little character on them are drawn here in code (instead of a system emoji), in the same flat style as the
+// rest of the planets. Coordinates are in units of the planet radius, measured from its centre.
+
+extension PlanetPainter {
+    static func drawArt(_ key: String, ctx: inout GraphicsContext, c: CGPoint, r: CGFloat, phase: Double) {
+        func P(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: c.x + r * x, y: c.y + r * y) }
+        func ell(_ x: Double, _ y: Double, _ rx: Double, _ ry: Double) -> Path {
+            Path(ellipseIn: CGRect(x: c.x + r * (x - rx), y: c.y + r * (y - ry), width: r * rx * 2, height: r * ry * 2))
+        }
+        func tri(_ a: (Double, Double), _ b: (Double, Double), _ d: (Double, Double)) -> Path {
+            var p = Path(); p.move(to: P(a.0, a.1)); p.addLine(to: P(b.0, b.1)); p.addLine(to: P(d.0, d.1)); p.closeSubpath(); return p
+        }
+        let ink = Color.black.opacity(0.38), lw = r * 0.035
+        func solid(_ path: Path, _ fill: Color, line: Bool = true) {
+            ctx.fill(path, with: .color(fill))
+            if line { ctx.stroke(path, with: .color(ink), lineWidth: lw) }
+        }
+        func dot(_ x: Double, _ y: Double, _ rad: Double, _ color: Color) { ctx.fill(ell(x, y, rad, rad), with: .color(color)) }
+        func line(_ pts: [(Double, Double)], _ color: Color, _ width: Double) {
+            var p = Path(); p.move(to: P(pts[0].0, pts[0].1)); for q in pts.dropFirst() { p.addLine(to: P(q.0, q.1)) }
+            ctx.stroke(p, with: .color(color), style: StrokeStyle(lineWidth: r * width, lineCap: .round, lineJoin: .round))
+        }
+        func spun(_ build: (inout GraphicsContext) -> Void, deg: Double, about x: Double = 0, _ y: Double = 0) {
+            var g = ctx
+            g.translateBy(x: c.x + r * x, y: c.y + r * y); g.rotate(by: .degrees(deg)); g.translateBy(x: -(c.x + r * x), y: -(c.y + r * y))
+            build(&g)
+        }
+
+        switch key {
+        case "dino":
+            // a baby dinosaur hatching out of the egg
+            for x in [-0.3, 0.0, 0.3] { solid(tri((x - 0.13, -0.42), (x, -0.8), (x + 0.13, -0.42)), Color(hex: "#15803D")) }
+            solid(ell(0, -0.02, 0.64, 0.5), Color(hex: "#65A30D"))
+            solid(ell(0, 0.22, 0.46, 0.26), Color(hex: "#84CC16"))
+            for x in [-0.28, 0.28] { dot(x, -0.14, 0.15, .white); dot(x + (x < 0 ? 0.03 : -0.03), -0.12, 0.075, Color(hex: "#1C1917")) }
+            dot(-0.12, 0.14, 0.035, Color(hex: "#365314")); dot(0.12, 0.14, 0.035, Color(hex: "#365314"))
+            var smile = Path(); smile.move(to: P(-0.22, 0.28)); smile.addQuadCurve(to: P(0.22, 0.28), control: P(0, 0.42))
+            ctx.stroke(smile, with: .color(Color(hex: "#365314")), style: StrokeStyle(lineWidth: r * 0.05, lineCap: .round))
+            line([(-0.9, 0.55), (-0.62, 0.42), (-0.42, 0.62), (-0.2, 0.44), (0.0, 0.62), (0.2, 0.44), (0.42, 0.62), (0.62, 0.42), (0.9, 0.55)],
+                 .white.opacity(0.85), 0.05)   // the cracked shell
+        case "bee":
+            spun({ g in
+                func fillStroke(_ p: Path, _ col: Color) { g.fill(p, with: .color(col)); g.stroke(p, with: .color(ink), lineWidth: lw) }
+                fillStroke(ell(-0.08, -0.42, 0.2, 0.34), Color.white.opacity(0.85))
+                fillStroke(ell(0.22, -0.48, 0.2, 0.34), Color.white.opacity(0.85))
+                let body = ell(0.02, 0.06, 0.58, 0.36)
+                g.fill(body, with: .color(Color(hex: "#FACC15")))
+                g.drawLayer { l in
+                    l.clip(to: body)
+                    for x in [-0.18, 0.14, 0.44] { l.fill(Path(roundedRect: CGRect(x: c.x + r * (x - 0.07), y: c.y - r * 0.4, width: r * 0.14, height: r * 0.9), cornerRadius: r * 0.02), with: .color(Color(hex: "#1F2937"))) }
+                }
+                g.stroke(body, with: .color(ink), lineWidth: lw)
+                fillStroke(ell(-0.56, 0.06, 0.22, 0.22), Color(hex: "#1F2937"))
+                g.fill(ell(-0.62, 0.0, 0.06, 0.07), with: .color(.white)); g.fill(ell(-0.5, 0.0, 0.06, 0.07), with: .color(.white))
+                fillStroke(tri((0.58, 0.0), (0.88, 0.07), (0.58, 0.14)), Color(hex: "#1F2937"))
+                var ant = Path(); ant.move(to: P(-0.6, -0.14)); ant.addQuadCurve(to: P(-0.78, -0.42), control: P(-0.7, -0.2))
+                g.stroke(ant, with: .color(Color(hex: "#1F2937")), style: StrokeStyle(lineWidth: r * 0.04, lineCap: .round))
+            }, deg: -16)
+        case "fish":
+            let hop = sin(phase * .pi * 2) * 0.04
+            solid(tri((0.36, hop), (0.82, -0.3 + hop), (0.82, 0.3 + hop)), Color(hex: "#F97316"))
+            solid(tri((-0.25, -0.28 + hop), (0.05, -0.55 + hop), (0.22, -0.26 + hop)), Color(hex: "#F97316"))
+            let body = ell(-0.06, hop, 0.54, 0.36)
+            ctx.fill(body, with: .color(Color(hex: "#FB923C")))
+            ctx.drawLayer { l in
+                l.clip(to: body)
+                for x in [-0.12, 0.2] { l.fill(Path(roundedRect: CGRect(x: c.x + r * (x - 0.05), y: c.y - r * 0.4, width: r * 0.1, height: r * 0.8), cornerRadius: r * 0.03), with: .color(.white.opacity(0.85))) }
+            }
+            ctx.stroke(body, with: .color(ink), lineWidth: lw)
+            dot(-0.34, -0.07 + hop, 0.085, .white); dot(-0.36, -0.07 + hop, 0.04, Color(hex: "#1C1917"))
+            for (bx, by, br) in [(-0.7, -0.4, 0.08), (-0.82, -0.62, 0.05), (-0.62, -0.7, 0.04)] {
+                ctx.stroke(ell(bx, by + hop, br, br), with: .color(.white.opacity(0.9)), lineWidth: r * 0.03)
+            }
+        case "stego":
+            for (i, x) in [-0.5, -0.28, -0.06, 0.16, 0.38].enumerated() {
+                let h = 0.34 - 0.04 * abs(Double(i) - 2)
+                solid(tri((x - 0.12, -0.05), (x, -0.05 - h - 0.1), (x + 0.12, -0.05)), Color(hex: "#F59E0B"))
+            }
+            for x in [-0.44, -0.14, 0.24, 0.52] { solid(ell(x, 0.55, 0.11, 0.2), Color(hex: "#57534E")) }
+            solid(tri((-0.62, 0.0), (-1.05, 0.3), (-0.6, 0.3)), Color(hex: "#57534E"))
+            for (x, y) in [(-0.9, 0.12), (-0.78, 0.2)] { solid(tri((x - 0.05, y + 0.06), (x, y - 0.12), (x + 0.05, y + 0.06)), Color(hex: "#F59E0B"), line: false) }
+            solid(ell(0.0, 0.22, 0.7, 0.36), Color(hex: "#6B665F"))
+            solid(ell(0.78, 0.24, 0.22, 0.16), Color(hex: "#6B665F"))
+            dot(0.84, 0.2, 0.04, .white); dot(0.85, 0.2, 0.02, Color(hex: "#1C1917"))
+        case "robot":
+            solid(Path(roundedRect: CGRect(x: c.x - r * 0.9, y: c.y - r * 0.18, width: r * 0.2, height: r * 0.4), cornerRadius: r * 0.05), Color(hex: "#94A3B8"))
+            solid(Path(roundedRect: CGRect(x: c.x + r * 0.7, y: c.y - r * 0.18, width: r * 0.2, height: r * 0.4), cornerRadius: r * 0.05), Color(hex: "#94A3B8"))
+            solid(Path(roundedRect: CGRect(x: c.x - r * 0.72, y: c.y - r * 0.6, width: r * 1.44, height: r * 1.2), cornerRadius: r * 0.24), Color(hex: "#E2E8F0"))
+            for x in [-0.3, 0.3] {
+                let eye = Path(roundedRect: CGRect(x: c.x + r * (x - 0.17), y: c.y - r * 0.32, width: r * 0.34, height: r * 0.34), cornerRadius: r * 0.08)
+                var glow = ctx; glow.addFilter(.blur(radius: r * 0.06)); glow.fill(eye, with: .color(Color(hex: "#22D3EE").opacity(0.8)))
+                solid(eye, Color(hex: "#0891B2"))
+                dot(x + 0.04, -0.2, 0.06, .white)
+            }
+            solid(Path(roundedRect: CGRect(x: c.x - r * 0.34, y: c.y + r * 0.18, width: r * 0.68, height: r * 0.24), cornerRadius: r * 0.06), Color(hex: "#334155"))
+            for x in [-0.17, 0, 0.17] { line([(x, 0.22), (x, 0.38)], Color(hex: "#CBD5E1"), 0.035) }
+            for (x, y) in [(-0.58, -0.46), (0.58, -0.46), (-0.58, 0.46), (0.58, 0.46)] { dot(x, y, 0.045, Color(hex: "#94A3B8")) }
+        case "snowman":
+            solid(ell(0, 0.82, 0.78, 0.17), Color(hex: "#E0F2FE"), line: false)
+            solid(ell(0, 0.46, 0.38, 0.36), .white)
+            solid(ell(0, 0.0, 0.29, 0.28), .white)
+            solid(ell(0, -0.4, 0.21, 0.21), .white)
+            solid(Path(roundedRect: CGRect(x: c.x - r * 0.15, y: c.y - r * 0.9, width: r * 0.3, height: r * 0.3), cornerRadius: r * 0.03), Color(hex: "#1F2937"))
+            solid(ell(0, -0.6, 0.27, 0.06), Color(hex: "#1F2937"))
+            solid(Path(roundedRect: CGRect(x: c.x - r * 0.22, y: c.y - r * 0.2, width: r * 0.44, height: r * 0.09), cornerRadius: r * 0.04), Color(hex: "#DC2626"))
+            solid(tri((0.02, -0.4), (0.34, -0.35), (0.02, -0.3)), Color(hex: "#F97316"))
+            dot(-0.08, -0.46, 0.028, Color(hex: "#1F2937")); dot(0.1, -0.46, 0.028, Color(hex: "#1F2937"))
+            for y in [0.06, 0.2, 0.38] { dot(0, y, 0.03, Color(hex: "#1F2937")) }
+            line([(-0.28, 0.0), (-0.66, -0.2)], Color(hex: "#78350F"), 0.04); line([(0.28, 0.0), (0.66, -0.2)], Color(hex: "#78350F"), 0.04)
+            for (x, y) in [(-0.7, -0.5), (0.65, -0.62), (-0.55, 0.2), (0.72, 0.1), (-0.3, -0.8), (0.4, -0.35)] { dot(x, y, 0.035, .white.opacity(0.9)) }
+        case "whale":
+            let sway = sin(phase * .pi * 2) * 0.03
+            solid(tri((-0.5, 0.12), (-0.98, -0.24 + sway), (-0.72, 0.18)), Color(hex: "#BAE6FD"))
+            solid(tri((-0.5, 0.18), (-1.0, 0.1 + sway), (-0.6, 0.34)), Color(hex: "#BAE6FD"))
+            let body = ell(0.02, 0.18, 0.72, 0.4)
+            ctx.fill(body, with: .color(Color(hex: "#DBEAFE")))
+            ctx.drawLayer { l in l.clip(to: body); l.fill(ell(0.06, 0.4, 0.8, 0.26), with: .color(.white.opacity(0.9))) }
+            ctx.stroke(body, with: .color(ink), lineWidth: lw)
+            dot(0.42, 0.08, 0.05, Color(hex: "#1E3A8A"))
+            var smile = Path(); smile.move(to: P(0.5, 0.26)); smile.addQuadCurve(to: P(0.24, 0.3), control: P(0.4, 0.34))
+            ctx.stroke(smile, with: .color(Color(hex: "#1E3A8A")), style: StrokeStyle(lineWidth: r * 0.03, lineCap: .round))
+            for dx in [-1.0, 1.0] {
+                var w = Path(); w.move(to: P(0.18, -0.2)); w.addQuadCurve(to: P(0.18 + dx * 0.34, -0.62), control: P(0.18 + dx * 0.06, -0.62))
+                ctx.stroke(w, with: .color(.white.opacity(0.95)), style: StrokeStyle(lineWidth: r * 0.05, lineCap: .round))
+                dot(0.18 + dx * 0.36, -0.55, 0.04, .white)
+            }
+        case "alien":
+            let head = ell(0, -0.04, 0.6, 0.66).union(ell(0, 0.3, 0.38, 0.42))
+            solid(head, Color(hex: "#BEF264"))
+            for x in [-1.0, 1.0] {
+                let eye = Path(ellipseIn: CGRect(x: c.x + r * (x * 0.28 - 0.25), y: c.y - r * 0.2, width: r * 0.5, height: r * 0.28))
+                var g = ctx
+                g.translateBy(x: c.x + r * x * 0.28, y: c.y - r * 0.06); g.rotate(by: .degrees(-22 * x)); g.translateBy(x: -(c.x + r * x * 0.28), y: -(c.y - r * 0.06))
+                g.fill(eye, with: .color(Color(hex: "#0F172A")))
+                g.fill(Path(ellipseIn: CGRect(x: c.x + r * (x * 0.28 - 0.14), y: c.y - r * 0.15, width: r * 0.1, height: r * 0.07)), with: .color(.white.opacity(0.8)))
+            }
+            dot(-0.04, 0.2, 0.018, Color(hex: "#365314")); dot(0.04, 0.2, 0.018, Color(hex: "#365314"))
+            var mouth = Path(); mouth.move(to: P(-0.1, 0.42)); mouth.addQuadCurve(to: P(0.1, 0.42), control: P(0, 0.47))
+            ctx.stroke(mouth, with: .color(Color(hex: "#365314")), style: StrokeStyle(lineWidth: r * 0.035, lineCap: .round))
+        case "ufo":
+            let bob = sin(phase * .pi * 2) * 0.05
+            ctx.fill(tri((-0.22, 0.2 + bob), (0.22, 0.2 + bob), (0.6, 0.95)), with: .linearGradient(
+                Gradient(colors: [Color(hex: "#67E8F9").opacity(0.45), Color(hex: "#67E8F9").opacity(0)]), startPoint: P(0, 0.2), endPoint: P(0, 0.95)))
+            solid(ell(0, -0.1 + bob, 0.3, 0.3), Color(hex: "#A5F3FC").opacity(0.9))
+            dot(0, -0.1 + bob, 0.1, Color(hex: "#86EFAC")); dot(-0.04, -0.13 + bob, 0.02, Color(hex: "#0F172A")); dot(0.04, -0.13 + bob, 0.02, Color(hex: "#0F172A"))
+            solid(ell(0, 0.2 + bob, 0.46, 0.14), Color(hex: "#64748B"))
+            solid(ell(0, 0.1 + bob, 0.78, 0.2), Color(hex: "#CBD5E1"))
+            for (i, x) in [-0.5, -0.25, 0.0, 0.25, 0.5].enumerated() {
+                let on = Int(phase * 6 + Double(i)) % 2 == 0
+                dot(x, 0.1 + bob, 0.04, on ? Color(hex: "#FDE047") : Color(hex: "#F472B6"))
+            }
+        case "flame":
+            func flame(_ k: Double, _ y0: Double) -> Path {
+                var p = Path()
+                p.move(to: P(0, y0 + 0.62 * k))
+                p.addCurve(to: P(-0.5 * k, y0 + 0.02 * k), control1: P(-0.36 * k, y0 + 0.62 * k), control2: P(-0.62 * k, y0 + 0.34 * k))
+                p.addCurve(to: P(-0.05 * k, y0 - 0.85 * k), control1: P(-0.46 * k, y0 - 0.36 * k), control2: P(-0.08 * k, y0 - 0.46 * k))
+                p.addCurve(to: P(0.5 * k, y0 + 0.08 * k), control1: P(0.1 * k, y0 - 0.4 * k), control2: P(0.46 * k, y0 - 0.26 * k))
+                p.addCurve(to: P(0, y0 + 0.62 * k), control1: P(0.62 * k, y0 + 0.4 * k), control2: P(0.34 * k, y0 + 0.62 * k))
+                return p
+            }
+            let flick = 1 + sin(phase * .pi * 4) * 0.04
+            let outer = flame(flick, 0)
+            var glow = ctx; glow.addFilter(.blur(radius: r * 0.12)); glow.fill(outer, with: .color(Color(hex: "#FDE047").opacity(0.7)))
+            ctx.fill(outer, with: .linearGradient(Gradient(colors: [Color(hex: "#B91C1C"), Color(hex: "#F97316")]), startPoint: P(0, -0.85), endPoint: P(0, 0.62)))
+            ctx.stroke(outer, with: .color(ink), lineWidth: lw)
+            ctx.fill(flame(0.68 * flick, 0.2), with: .linearGradient(Gradient(colors: [Color(hex: "#F97316"), Color(hex: "#FACC15")]), startPoint: P(0, -0.4), endPoint: P(0, 0.62)))
+            ctx.fill(flame(0.36 * flick, 0.36), with: .linearGradient(Gradient(colors: [Color(hex: "#FDE047"), .white]), startPoint: P(0, -0.1), endPoint: P(0, 0.6)))
+        default:
+            break
         }
     }
 }

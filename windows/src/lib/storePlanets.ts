@@ -2,10 +2,10 @@
 import type { PlanetDef } from "./planets";
 
 export type Craft = "rocket" | "ufo" | "station" | "satellite" | "shuttle" | "comet" | "asteroids" | "stars" | "astronaut";
-export type Rarity = "common" | "rare" | "epic" | "legendary";
+export type Rarity = "common" | "rare" | "epic" | "legendary" | "mythic";
 
-export const rarityOf = (price: number): Rarity => (price < 300 ? "common" : price < 550 ? "rare" : price < 850 ? "epic" : "legendary");
-export const RARITY_COLOR: Record<Rarity, string> = { common: "#94A3B8", rare: "#38BDF8", epic: "#A855F7", legendary: "#F59E0B" };
+export const rarityOf = (price: number): Rarity => (price < 300 ? "common" : price < 550 ? "rare" : price < 850 ? "epic" : price < 2500 ? "legendary" : "mythic");
+export const RARITY_COLOR: Record<Rarity, string> = { common: "#94A3B8", rare: "#38BDF8", epic: "#A855F7", legendary: "#F59E0B", mythic: "#F43F5E" };
 
 const S = (id: string, name: string, blurb: string, price: number, o: Omit<PlanetDef, "id" | "name" | "group" | "blurb" | "price">): PlanetDef =>
   ({ id, name, group: 1, blurb, price, ...o });
@@ -173,6 +173,51 @@ export const STORE: PlanetDef[] = [
     { colors: ["#E0E7FF", "#6366F1", "#1E1B4B"], pattern: "bands", accent: "#C7D2FE", ring: { color: "#A5B4FC", tilt: 14, width: 0.1, double: true }, glow: true, crafts: ["station", "ufo", "rocket", "shuttle", "asteroids", "stars"], walkers: ["🧑‍🚀"] }),
   S("s_infinity", "Infinity Core", "Every colour, every orbit — the rarest world of all.", 1000,
     { shape: "burst", colors: ["#FEF9C3", "#F472B6", "#4C1D95"], pattern: "rainbow", accent: "#FFFFFF", ring: { color: "#FDE68A", tilt: 12, width: 0.12, double: true }, moons: 3, features: ["halo"], glow: true, crafts: ["comet", "shuttle", "stars"] }),
+  // Cut-out illustrations (Mythic 2500–3200 are animated or animals; the rest are spread over the tiers by price)
+  S("s6_rocketkitty", "Rocket Kitty", "A ginger astronaut cat riding its own rocket flames. It moves!", 2500,
+    { colors: ["#FED7AA", "#FB923C", "#9A3412"], accent: "#FDBA74", glow: true, image: "s6_rocketkitty" }),
+  S("s6_neonrocket", "Neon Rocket", "A shiny red rocket blasting through a purple glow. It moves!", 2600,
+    { colors: ["#E9D5FF", "#A855F7", "#3B0764"], accent: "#D8B4FE", glow: true, image: "s6_neonrocket" }),
+  S("s6_ringbuddy", "Ring Buddy", "A smiling mint planet spinning its orange ring. It moves!", 2700,
+    { colors: ["#A7F3D0", "#10B981", "#064E3B"], accent: "#FDBA74", glow: true, image: "s6_ringbuddy" }),
+  S("s6_shuttleorbit", "Shuttle Orbit", "A little shuttle circling a glowing, wavy green world. It moves!", 2750,
+    { colors: ["#A7F3D0", "#10B981", "#064E3B"], accent: "#34D399", glow: true, image: "s6_shuttleorbit" }),
+  S("s6_floatcat", "Floaty Cat", "A very surprised cat drifting in zero gravity. It moves!", 2800,
+    { colors: ["#FBCFE8", "#F472B6", "#831843"], accent: "#FBCFE8", glow: true, image: "s6_floatcat" }),
+  S("s6_spacepup", "Space Pup", "A good boy tumbling through space after a bone. It moves!", 2900,
+    { colors: ["#BAE6FD", "#38BDF8", "#0C4A6E"], accent: "#7DD3FC", glow: true, image: "s6_spacepup" }),
+  S("s6_moonchase", "Moon Chase", "A little rocket racing round a cratered moon. It moves!", 3000,
+    { colors: ["#E0E7FF", "#818CF8", "#1E1B4B"], accent: "#C7D2FE", glow: true, image: "s6_moonchase" }),
+  S("s6_orbitrider", "Orbit Rider", "An astronaut at the controls of a blue triple-engine rocket. It moves!", 3050,
+    { colors: ["#BAE6FD", "#0284C7", "#082F49"], accent: "#38BDF8", glow: true, image: "s6_orbitrider" }),
+  S("s6_wavesaturn", "Hello Saturn", "A golden ringed planet waving hello. It moves!", 3200,
+    { colors: ["#FEF08A", "#F59E0B", "#78350F"], accent: "#FDE047", glow: true, image: "s6_wavesaturn" }),
+  S("s6_moon", "Giggle Moon", "A grey crater-cheeked moon that can't stop laughing.", 120,
+    { colors: ["#F1F5F9", "#9CA3AF", "#4B5563"], accent: "#E5E7EB", glow: true, image: "s6_moon" }),
+  S("s6_sandy", "Sandy Dune", "Soft sandy stripes and a sleepy little smile.", 170,
+    { colors: ["#FED7AA", "#D6A06B", "#92400E"], accent: "#FDE68A", glow: true, image: "s6_sandy" }),
+  S("s6_lavender", "Lavender Swirl", "A marble of lilac and cream swirls.", 210,
+    { colors: ["#E9D5FF", "#A78BFA", "#5B21B6"], accent: "#DDD6FE", glow: true, image: "s6_lavender" }),
+  S("s6_sleepymoon", "Sleepy Moon", "Up way too late, but still glowing for you.", 270,
+    { colors: ["#E0F2FE", "#BAE6FD", "#7DD3FC"], accent: "#BAE6FD", glow: true, image: "s6_sleepymoon" }),
+  S("s6_mars", "Smiley Mars", "A cheerful red-orange world with a surprised grin.", 320,
+    { colors: ["#FDBA74", "#F97316", "#9A3412"], accent: "#FDBA74", glow: true, image: "s6_mars" }),
+  S("s6_tiger", "Tiger Giant", "Orange and gold stripes on a very friendly giant.", 370,
+    { colors: ["#FDE68A", "#F97316", "#B91C1C"], accent: "#FDBA74", glow: true, image: "s6_tiger" }),
+  S("s6_blueberry", "Blueberry", "Deep blue swirls, sweet as a blueberry.", 430,
+    { colors: ["#93C5FD", "#3B82F6", "#312E81"], accent: "#93C5FD", glow: true, image: "s6_blueberry" }),
+  S("s6_honey", "Honey Gold", "Golden honey ripples and a big happy laugh.", 500,
+    { colors: ["#FEF08A", "#EAB308", "#854D0E"], accent: "#FDE047", glow: true, image: "s6_honey" }),
+  S("s6_mintring", "Mint Ring", "A minty striped world hugged by a blue ring.", 560,
+    { colors: ["#99F6E4", "#2DD4BF", "#1D4ED8"], accent: "#5EEAD4", glow: true, image: "s6_mintring" }),
+  S("s6_violetring", "Grape Ring", "A purple swirl planet wearing a bright yellow ring.", 640,
+    { colors: ["#E9D5FF", "#A855F7", "#4C1D95"], accent: "#FDE047", glow: true, image: "s6_violetring" }),
+  S("s6_earth", "Wink Earth", "Green lands, blue oceans and a friendly wink.", 720,
+    { colors: ["#BFDBFE", "#3B82F6", "#14532D"], accent: "#86EFAC", glow: true, image: "s6_earth" }),
+  S("s6_star", "Star Buddy", "A chubby yellow star with the biggest smile.", 800,
+    { colors: ["#FEF9C3", "#FACC15", "#A16207"], accent: "#FDE047", glow: true, image: "s6_star" }),
+  S("s6_sun", "Sunny Smile", "The happiest sun in the galaxy, rays and all.", 880,
+    { colors: ["#FEF9C3", "#FB923C", "#C2410C"], accent: "#FDBA74", glow: true, image: "s6_sun" }),
 ];
 
 /** Level Pass prizes (levels 10, 20 … 60): animated planets you can't buy — same as the Mac app */
@@ -186,3 +231,10 @@ export const REWARDS: PlanetDef[] = [
   R("lv_t5", "Happy Earth", "Level 50 prize: a cheerful Earth waving at its moon.", ["#BFDBFE", "#3B82F6", "#14532D"], "#93C5FD"),
   R("lv_t6", "Penguin Voyager", "Level 60 prize: the final ride — a penguin rocketing past Mars.", ["#E9D5FF", "#A855F7", "#3B0764"], "#D8B4FE"),
 ];
+
+/** Gift-only planets: shown in the store as locked cards, only the admin can give them (they land on "Your Store Planets") */
+export const GIFTS: PlanetDef[] = [
+  { id: "s6_flagplanet", name: "Flag Planet", group: 1, blurb: "A flag waving on a purple ringed world. One small step! Locked: only the admin can give you this planet.", price: 0,
+    colors: ["#E9D5FF", "#7C3AED", "#2E1065"], accent: "#C4B5FD", glow: true, image: "s6_flagplanet" },
+];
+export const isGiftOnly = (id: string) => GIFTS.some((g) => g.id === id);

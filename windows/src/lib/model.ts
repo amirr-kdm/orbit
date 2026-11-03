@@ -61,7 +61,7 @@ export interface StudySession {
 }
 
 export interface PlacedPlanet { id: string; planetID: string; addedAt: string; systemID?: string }
-export interface SolarSystem { id: string; name: string; sun: SunType; /** where it sits on the map (dragged) */ x?: number; y?: number }
+export interface SolarSystem { id: string; name: string; sun: SunType; /** where it sits on the map (dragged) */ x?: number; y?: number; /** this sun's own size and gap between its orbits (undefined = the computer-wide setting) */ sunSize?: number; orbitGap?: number }
 
 export interface Settings {
   primaryCalendar: "persian" | "gregorian";

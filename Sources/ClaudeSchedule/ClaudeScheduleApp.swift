@@ -20,6 +20,10 @@ struct ClaudeScheduleApp: App {
                                store: ProcessInfo.processInfo.environment["CS_RENDER_STORE"] != nil)
             exit(0)
         }
+        if let out = ProcessInfo.processInfo.environment["CS_RENDER_GIFT"] {
+            GiftSheet.render(to: URL(fileURLWithPath: out))
+            exit(0)
+        }
         if let out = ProcessInfo.processInfo.environment["CS_RENDER_SYSTEM"] {
             let system = GalaxyData.System(id: UUID(), name: "Home System", sun: .binary,
                                            planets: ["terra", "saturnella", "kitty", "heartbeat", "phoenix", "royale", "octo", "claude"])

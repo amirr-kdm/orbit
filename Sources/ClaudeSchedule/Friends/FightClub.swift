@@ -2,7 +2,7 @@ import SwiftUI
 
 // Fight Club (experiment): you set a goal (alone, then invite friends or a whole group), a space monster appears with one health point per minute
 // the goal takes. Every minute you study after it appears is a bullet; fire them from your ship.
-// Beat it before the deadline and the rockets are shared by damage done. Rules run on the server (supabase/bosses.sql).
+// Beat it before the deadline and the rockets are shared by damage done; the fighter with the most damage wins the boss (shown on their profile). Rules run on the server (supabase/bosses.sql).
 
 struct Boss: Decodable, Identifiable, Hashable {
     let id: UUID
@@ -15,10 +15,12 @@ struct Boss: Decodable, Identifiable, Hashable {
     let created_at: Date
     /// Set for the weekly World Boss (the Saturday its week starts)
     var world_week: String? = nil
+    /// The World Boss prize it was created with (nil = made before the admin could set it: 1000)
+    var prize: Int? = nil
     var isWorld: Bool { world_week != nil }
 
     /// Same as the server: 45 rockets per hour of the goal, +15% per monster level above 1
-    var pool: Int { isWorld ? 1000 : Int((Double(hp) / 60 * 45 * (1 + 0.15 * Double(monster - 1))).rounded(.down)) }
+    var pool: Int { isWorld ? (prize ?? 1000) : Int((Double(hp) / 60 * 45 * (1 + 0.15 * Double(monster - 1))).rounded(.down)) }
     var isAlive: Bool { status == "alive" }
 }
 
@@ -57,6 +59,10 @@ final class FightClubService {
     var testFriendID: (() -> UUID?)?
 
     func fighters(of b: Boss) -> [BossFighter] { fighters[b.id] ?? [] }
+    /// What a fighter wins: the prize split by damage done
+    func reward(_ b: Boss, damage: Int) -> Int {
+        b.pool * damage / max(1, fighters(of: b).reduce(0) { $0 + $1.damage })
+    }
     func damageDone(_ b: Boss) -> Int { fighters(of: b).reduce(0) { $0 + $1.damage } }
     func healthLeft(_ b: Boss) -> Int { max(0, b.hp - damageDone(b)) }
     func me(_ b: Boss, _ id: UUID?) -> BossFighter? { fighters(of: b).first { $0.user_id == id } }
@@ -106,6 +112,11 @@ final class FightClubService {
     private(set) var names: [UUID: String] = [:]
     /// Admin setting: hours of health per member for the next World Bosses
     private(set) var hoursPerMember = 5
+    /// Admin setting: rockets the next World Bosses pay to the top fighter
+    private(set) var prizePerWeek = 1000
+    /// Who has won the most World Bosses (most damage on a defeated one)
+    struct Slayer: Decodable, Identifiable, Hashable { let id: UUID; let name: String; let avatar: String?; let wins: Int }
+    private(set) var slayers: [Slayer] = []
 
     /// `light`: only the monsters and fighters (right after firing — keeps the fight smooth)
     func load(light: Bool = false) async {
@@ -114,9 +125,14 @@ final class FightClubService {
             // make sure this week's World Boss exists (the first app to ask creates it)
             struct Week: Encodable { let week_start: String }
             _ = try? await client.rpc("world_boss", Week(week_start: Cal.dayKey(Cal.weekStart(Date()))))
-            struct Setting: Decodable { let hours_per_member: Int }
-            if let s = try? await client.select("boss_settings?select=hours_per_member", as: [Setting].self).first { hoursPerMember = s.hours_per_member }
+            struct Setting: Decodable { let hours_per_member: Int; var prize: Int? = nil }
+            if let s = try? await client.select("boss_settings?select=hours_per_member,prize", as: [Setting].self).first {
+                hoursPerMember = s.hours_per_member
+                prizePerWeek = s.prize ?? 1000
+            }
         }
+        if !light, let data = try? await client.rpc("boss_slayers", [String: String]()),
+           let rows = try? SupabaseClient.decoder.decode([Slayer].self, from: data) { slayers = rows }
         let since = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7 * 86400))
         do {
             let list = try await client.select("bosses?or=(status.eq.alive,deadline.gt.\(since))&order=created_at.desc", as: [Boss].self)
@@ -247,6 +263,13 @@ final class FightClubService {
         struct Body: Encodable { let hours: Int }
         await perform { _ = try await self.client.rpc("admin_set_boss_hours", Body(hours: h)) }
         if error == nil { hoursPerMember = h }
+    }
+
+    /// Admin only: the prize of the next World Bosses
+    func setPrize(_ amount: Int) async {
+        struct Body: Encodable { let amount: Int }
+        await perform { _ = try await self.client.rpc("admin_set_boss_prize", Body(amount: amount)) }
+        if error == nil { prizePerWeek = amount }
     }
 
     /// Bullets left for me
@@ -988,7 +1011,7 @@ struct BattleView: View {
                     HStack {
                         Text(name).lineLimit(1)
                         Spacer()
-                        Text("\(dmg) · ~\(b.pool * dmg / total) 🚀").monospacedDigit().foregroundStyle(.secondary)
+                        Text("\(dmg) · ~\(fc.reward(b, damage: dmg)) 🚀").monospacedDigit().foregroundStyle(.secondary)
                     }
                     .font(.caption).frame(width: 220)
                 }
@@ -1043,7 +1066,10 @@ struct FightClubPage: View {
                     steps
                     HStack(alignment: .top, spacing: 16) {
                         leaderboard(w)
-                        graveyard(except: w)
+                        VStack(spacing: 16) {
+                            slayerBoard
+                            graveyard(except: w)
+                        }
                     }
                 } else {
                     VStack(spacing: 12) {
@@ -1144,7 +1170,7 @@ struct FightClubPage: View {
                     chip("person.3.fill", "\(people)", "fighting")
                     chip("bolt.horizontal.fill", "\(ammo)", "your bullets")
                     chip("scope", "\(fc.me(b, me)?.damage ?? 0)", "your damage")
-                    chip("gift.fill", "1,000 🚀", "prize")
+                    chip("gift.fill", "\(b.pool.formatted()) 🚀", "prize")
                 }
 
                 HStack(spacing: 12) {
@@ -1197,7 +1223,7 @@ struct FightClubPage: View {
         HStack(spacing: 12) {
             step("timer", .cyan, "1 · Study", "Every minute you study with the timer this week is one bullet.")
             step("scope", .red, "2 · Fight", "Fly with ← →, fire with Space. Only hits do damage.")
-            step("trophy.fill", .yellow, "3 · Share", "Beat it before Friday ends: 1,000 🚀 split by damage.")
+            step("trophy.fill", .yellow, "3 · Share", "Beat it before Friday ends: \((fc.worldBoss?.pool ?? fc.prizePerWeek).formatted()) 🚀 split by damage; top damage wins the boss.")
         }
     }
 
@@ -1241,7 +1267,7 @@ struct FightClubPage: View {
                         Spacer()
                         VStack(alignment: .trailing, spacing: 1) {
                             Text("\(f.damage) dmg").font(.callout.weight(.semibold).monospacedDigit())
-                            Text("~\(b.pool * f.damage / total) 🚀").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                            Text("~\(fc.reward(b, damage: f.damage)) 🚀").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
@@ -1257,6 +1283,36 @@ struct FightClubPage: View {
     }
 
     /// Earlier weeks' monsters and how they ended
+    /// A small board of who has won the most World Bosses
+    private var slayerBoard: some View {
+        let me = friends.me?.id
+        return VStack(alignment: .leading, spacing: 10) {
+            Label("Boss Slayers", systemImage: "crown.fill").font(.headline).foregroundStyle(scheme == .dark ? Color.yellow : Color(hex: "#B7791F"))
+            if fc.slayers.isEmpty {
+                Text("Win a World Boss with the most damage to appear here.").font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(Array(fc.slayers.prefix(5).enumerated()), id: \.element.id) { i, s in
+                Button { showing = ProfileTarget(id: s.id) } label: {
+                    HStack(spacing: 8) {
+                        Text(i < 3 ? ["🥇", "🥈", "🥉"][i] : "\(i + 1)").frame(width: 22)
+                        Text(s.id == me ? "You" : s.name).font(.callout.weight(.semibold)).lineLimit(1)
+                        Spacer()
+                        if let badge = PlanetPainter.bundleImage("badge-slayer") {
+                            Image(nsImage: badge).resizable().scaledToFit().frame(width: 12, height: 18)
+                        }
+                        Text("\(s.wins)").font(.callout.weight(.bold).monospacedDigit())
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(18)
+        .frame(width: 280, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.primary.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.07)))
+    }
+
     private func graveyard(except current: Boss) -> some View {
         let past = fc.bosses.filter { $0.isWorld && $0.id != current.id }
         return VStack(alignment: .leading, spacing: 12) {

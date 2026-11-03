@@ -6,6 +6,7 @@ import { AppData, StudySession } from "./model";
 import { accountData, sharedClient as client, supabaseConfigured, useFriends } from "./friends";
 import { defaultData } from "./model";
 import { useStore } from "./store";
+import { GIFTS } from "./storePlanets";
 import { walletLive } from "./wallet";
 
 export type AccountState = "noServer" | "loading" | "signedOut" | "needsUpgrade" | "pending" | "approved";
@@ -35,6 +36,9 @@ interface Account {
   resetPassword: (id: string) => Promise<string | null>;
   /** Give (or take back, if negative) rockets; their app adds them on its next check */
   giftRockets: (id: string, amount: number) => Promise<boolean>;
+  /** Give a planet that can't be bought (it arrives as a gift box). Who already has each one: planet id → member ids */
+  giftPlanet: (id: string, planet: string) => Promise<boolean>;
+  planetHolders: Record<string, string[]>; loadPlanetHolders: () => Promise<void>;
   /** Gift every approved member at once; returns how many got it */
   giftEveryone: (amount: number, reason?: string) => Promise<number | null>;
   /** Rockets just received as a gift (banner until dismissed) */
@@ -44,6 +48,7 @@ interface Account {
 }
 
 const Ctx = createContext<Account | null>(null);
+const holdersOf = async (planet: string): Promise<string[]> => { try { return ((await client.rpc("admin_planet_holders", { planet })) as string[]).map((x) => x.toLowerCase()); } catch { return []; } };
 const SYNC_KEY = "orbit-sync-v1";
 interface SyncMeta { account?: string; at?: string; dirty?: boolean }
 const meta = (): SyncMeta => { try { return JSON.parse(localStorage.getItem(SYNC_KEY) ?? "{}"); } catch { return {}; } };
@@ -85,6 +90,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state); stateRef.current = state;
   const restoring = useRef(false);
   const [giftNotice, setGiftNotice] = useState<string | null>(null);
+  const [planetHolders, setPlanetHolders] = useState<Record<string, string[]>>({});
   const inbox = useInbox();
   const timer = useRef<number>();
   const notified = useRef<Set<string>>(new Set());
@@ -186,7 +192,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       const known = dataRef.current.claimedGifts ?? [];
       if (!gifts.some((g) => !known.includes(g.id))) return;
       // Tell about rockets received (buying, refunds, level rewards and fees are your own actions, so they stay quiet)
-      for (const g of gifts.filter((x) => !known.includes(x.id) && x.amount > 0 && !x.ref?.startsWith("refund:") && !x.ref?.startsWith("level:"))) {
+      for (const g of gifts.filter((x) => !known.includes(x.id) && x.amount > 0 && !x.ref?.startsWith("refund:") && !x.ref?.startsWith("level:") && !x.ref?.startsWith("giftbox:") && !x.ref?.startsWith("giftback:"))) {
         inbox.post({ id: `gift-${g.id}`, kind: "gift", route: "store", title: g.reason ? `+${g.amount} 🚀 rockets` : `You got ${g.amount} 🚀 rockets!`,
           body: g.reason ?? "A gift from the Orbit admin. Spend them in the Store." });
       }
@@ -378,6 +384,18 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       return ok ? temp : null;
     },
     giftNotice, clearGiftNotice: () => setGiftNotice(null), claimGifts,
+    planetHolders,
+    loadPlanetHolders: async () => {
+      const out: Record<string, string[]> = {};
+      for (const g of GIFTS) out[g.id] = await holdersOf(g.id);
+      setPlanetHolders(out);
+    },
+    giftPlanet: async (id, planet) => {
+      let ok = false;
+      await perform(async () => { await client.rpc("admin_gift_planet", { uid: id, planet }); ok = true; });
+      if (ok) { const out: Record<string, string[]> = {}; for (const g of GIFTS) out[g.id] = await holdersOf(g.id); setPlanetHolders(out); }
+      return ok;
+    },
     giftEveryone: async (amount, reason) => {
       let n: number | null = null;
       await perform(async () => { n = await client.rpc("admin_gift_all", { amount, reason: reason || null }); await claimGifts(); });

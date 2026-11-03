@@ -4,7 +4,7 @@ import SwiftUI
 
 /// How rare a store planet is (sets its price range and badge colour)
 enum Rarity: String, CaseIterable, Identifiable {
-    case common, rare, epic, legendary
+    case common, rare, epic, legendary, mythic
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -14,6 +14,7 @@ enum Rarity: String, CaseIterable, Identifiable {
         case .rare: Color(hex: "#38BDF8")
         case .epic: Color(hex: "#A855F7")
         case .legendary: Color(hex: "#F59E0B")
+        case .mythic: Color(hex: "#F43F5E")
         }
     }
 
@@ -22,7 +23,8 @@ enum Rarity: String, CaseIterable, Identifiable {
         case ..<300: .common
         case ..<550: .rare
         case ..<850: .epic
-        default: .legendary
+        case ..<2500: .legendary
+        default: .mythic
         }
     }
 }
@@ -39,14 +41,22 @@ enum Craft: Hashable {
 }
 
 extension PlanetDef {
-    var rarity: Rarity { Rarity.of(price: price) }
+    /// Gift-only planets (price 0) are as rare as it gets
+    var rarity: Rarity { price == 0 && id.hasPrefix("s6_") ? .mythic : Rarity.of(price: price) }
     var isStoreItem: Bool { price > 0 }
+    /// Shown in the store but not for sale: only the admin can give it
+    var isGiftOnly: Bool { PlanetCatalog.gifts.contains { $0.id == id } }
 }
 
 extension PlanetCatalog {
     /// Store items whose picture is in this build (personal-only art is missing from release builds)
     static var storeAvailable: [PlanetDef] {
         store.filter { p in p.image.map { PlanetPainter.bundleImage($0) != nil } ?? true }
+    }
+
+    /// Gift-only planets shown in the store as locked cards
+    static var giftsAvailable: [PlanetDef] {
+        gifts.filter { p in p.image.map { PlanetPainter.bundleImage($0) != nil } ?? true }
     }
 
     /// Level Pass prizes (levels 10, 20 … 60): animated planets you can't buy
@@ -63,6 +73,12 @@ extension PlanetCatalog {
                   colors: ["#BFDBFE", "#3B82F6", "#14532D"], accent: "#93C5FD", glow: true, price: 0, image: "lv_t5"),
         PlanetDef(id: "lv_t6", name: "Penguin Voyager", level: 1, blurb: "Level 60 prize: the final ride — a penguin rocketing past Mars.",
                   colors: ["#E9D5FF", "#A855F7", "#3B0764"], accent: "#D8B4FE", glow: true, price: 0, image: "lv_t6"),
+    ]
+
+    /// Gift-only planets: not in the store, the admin gives them to members (they appear on "Your Store Planets")
+    static let gifts: [PlanetDef] = [
+        PlanetDef(id: "s6_flagplanet", name: "Flag Planet", level: 1, blurb: "A flag waving on a purple ringed world. One small step! Locked: only the admin can give you this planet.",
+                  colors: ["#E9D5FF", "#7C3AED", "#2E1065"], accent: "#C4B5FD", glow: true, price: 0, image: "s6_flagplanet"),
     ]
 
     /// Store planets you buy with rockets. Kept apart from the 50 level planets.
@@ -279,6 +295,52 @@ extension PlanetCatalog {
                   shape: .burst, colors: ["#FEF9C3", "#F472B6", "#4C1D95"], pattern: .rainbow, accent: "#FFFFFF",
                   ring: .init(color: "#FDE68A", tilt: 12, width: 0.12, double: true), moons: 3,
                   features: [.halo], glow: true, crafts: [.comet, .shuttle, .stars], price: 1000),
+
+        // MARK: Cut-out art (Mythic 2500–3200 are animated or animals; the rest are spread over the tiers by price)
+        PlanetDef(id: "s6_rocketkitty", name: "Rocket Kitty", level: 1, blurb: "A ginger astronaut cat riding its own rocket flames. It moves!",
+                  colors: ["#FED7AA", "#FB923C", "#9A3412"], accent: "#FDBA74", glow: true, price: 2500, image: "s6_rocketkitty"),
+        PlanetDef(id: "s6_neonrocket", name: "Neon Rocket", level: 1, blurb: "A shiny red rocket blasting through a purple glow. It moves!",
+                  colors: ["#E9D5FF", "#A855F7", "#3B0764"], accent: "#D8B4FE", glow: true, price: 2600, image: "s6_neonrocket"),
+        PlanetDef(id: "s6_ringbuddy", name: "Ring Buddy", level: 1, blurb: "A smiling mint planet spinning its orange ring. It moves!",
+                  colors: ["#A7F3D0", "#10B981", "#064E3B"], accent: "#FDBA74", glow: true, price: 2700, image: "s6_ringbuddy"),
+        PlanetDef(id: "s6_floatcat", name: "Floaty Cat", level: 1, blurb: "A very surprised cat drifting in zero gravity. It moves!",
+                  colors: ["#FBCFE8", "#F472B6", "#831843"], accent: "#FBCFE8", glow: true, price: 2800, image: "s6_floatcat"),
+        PlanetDef(id: "s6_spacepup", name: "Space Pup", level: 1, blurb: "A good boy tumbling through space after a bone. It moves!",
+                  colors: ["#BAE6FD", "#38BDF8", "#0C4A6E"], accent: "#7DD3FC", glow: true, price: 2900, image: "s6_spacepup"),
+        PlanetDef(id: "s6_moonchase", name: "Moon Chase", level: 1, blurb: "A little rocket racing round a cratered moon. It moves!",
+                  colors: ["#E0E7FF", "#818CF8", "#1E1B4B"], accent: "#C7D2FE", glow: true, price: 3000, image: "s6_moonchase"),
+        PlanetDef(id: "s6_wavesaturn", name: "Hello Saturn", level: 1, blurb: "A golden ringed planet waving hello. It moves!",
+                  colors: ["#FEF08A", "#F59E0B", "#78350F"], accent: "#FDE047", glow: true, price: 3200, image: "s6_wavesaturn"),
+        PlanetDef(id: "s6_shuttleorbit", name: "Shuttle Orbit", level: 1, blurb: "A little shuttle circling a glowing, wavy green world. It moves!",
+                  colors: ["#A7F3D0", "#10B981", "#064E3B"], accent: "#34D399", glow: true, price: 2750, image: "s6_shuttleorbit"),
+        PlanetDef(id: "s6_moon", name: "Giggle Moon", level: 1, blurb: "A grey crater-cheeked moon that can't stop laughing.",
+                  colors: ["#F1F5F9", "#9CA3AF", "#4B5563"], accent: "#E5E7EB", glow: true, price: 120, image: "s6_moon"),
+        PlanetDef(id: "s6_sandy", name: "Sandy Dune", level: 1, blurb: "Soft sandy stripes and a sleepy little smile.",
+                  colors: ["#FED7AA", "#D6A06B", "#92400E"], accent: "#FDE68A", glow: true, price: 170, image: "s6_sandy"),
+        PlanetDef(id: "s6_lavender", name: "Lavender Swirl", level: 1, blurb: "A marble of lilac and cream swirls.",
+                  colors: ["#E9D5FF", "#A78BFA", "#5B21B6"], accent: "#DDD6FE", glow: true, price: 210, image: "s6_lavender"),
+        PlanetDef(id: "s6_sleepymoon", name: "Sleepy Moon", level: 1, blurb: "Up way too late, but still glowing for you.",
+                  colors: ["#E0F2FE", "#BAE6FD", "#7DD3FC"], accent: "#BAE6FD", glow: true, price: 270, image: "s6_sleepymoon"),
+        PlanetDef(id: "s6_mars", name: "Smiley Mars", level: 1, blurb: "A cheerful red-orange world with a surprised grin.",
+                  colors: ["#FDBA74", "#F97316", "#9A3412"], accent: "#FDBA74", glow: true, price: 320, image: "s6_mars"),
+        PlanetDef(id: "s6_tiger", name: "Tiger Giant", level: 1, blurb: "Orange and gold stripes on a very friendly giant.",
+                  colors: ["#FDE68A", "#F97316", "#B91C1C"], accent: "#FDBA74", glow: true, price: 370, image: "s6_tiger"),
+        PlanetDef(id: "s6_blueberry", name: "Blueberry", level: 1, blurb: "Deep blue swirls, sweet as a blueberry.",
+                  colors: ["#93C5FD", "#3B82F6", "#312E81"], accent: "#93C5FD", glow: true, price: 430, image: "s6_blueberry"),
+        PlanetDef(id: "s6_honey", name: "Honey Gold", level: 1, blurb: "Golden honey ripples and a big happy laugh.",
+                  colors: ["#FEF08A", "#EAB308", "#854D0E"], accent: "#FDE047", glow: true, price: 500, image: "s6_honey"),
+        PlanetDef(id: "s6_mintring", name: "Mint Ring", level: 1, blurb: "A minty striped world hugged by a blue ring.",
+                  colors: ["#99F6E4", "#2DD4BF", "#1D4ED8"], accent: "#5EEAD4", glow: true, price: 560, image: "s6_mintring"),
+        PlanetDef(id: "s6_violetring", name: "Grape Ring", level: 1, blurb: "A purple swirl planet wearing a bright yellow ring.",
+                  colors: ["#E9D5FF", "#A855F7", "#4C1D95"], accent: "#FDE047", glow: true, price: 640, image: "s6_violetring"),
+        PlanetDef(id: "s6_earth", name: "Wink Earth", level: 1, blurb: "Green lands, blue oceans and a friendly wink.",
+                  colors: ["#BFDBFE", "#3B82F6", "#14532D"], accent: "#86EFAC", glow: true, price: 720, image: "s6_earth"),
+        PlanetDef(id: "s6_star", name: "Star Buddy", level: 1, blurb: "A chubby yellow star with the biggest smile.",
+                  colors: ["#FEF9C3", "#FACC15", "#A16207"], accent: "#FDE047", glow: true, price: 800, image: "s6_star"),
+        PlanetDef(id: "s6_sun", name: "Sunny Smile", level: 1, blurb: "The happiest sun in the galaxy, rays and all.",
+                  colors: ["#FEF9C3", "#FB923C", "#C2410C"], accent: "#FDBA74", glow: true, price: 880, image: "s6_sun"),
+        PlanetDef(id: "s6_orbitrider", name: "Orbit Rider", level: 1, blurb: "An astronaut at the controls of a blue triple-engine rocket. It moves!",
+                  colors: ["#BAE6FD", "#0284C7", "#082F49"], accent: "#38BDF8", glow: true, price: 3050, image: "s6_orbitrider"),
     ]
 }
 
@@ -531,8 +593,10 @@ extension PlanetPainter {
         let frames = p.image.map(Self.frames) ?? []
         // Animated pictures play at about 8 frames a second
         let img = frames.isEmpty ? img : frames[Int(Date().timeIntervalSinceReferenceDate * 8) % frames.count]
+        // The cut-out illustrations (s6_…) are smooth, not pixel art
+        let smooth = (p.image ?? "").hasPrefix("s6_")
         guard p.image == "ufo" else {
-            ctx.draw(Image(nsImage: img).interpolation(.none), in: rect)
+            ctx.draw(Image(nsImage: img).interpolation(smooth ? .high : .none), in: rect)
             return
         }
         // Tractor beam (UFO only)

@@ -2,6 +2,7 @@ import { useFightClub } from "../lib/fightclub";
 import { useEffect, useRef, useState } from "react";
 import { Avatar, Modal } from "../components";
 import { useAccount } from "../lib/account";
+import { GIFTS } from "../lib/storePlanets";
 import { useStore } from "../lib/store";
 import abduction from "../assets/login-abduction.png";
 import cat from "../assets/login-cat.png";
@@ -161,6 +162,8 @@ function BossHours() {
   const fc = useFightClub();
   const [h, setH] = useState(fc.hoursPerMember);
   useEffect(() => setH(fc.hoursPerMember), [fc.hoursPerMember]);
+  const [prize, setPrize] = useState(fc.prizePerWeek);
+  useEffect(() => setPrize(fc.prizePerWeek), [fc.prizePerWeek]);
   return (
     <div className="card" style={{ padding: 12 }}>
       <b>💥 World Boss health</b>
@@ -168,6 +171,10 @@ function BossHours() {
         <span className="small">hours per member</span><span className="spacer" />
         <button className="btn small primary" disabled={h === fc.hoursPerMember} onClick={() => fc.setHoursPerMember(h)}>Save</button></div>
       <div className="small muted">Applies from the next week's monster.</div>
+      <div className="row" style={{ marginTop: 8 }}><input type="number" min={50} max={100000} step={50} value={prize} style={{ width: 90 }} onChange={(e) => setPrize(Math.max(50, Math.min(100000, Math.round(+e.target.value) || 50)))} />
+        <span className="small">🚀 prize</span><span className="spacer" />
+        <button className="btn small primary" disabled={prize === fc.prizePerWeek} onClick={() => fc.setPrizePerWeek(prize)}>Save</button></div>
+      <div className="small muted">Shared by damage done. Applies from next week's monster.</div>
     </div>
   );
 }
@@ -176,6 +183,7 @@ function BossHours() {
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const a = useAccount();
   const [giftNote, setGiftNote] = useState<string | null>(null);
+  useEffect(() => { a.loadPlanetHolders(); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const pending = a.users.filter((u) => !u.approved), members = a.users.filter((u) => u.approved);
   const ago = (s?: string | null) => (s ? new Date(s).toLocaleString() : "—");
   return (
@@ -192,9 +200,9 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
           const n = Math.round(Number(v));
           if (!v || !(n >= 1 && n <= 100000)) return;
           const reason = prompt("Message they will see (optional):", "") ?? "";
-          if (!confirm(`Send ${n} 🚀 to ALL ${members.length} members?`)) return;
+          if (!confirm(`Send a gift box with ${n} 🚀 to ALL ${members.length} members? The rockets are added only when they open it.`)) return;
           const got = await a.giftEveryone(n, reason.trim());
-          if (got != null) setGiftNote(`Sent ${n} 🚀 to ${got} members.`);
+          if (got != null) setGiftNote(`Sent a gift box with ${n} 🚀 to ${got} members.`);
         }}>🚀 Gift everyone…</button>
       </div>
       <div className="small" style={{ fontWeight: 800, letterSpacing: 1, color: "var(--faint)", marginTop: 8 }}>WAITING FOR APPROVAL</div>
@@ -218,10 +226,16 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <button className="btn small" onClick={async () => {
-              const v = prompt(`How many rockets for @${u.username ?? u.name}? (negative takes them back)`, "100");
+              const v = prompt(`How many rockets for @${u.username ?? u.name}? (a positive amount arrives as a gift box, a negative one takes rockets back)`, "100");
               const n = Math.round(Number(v));
-              if (v && n && await a.giftRockets(u.id, n)) setGiftNote(`Sent ${n} 🚀 to @${u.username ?? u.name}.`);
+              if (v && n && await a.giftRockets(u.id, n)) setGiftNote(n > 0 ? `Sent a gift box with ${n} 🚀 to @${u.username ?? u.name}.` : `Took back ${-n} 🚀 from @${u.username ?? u.name}.`);
             }}>🚀 Give rockets</button>
+            {GIFTS.map((g) => {
+              const has = (a.planetHolders[g.id] ?? []).includes(u.id.toLowerCase());
+              return <button key={g.id} className="btn small" disabled={has} title={has ? "They already have it" : `Send ${g.name} in a gift box`}
+                onClick={async () => { if (await a.giftPlanet(u.id, g.id)) setGiftNote(`Sent a gift box with ${g.name} to @${u.username ?? u.name}.`); }}>
+                🎁 {has ? `${g.name} — already has it` : `Give ${g.name}`}</button>;
+            })}
             {!u.is_admin && <>
             <button className="btn small" onClick={async () => { const p = await a.resetPassword(u.id); if (p) prompt(`New password for @${u.username ?? u.name}. Send it to them privately — they can change it in their profile.`, p); }}>Reset password</button>
             <button className="btn small danger" onClick={() => confirm(`Remove @${u.username ?? u.name}? Their profile, friendships and backup are removed.`) && a.reject(u.id)}>Remove</button>

@@ -1,4 +1,4 @@
-import { REWARDS, STORE, type Craft } from "./storePlanets";
+import { GIFTS, REWARDS, STORE, type Craft } from "./storePlanets";
 // The 50 planets — same catalogue and look as the Mac app, drawn on an HTML canvas.
 
 type Shape = "circle" | "heart" | "star" | "cube" | "donut" | "diamond" | "hexagon" | "egg" | "cloud" | "flower"
@@ -38,11 +38,11 @@ export const PLANETS: PlanetDef[] = [
   P("rust", "Rust Rover", 2, "Red dust, dry valleys — someone planted a flag.", { colors: ["#FDBA74", "#C2410C", "#7C2D12"], pattern: "craters", accent: "#431407", moons: 1, features: ["flag"] }),
   P("citrus", "Citrus", 2, "Smells like oranges. Probably.", { colors: ["#FED7AA", "#F97316", "#C2410C"], pattern: "dots", accent: "#FFEDD5", features: ["leaf"] }),
 
-  P("dino", "Dino Prime", 3, "A dinosaur egg the size of a planet. It's hatching!", { shape: "egg", colors: ["#ECFCCB", "#A3E635", "#4D7C0F"], pattern: "spots", accent: "#3F6212", emoji: "🦖" }),
+  P("dino", "Dino Prime", 3, "A dinosaur egg the size of a planet. It's hatching!", { shape: "egg", colors: ["#ECFCCB", "#A3E635", "#4D7C0F"], pattern: "spots", accent: "#3F6212", emoji: "art:dino" }),
   P("donut", "Donut World", 3, "A planet with a hole. Sprinkles included.", { shape: "donut", colors: ["#FBCFE8", "#F472B6", "#BE185D"], pattern: "sprinkles", accent: "#FDE047" }),
   P("choco", "Choco Moon", 3, "A chocolate mushroom with candy spots.", { shape: "mushroom", colors: ["#D6A06B", "#78350F", "#3B1A08"], pattern: "spots", accent: "#FDE68A" }),
   P("aurora", "Aurora", 3, "Northern lights dance under a golden halo.", { colors: ["#A78BFA", "#6D28D9", "#2E1065"], pattern: "waves", accent: "#6EE7B7", features: ["halo"], glow: true }),
-  P("honey", "Honeycomb", 3, "A hexagon hive, buzzing and golden.", { shape: "hexagon", colors: ["#FEF08A", "#EAB308", "#854D0E"], pattern: "hexgrid", accent: "#713F12", emoji: "🐝" }),
+  P("honey", "Honeycomb", 3, "A hexagon hive, buzzing and golden.", { shape: "hexagon", colors: ["#FEF08A", "#EAB308", "#854D0E"], pattern: "hexgrid", accent: "#713F12", emoji: "art:bee" }),
 
   P("kitty", "Kitty Planet", 4, "Purrs when you study.", { colors: ["#FED7AA", "#FB923C", "#9A3412"], pattern: "stripes", accent: "#7C2D12", features: ["catEars", "face", "whiskers"] }),
   P("pizza", "Pizza Planet", 4, "Extra cheese, extra gravity.", { colors: ["#FEF08A", "#FBBF24", "#B45309"], pattern: "pepperoni", accent: "#DC2626", ring: { color: "#D97706", tilt: -8, width: 0.2 } }),
@@ -54,40 +54,40 @@ export const PLANETS: PlanetDef[] = [
   P("disco", "Disco Ball", 5, "Every night is party night. Shades on.", { colors: ["#F8FAFC", "#94A3B8", "#334155"], pattern: "checker", accent: "#E0E7FF", features: ["sunglasses"], glow: true }),
   P("oceaneye", "Ocean Eye", 5, "It's watching you study. Good.", { colors: ["#99F6E4", "#0D9488", "#134E4A"], pattern: "waves", accent: "#CCFBF1", features: ["eye"] }),
   P("spiral", "Spiral", 5, "A tiny galaxy wrapped in a planet.", { colors: ["#C4B5FD", "#7C3AED", "#1E1B4B"], pattern: "swirl", accent: "#F0ABFC", ring: { color: "#E9D5FF", tilt: 30, width: 0.1, double: true } }),
-  P("coral", "Coral Bloom", 5, "A flower world where fish swim in the petals.", { shape: "flower", colors: ["#FECDD3", "#FB7185", "#BE123C"], pattern: "dots", accent: "#FEF3C7", emoji: "🐠" }),
+  P("coral", "Coral Bloom", 5, "A flower world where fish swim in the petals.", { shape: "flower", colors: ["#FECDD3", "#FB7185", "#BE123C"], pattern: "dots", accent: "#FEF3C7", emoji: "art:fish" }),
 
-  P("trex", "Stego Rock", 6, "Rocky, spiky, and very old.", { colors: ["#D6D3D1", "#78716C", "#292524"], pattern: "craters", accent: "#1C1917", emoji: "🦕", features: ["spikes"] }),
+  P("trex", "Stego Rock", 6, "Rocky, spiky, and very old.", { colors: ["#D6D3D1", "#78716C", "#292524"], pattern: "craters", accent: "#1C1917", emoji: "art:stego", features: ["spikes"] }),
   P("octo", "Octo World", 6, "Eight arms, one ocean, many hugs.", { colors: ["#C4B5FD", "#8B5CF6", "#4C1D95"], pattern: "spots", accent: "#DDD6FE", features: ["tentacles", "face"] }),
   P("mushroom", "Mushroom Kingdom", 6, "Red cap, white spots, good vibes.", { shape: "mushroom", colors: ["#FCA5A5", "#DC2626", "#7F1D1D"], pattern: "spots", accent: "#FFFFFF", features: ["face"] }),
   P("candycane", "Candy Cane", 6, "Peppermint fresh, all year long.", { colors: ["#FFFFFF", "#FECACA", "#F87171"], pattern: "stripes", accent: "#DC2626", ring: { color: "#86EFAC", tilt: -25, width: 0.1 }, features: ["bow"] }),
   P("crystal", "Crystal Shard", 6, "Shines in every colour of light.", { shape: "diamond", colors: ["#CFFAFE", "#22D3EE", "#0E7490"], pattern: "rainbow", accent: "#FFFFFF", glow: true }),
 
-  P("robo", "Robo Core", 7, "Beep boop. Fully automated.", { shape: "cube", colors: ["#E2E8F0", "#64748B", "#1E293B"], pattern: "checker", accent: "#38BDF8", emoji: "🤖", features: ["antenna"] }),
+  P("robo", "Robo Core", 7, "Beep boop. Fully automated.", { shape: "cube", colors: ["#E2E8F0", "#64748B", "#1E293B"], pattern: "checker", accent: "#38BDF8", emoji: "art:robot", features: ["antenna"] }),
   P("ghost", "Ghostly", 7, "Boo! (It's friendly.)", { shape: "ghost", colors: ["#FFFFFF", "#E0E7FF", "#A5B4FC"], accent: "#C7D2FE", features: ["face"], glow: true }),
   P("pumpkin", "Pumpkin", 7, "Spooky season, forever.", { colors: ["#FDBA74", "#EA580C", "#7C2D12"], pattern: "bands", accent: "#9A3412", features: ["face", "stem"] }),
   P("twinvolcano", "Twin Volcano", 7, "A lava pyramid with two moons and zero chill.", { shape: "pyramid", colors: ["#57534E", "#292524", "#0C0A09"], pattern: "cracks", accent: "#EF4444", moons: 2, glow: true }),
   P("rainbow", "Rainbow", 7, "All the colours, all the time.", { colors: ["#FFFFFF", "#E0F2FE", "#BAE6FD"], pattern: "rainbow", accent: "#FFFFFF", ring: { color: "#FFFFFF", tilt: 12, width: 0.08 }, features: ["face"] }),
 
   P("blackhole", "Black Hole", 8, "Swallows distractions whole.", { colors: ["#1F2937", "#030712", "#000000"], accent: "#F59E0B", ring: { color: "#FB923C", tilt: -10, width: 0.24, double: true }, glow: true }),
-  P("snowglobe", "Snow Globe", 8, "A snowman lives inside. He's very happy.", { colors: ["#F0F9FF", "#BAE6FD", "#38BDF8"], pattern: "polarCaps", accent: "#FFFFFF", emoji: "⛄️" }),
+  P("snowglobe", "Snow Globe", 8, "A snowman lives inside. He's very happy.", { colors: ["#F0F9FF", "#BAE6FD", "#38BDF8"], pattern: "polarCaps", accent: "#FFFFFF", emoji: "art:snowman" }),
   P("dragonegg", "Dragon Egg", 8, "Something with wings is about to hatch…", { shape: "egg", colors: ["#6EE7B7", "#059669", "#064E3B"], pattern: "hexgrid", accent: "#FDE047", features: ["spikes", "wings"], glow: true }),
-  P("whale", "Cosmic Whale", 8, "Swims through space, singing.", { colors: ["#BFDBFE", "#3B82F6", "#1E3A8A"], pattern: "waves", accent: "#DBEAFE", moons: 1, emoji: "🐳" }),
+  P("whale", "Cosmic Whale", 8, "Swims through space, singing.", { colors: ["#BFDBFE", "#3B82F6", "#1E3A8A"], pattern: "waves", accent: "#DBEAFE", moons: 1, emoji: "art:whale" }),
   P("goldchild", "Golden Gear", 8, "The clockwork that keeps time moving.", { shape: "gear", colors: ["#FEF3C7", "#F59E0B", "#78350F"], pattern: "swirl", accent: "#FFFBEB", glow: true }),
 
   P("royale", "Saturn Royale", 9, "Rings fit for a king.", { colors: ["#E9D5FF", "#A855F7", "#581C87"], pattern: "bands", accent: "#F3E8FF", ring: { color: "#FDE047", tilt: -16, width: 0.14, double: true }, features: ["crown"] }),
   P("neongrid", "Neon Pyramid", 9, "Straight out of a synthwave song.", { shape: "pyramid", colors: ["#312E81", "#1E1B4B", "#020617"], pattern: "checker", accent: "#F0ABFC", glow: true }),
   P("cheese", "Moon Cheese", 9, "The rumours were true.", { shape: "crescent", colors: ["#FEF08A", "#FACC15", "#CA8A04"], pattern: "craters", accent: "#A16207", features: ["face"] }),
-  P("alien", "Alien Hive", 9, "We come in peace. Mostly.", { colors: ["#BBF7D0", "#22C55E", "#14532D"], pattern: "dots", accent: "#DCFCE7", emoji: "👽", features: ["antenna"] }),
-  P("ufo", "UFO Station", 9, "Parking spot for flying saucers.", { colors: ["#E2E8F0", "#94A3B8", "#475569"], pattern: "bands", accent: "#22D3EE", ring: { color: "#67E8F9", tilt: 0, width: 0.1 }, emoji: "🛸" }),
+  P("alien", "Alien Hive", 9, "We come in peace. Mostly.", { colors: ["#BBF7D0", "#22C55E", "#14532D"], pattern: "dots", accent: "#DCFCE7", emoji: "art:alien", features: ["antenna"] }),
+  P("ufo", "UFO Station", 9, "Parking spot for flying saucers.", { colors: ["#E2E8F0", "#94A3B8", "#475569"], pattern: "bands", accent: "#22D3EE", ring: { color: "#67E8F9", tilt: 0, width: 0.1 }, emoji: "art:ufo" }),
 
-  P("phoenix", "Phoenix", 10, "Reborn from fire every week.", { colors: ["#FDE047", "#F97316", "#991B1B"], pattern: "swirl", accent: "#FEF08A", emoji: "🔥", features: ["fireWings"], glow: true }),
+  P("phoenix", "Phoenix", 10, "Reborn from fire every week.", { colors: ["#FDE047", "#F97316", "#991B1B"], pattern: "swirl", accent: "#FEF08A", emoji: "art:flame", features: ["fireWings"], glow: true }),
   P("unicorn", "Unicorn Dream", 10, "A pastel cloud with a magic horn.", { shape: "cloud", colors: ["#FBCFE8", "#C4B5FD", "#93C5FD"], pattern: "rainbow", accent: "#FFFFFF", features: ["unicornHorn", "face"], glow: true }),
   P("diamondheart", "Diamond Heart", 10, "Unbreakable, like your focus.", { shape: "heart", colors: ["#E0F2FE", "#7DD3FC", "#0369A1"], pattern: "checker", accent: "#FFFFFF", features: ["crown"], glow: true }),
   P("infinity", "Infinity Loop", 10, "Study, sleep, repeat.", { shape: "donut", colors: ["#F0ABFC", "#A855F7", "#3B0764"], pattern: "swirl", accent: "#FDF4FF", moons: 2, features: ["halo"], glow: true }),
   P("claude", "Claude's Cosmos", 10, "The final reward. ✨", { shape: "burst", colors: ["#FED7AA", "#D97757", "#7C2D12"], pattern: "swirl", accent: "#FFEDD5", ring: { color: "#FED7AA", tilt: -20, width: 0.12, double: true }, moons: 3, features: ["face"], glow: true }),
 ];
 
-export const planetByID = (id?: string | null) => PLANETS.find((p) => p.id === id) ?? STORE.find((p) => p.id === id) ?? REWARDS.find((p) => p.id === id);
+export const planetByID = (id?: string | null) => PLANETS.find((p) => p.id === id) ?? STORE.find((p) => p.id === id) ?? REWARDS.find((p) => p.id === id) ?? GIFTS.find((p) => p.id === id);
 export const isStorePlanet = (id?: string | null) => STORE.some((p) => p.id === id);
 
 // ---------- Painter ----------
@@ -333,8 +333,9 @@ function behind(ctx: Ctx, f: Feature, c: number, r: number, c1: string, accent: 
       }
       break;
     case "tree":
-      ctx.fillStyle = "#78350F"; ctx.fillRect(c - r * 0.1, c - r * 1.45, r * 0.2, r * 0.6);
-      for (const [dx, dy, rr] of [[0, -1.55, 0.38], [-0.28, -1.38, 0.28], [0.28, -1.38, 0.28]]) { ellipse(ctx, c + r * dx, c + r * dy, r * rr, r * rr); ctx.fillStyle = "#22C55E"; ctx.fill(); }
+      // the whole tree has to fit inside the picture (its top edge is 1.67 r above the centre)
+      ctx.fillStyle = "#78350F"; ctx.fillRect(c - r * 0.08, c - r * 1.28, r * 0.16, r * 0.4);
+      for (const [dx, dy, rr] of [[0, -1.36, 0.27], [-0.2, -1.22, 0.2], [0.2, -1.22, 0.2]]) { ellipse(ctx, c + r * dx, c + r * dy, r * rr, r * rr); ctx.fillStyle = "#22C55E"; ctx.fill(); }
       break;
     case "volcanoes":
       for (const [dx, h] of [[-0.45, 0.45], [0.35, 0.6]]) {
@@ -430,7 +431,8 @@ export function paintPlanet(ctx: Ctx, p: PlanetDef, size: number, phase = 0) {
   ellipse(ctx, c - r * 0.35, c - r * 0.55, r * 0.27, r * 0.17); ctx.fillStyle = "rgba(255,255,255,0.28)"; ctx.fill();
   ctx.restore();
 
-  if (p.emoji) {
+  if (p.emoji?.startsWith("art:")) drawArt(ctx, p.emoji.slice(4), c, r, phase);
+  else if (p.emoji) {
     const g = ctx.createRadialGradient(c, c, 0, c, c, r * 0.65); g.addColorStop(0, "rgba(255,255,255,0.45)"); g.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = g; ellipse(ctx, c, c, r * 0.62, r * 0.62); ctx.fill();
     ctx.save(); ctx.font = `${r * 1.1}px "Segoe UI Emoji","Apple Color Emoji",sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -601,6 +603,10 @@ export function registerPicture(name: string, url: string) {
   const img = new Image(); img.src = url; PICTURES[name] = img;
 }
 
+/** Store items whose picture is in this build (personal art is missing from builds made without assets/local) */
+export const hasPicture = (p: PlanetDef) => !p.image || !!PICTURES[p.image] || !!PICTURES[`${p.image}_0`];
+export const storeAvailable = () => STORE.filter(hasPicture);
+
 /** Call `cb` once the planet's picture (every frame of it) has loaded; returns a function that cancels it */
 export function onPictureLoad(p: PlanetDef, cb: () => void): () => void {
   if (!p.image) return () => {};
@@ -623,7 +629,8 @@ function paintPicture(ctx: Ctx, p: PlanetDef, c: number, r: number, phase: numbe
   let n = 0; while (PICTURES[`${p.image}_${n}`]) n++;
   const img = n ? PICTURES[`${p.image}_${Math.floor(performance.now() / 125) % n}`] : PICTURES[p.image!];
   if (img?.complete && img.naturalWidth) {
-    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, c - side / 2, c - side / 2 + bob, side, side); ctx.restore();
+    // the cut-out illustrations (s6_…) are smooth, not pixel art
+    ctx.save(); ctx.imageSmoothingEnabled = (p.image ?? "").startsWith("s6_"); ctx.drawImage(img, c - side / 2, c - side / 2 + bob, side, side); ctx.restore();
   }
 }
 
@@ -674,8 +681,9 @@ export function paintSun(ctx: Ctx, sun: string, cx: number, cy: number, r: numbe
   };
   if (sun === "binary") {
     const a = t * 0.8;
-    star(cx + Math.cos(a) * r * 0.9, cy + Math.sin(a) * r * 0.45, r * 0.7);
-    star(cx - Math.cos(a) * r * 0.9, cy - Math.sin(a) * r * 0.45, r * 0.55);
+    // the pair together spans about the same width as a single star of radius r
+    star(cx + Math.cos(a) * r * 0.42, cy + Math.sin(a) * r * 0.21, r * 0.6);
+    star(cx - Math.cos(a) * r * 0.42, cy - Math.sin(a) * r * 0.21, r * 0.48);
   } else if (sun === "pulsar") {
     for (const k of [0, Math.PI]) {
       const a = t * 1.6 + k;
@@ -685,6 +693,162 @@ export function paintSun(ctx: Ctx, sun: string, cx: number, cy: number, r: numbe
       const g = ctx.createLinearGradient(cx, cy, cx + Math.cos(a) * r * 4, cy + Math.sin(a) * r * 4);
       g.addColorStop(0, rgba(s.colors[1], 0.8)); g.addColorStop(1, rgba(s.colors[1], 0)); ctx.fillStyle = g; ctx.fill();
     }
-    star(cx, cy, r * 0.65);
+    star(cx, cy, r);
   } else star(cx, cy, r);
+}
+
+
+// ---------- Hand-drawn creatures ----------
+// Planets with a little character on them are drawn here (instead of a system emoji), in the same flat style as the rest.
+// Coordinates are in units of the planet radius, measured from its centre — same drawings as the Mac app.
+
+export function drawArt(ctx: Ctx, key: string, c: number, r: number, phase: number) {
+  const X = (x: number) => c + r * x, Y = (y: number) => c + r * y;
+  const INK = "rgba(0,0,0,0.38)", LW = r * 0.035;
+  const ell = (x: number, y: number, rx: number, ry: number) => { ctx.beginPath(); ctx.ellipse(X(x), Y(y), r * rx, r * ry, 0, 0, TAU); };
+  const tri = (a: [number, number], b: [number, number], d: [number, number]) => { ctx.beginPath(); ctx.moveTo(X(a[0]), Y(a[1])); ctx.lineTo(X(b[0]), Y(b[1])); ctx.lineTo(X(d[0]), Y(d[1])); ctx.closePath(); };
+  const rrect = (x: number, y: number, w: number, h: number, rad: number) => { ctx.beginPath(); ctx.roundRect(X(x), Y(y), r * w, r * h, r * rad); };
+  /** fill the current path (and outline it) */
+  const solid = (fill: string | CanvasGradient, line = true) => { ctx.fillStyle = fill; ctx.fill(); if (line) { ctx.strokeStyle = INK; ctx.lineWidth = LW; ctx.stroke(); } };
+  const dot = (x: number, y: number, rad: number, color: string) => { ell(x, y, rad, rad); ctx.fillStyle = color; ctx.fill(); };
+  const line = (pts: [number, number][], color: string, width: number) => {
+    ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
+    ctx.strokeStyle = color; ctx.lineWidth = r * width; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+  };
+  const curve = (x0: number, y0: number, cx1: number, cy1: number, x1: number, y1: number, color: string, width: number) => {
+    ctx.beginPath(); ctx.moveTo(X(x0), Y(y0)); ctx.quadraticCurveTo(X(cx1), Y(cy1), X(x1), Y(y1));
+    ctx.strokeStyle = color; ctx.lineWidth = r * width; ctx.lineCap = "round"; ctx.stroke();
+  };
+  ctx.save();
+  switch (key) {
+    case "dino": {
+      for (const x of [-0.3, 0, 0.3]) { tri([x - 0.13, -0.42], [x, -0.8], [x + 0.13, -0.42]); solid("#15803D"); }
+      ell(0, -0.02, 0.64, 0.5); solid("#65A30D");
+      ell(0, 0.22, 0.46, 0.26); solid("#84CC16");
+      for (const x of [-0.28, 0.28]) { dot(x, -0.14, 0.15, "#FFF"); dot(x + (x < 0 ? 0.03 : -0.03), -0.12, 0.075, "#1C1917"); }
+      dot(-0.12, 0.14, 0.035, "#365314"); dot(0.12, 0.14, 0.035, "#365314");
+      curve(-0.22, 0.28, 0, 0.42, 0.22, 0.28, "#365314", 0.05);
+      line([[-0.9, 0.55], [-0.62, 0.42], [-0.42, 0.62], [-0.2, 0.44], [0, 0.62], [0.2, 0.44], [0.42, 0.62], [0.62, 0.42], [0.9, 0.55]], "rgba(255,255,255,0.85)", 0.05);
+      break;
+    }
+    case "bee": {
+      ctx.translate(c, c); ctx.rotate(-16 * Math.PI / 180); ctx.translate(-c, -c);
+      ell(-0.08, -0.42, 0.2, 0.34); solid("rgba(255,255,255,0.85)");
+      ell(0.22, -0.48, 0.2, 0.34); solid("rgba(255,255,255,0.85)");
+      ell(0.02, 0.06, 0.58, 0.36); ctx.fillStyle = "#FACC15"; ctx.fill();
+      ctx.save(); ell(0.02, 0.06, 0.58, 0.36); ctx.clip();
+      for (const x of [-0.18, 0.14, 0.44]) { rrect(x - 0.07, -0.4, 0.14, 0.9, 0.02); ctx.fillStyle = "#1F2937"; ctx.fill(); }
+      ctx.restore();
+      ell(0.02, 0.06, 0.58, 0.36); ctx.strokeStyle = INK; ctx.lineWidth = LW; ctx.stroke();
+      ell(-0.56, 0.06, 0.22, 0.22); solid("#1F2937");
+      ell(-0.62, 0, 0.06, 0.07); ctx.fillStyle = "#FFF"; ctx.fill(); ell(-0.5, 0, 0.06, 0.07); ctx.fillStyle = "#FFF"; ctx.fill();
+      tri([0.58, 0], [0.88, 0.07], [0.58, 0.14]); solid("#1F2937");
+      curve(-0.6, -0.14, -0.7, -0.2, -0.78, -0.42, "#1F2937", 0.04);
+      break;
+    }
+    case "fish": {
+      const hop = Math.sin(phase * TAU) * 0.04;
+      tri([0.36, hop], [0.82, -0.3 + hop], [0.82, 0.3 + hop]); solid("#F97316");
+      tri([-0.25, -0.28 + hop], [0.05, -0.55 + hop], [0.22, -0.26 + hop]); solid("#F97316");
+      ell(-0.06, hop, 0.54, 0.36); ctx.fillStyle = "#FB923C"; ctx.fill();
+      ctx.save(); ell(-0.06, hop, 0.54, 0.36); ctx.clip();
+      for (const x of [-0.12, 0.2]) { rrect(x - 0.05, -0.4, 0.1, 0.8, 0.03); ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.fill(); }
+      ctx.restore();
+      ell(-0.06, hop, 0.54, 0.36); ctx.strokeStyle = INK; ctx.lineWidth = LW; ctx.stroke();
+      dot(-0.34, -0.07 + hop, 0.085, "#FFF"); dot(-0.36, -0.07 + hop, 0.04, "#1C1917");
+      for (const [bx, by, br] of [[-0.7, -0.4, 0.08], [-0.82, -0.62, 0.05], [-0.62, -0.7, 0.04]]) { ell(bx, by + hop, br, br); ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = r * 0.03; ctx.stroke(); }
+      break;
+    }
+    case "stego": {
+      [-0.5, -0.28, -0.06, 0.16, 0.38].forEach((x, i) => { const h = 0.34 - 0.04 * Math.abs(i - 2); tri([x - 0.12, -0.05], [x, -0.05 - h - 0.1], [x + 0.12, -0.05]); solid("#F59E0B"); });
+      for (const x of [-0.44, -0.14, 0.24, 0.52]) { ell(x, 0.55, 0.11, 0.2); solid("#57534E"); }
+      tri([-0.62, 0], [-1.05, 0.3], [-0.6, 0.3]); solid("#57534E");
+      for (const [x, y] of [[-0.9, 0.12], [-0.78, 0.2]]) { tri([x - 0.05, y + 0.06], [x, y - 0.12], [x + 0.05, y + 0.06]); solid("#F59E0B", false); }
+      ell(0, 0.22, 0.7, 0.36); solid("#6B665F");
+      ell(0.78, 0.24, 0.22, 0.16); solid("#6B665F");
+      dot(0.84, 0.2, 0.04, "#FFF"); dot(0.85, 0.2, 0.02, "#1C1917");
+      break;
+    }
+    case "robot": {
+      rrect(-0.9, -0.18, 0.2, 0.4, 0.05); solid("#94A3B8"); rrect(0.7, -0.18, 0.2, 0.4, 0.05); solid("#94A3B8");
+      rrect(-0.72, -0.6, 1.44, 1.2, 0.24); solid("#E2E8F0");
+      for (const x of [-0.3, 0.3]) {
+        ctx.save(); ctx.shadowColor = "rgba(34,211,238,0.9)"; ctx.shadowBlur = r * 0.12; rrect(x - 0.17, -0.32, 0.34, 0.34, 0.08); ctx.fillStyle = "#22D3EE"; ctx.fill(); ctx.restore();
+        rrect(x - 0.17, -0.32, 0.34, 0.34, 0.08); solid("#0891B2"); dot(x + 0.04, -0.2, 0.06, "#FFF");
+      }
+      rrect(-0.34, 0.18, 0.68, 0.24, 0.06); solid("#334155");
+      for (const x of [-0.17, 0, 0.17]) line([[x, 0.22], [x, 0.38]], "#CBD5E1", 0.035);
+      for (const [x, y] of [[-0.58, -0.46], [0.58, -0.46], [-0.58, 0.46], [0.58, 0.46]]) dot(x, y, 0.045, "#94A3B8");
+      break;
+    }
+    case "snowman": {
+      ell(0, 0.82, 0.78, 0.17); solid("#E0F2FE", false);
+      ell(0, 0.46, 0.38, 0.36); solid("#FFF"); ell(0, 0, 0.29, 0.28); solid("#FFF"); ell(0, -0.4, 0.21, 0.21); solid("#FFF");
+      rrect(-0.15, -0.9, 0.3, 0.3, 0.03); solid("#1F2937"); ell(0, -0.6, 0.27, 0.06); solid("#1F2937");
+      rrect(-0.22, -0.2, 0.44, 0.09, 0.04); solid("#DC2626");
+      tri([0.02, -0.4], [0.34, -0.35], [0.02, -0.3]); solid("#F97316");
+      dot(-0.08, -0.46, 0.028, "#1F2937"); dot(0.1, -0.46, 0.028, "#1F2937");
+      for (const y of [0.06, 0.2, 0.38]) dot(0, y, 0.03, "#1F2937");
+      line([[-0.28, 0], [-0.66, -0.2]], "#78350F", 0.04); line([[0.28, 0], [0.66, -0.2]], "#78350F", 0.04);
+      for (const [x, y] of [[-0.7, -0.5], [0.65, -0.62], [-0.55, 0.2], [0.72, 0.1], [-0.3, -0.8], [0.4, -0.35]]) dot(x, y, 0.035, "rgba(255,255,255,0.9)");
+      break;
+    }
+    case "whale": {
+      const sway = Math.sin(phase * TAU) * 0.03;
+      tri([-0.5, 0.12], [-0.98, -0.24 + sway], [-0.72, 0.18]); solid("#BAE6FD");
+      tri([-0.5, 0.18], [-1.0, 0.1 + sway], [-0.6, 0.34]); solid("#BAE6FD");
+      ell(0.02, 0.18, 0.72, 0.4); ctx.fillStyle = "#DBEAFE"; ctx.fill();
+      ctx.save(); ell(0.02, 0.18, 0.72, 0.4); ctx.clip(); ell(0.06, 0.4, 0.8, 0.26); ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fill(); ctx.restore();
+      ell(0.02, 0.18, 0.72, 0.4); ctx.strokeStyle = INK; ctx.lineWidth = LW; ctx.stroke();
+      dot(0.42, 0.08, 0.05, "#1E3A8A");
+      curve(0.5, 0.26, 0.4, 0.34, 0.24, 0.3, "#1E3A8A", 0.03);
+      for (const dx of [-1, 1]) { curve(0.18, -0.2, 0.18 + dx * 0.06, -0.62, 0.18 + dx * 0.34, -0.62, "rgba(255,255,255,0.95)", 0.05); dot(0.18 + dx * 0.36, -0.55, 0.04, "#FFF"); }
+      break;
+    }
+    case "alien": {
+      ctx.beginPath(); ctx.ellipse(X(0), Y(-0.04), r * 0.6, r * 0.66, 0, 0, TAU); ctx.moveTo(X(0.38), Y(0.3)); ctx.ellipse(X(0), Y(0.3), r * 0.38, r * 0.42, 0, 0, TAU);
+      solid("#BEF264");
+      for (const x of [-1, 1]) {
+        ctx.save(); ctx.translate(X(x * 0.28), Y(-0.06)); ctx.rotate(-22 * x * Math.PI / 180);
+        ctx.beginPath(); ctx.ellipse(0, 0, r * 0.25, r * 0.14, 0, 0, TAU); ctx.fillStyle = "#0F172A"; ctx.fill();
+        ctx.beginPath(); ctx.ellipse(-r * 0.09, -r * 0.03, r * 0.05, r * 0.035, 0, 0, TAU); ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.fill();
+        ctx.restore();
+      }
+      dot(-0.04, 0.2, 0.018, "#365314"); dot(0.04, 0.2, 0.018, "#365314");
+      curve(-0.1, 0.42, 0, 0.47, 0.1, 0.42, "#365314", 0.035);
+      break;
+    }
+    case "ufo": {
+      const bob = Math.sin(phase * TAU) * 0.05;
+      const bg = ctx.createLinearGradient(X(0), Y(0.2), X(0), Y(0.95)); bg.addColorStop(0, "rgba(103,232,249,0.45)"); bg.addColorStop(1, "rgba(103,232,249,0)");
+      tri([-0.22, 0.2 + bob], [0.22, 0.2 + bob], [0.6, 0.95]); ctx.fillStyle = bg; ctx.fill();
+      ell(0, -0.1 + bob, 0.3, 0.3); solid("rgba(165,243,252,0.9)");
+      dot(0, -0.1 + bob, 0.1, "#86EFAC"); dot(-0.04, -0.13 + bob, 0.02, "#0F172A"); dot(0.04, -0.13 + bob, 0.02, "#0F172A");
+      ell(0, 0.2 + bob, 0.46, 0.14); solid("#64748B");
+      ell(0, 0.1 + bob, 0.78, 0.2); solid("#CBD5E1");
+      [-0.5, -0.25, 0, 0.25, 0.5].forEach((x, i) => dot(x, 0.1 + bob, 0.04, Math.floor(phase * 6 + i) % 2 === 0 ? "#FDE047" : "#F472B6"));
+      break;
+    }
+    case "flame": {
+      const flame = (k: number, y0: number) => {
+        ctx.beginPath(); ctx.moveTo(X(0), Y(y0 + 0.62 * k));
+        ctx.bezierCurveTo(X(-0.36 * k), Y(y0 + 0.62 * k), X(-0.62 * k), Y(y0 + 0.34 * k), X(-0.5 * k), Y(y0 + 0.02 * k));
+        ctx.bezierCurveTo(X(-0.46 * k), Y(y0 - 0.36 * k), X(-0.08 * k), Y(y0 - 0.46 * k), X(-0.05 * k), Y(y0 - 0.85 * k));
+        ctx.bezierCurveTo(X(0.1 * k), Y(y0 - 0.4 * k), X(0.46 * k), Y(y0 - 0.26 * k), X(0.5 * k), Y(y0 + 0.08 * k));
+        ctx.bezierCurveTo(X(0.62 * k), Y(y0 + 0.4 * k), X(0.34 * k), Y(y0 + 0.62 * k), X(0), Y(y0 + 0.62 * k));
+        ctx.closePath();
+      };
+      const flick = 1 + Math.sin(phase * TAU * 2) * 0.04;
+      flame(flick, 0);
+      ctx.save(); ctx.shadowColor = "rgba(253,224,71,0.8)"; ctx.shadowBlur = r * 0.25; ctx.fillStyle = "#F97316"; ctx.fill(); ctx.restore();
+      flame(flick, 0);
+      let g = ctx.createLinearGradient(X(0), Y(-0.85), X(0), Y(0.62)); g.addColorStop(0, "#B91C1C"); g.addColorStop(1, "#F97316"); ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = LW; ctx.stroke();
+      flame(0.68 * flick, 0.2); g = ctx.createLinearGradient(X(0), Y(-0.4), X(0), Y(0.62)); g.addColorStop(0, "#F97316"); g.addColorStop(1, "#FACC15"); ctx.fillStyle = g; ctx.fill();
+      flame(0.36 * flick, 0.36); g = ctx.createLinearGradient(X(0), Y(-0.1), X(0), Y(0.6)); g.addColorStop(0, "#FDE047"); g.addColorStop(1, "#FFF"); ctx.fillStyle = g; ctx.fill();
+      break;
+    }
+    default: break;
+  }
+  ctx.restore();
 }

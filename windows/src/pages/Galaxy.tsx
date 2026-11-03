@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GalaxyLookButton, GalaxyMap, LevelBadge, PlanetCanvas } from "../components";
+import { GalaxyLookButton, GalaxyMap, LevelBadge, Modal, PlanetCanvas } from "../components";
 import { galaxyData, useFriends } from "../lib/friends";
 import { SunType, SYSTEM_NAMES } from "../lib/model";
 import { GROUP_TITLES, PLANETS, planetByID, SUNS, unlockLevel } from "../lib/planets";
@@ -61,7 +61,7 @@ export default function Galaxy() {
           </div>
           <span className="spacer" />
           <div style={{ pointerEvents: "auto" }} className="row">
-            <GalaxyLookButton />
+            <GalaxyLookButton systemId={sys?.id} />
             {sys ? <>
               <select value={sys.sun} onChange={(e) => actions.updateSystem(sys.id, (s) => { s.sun = e.target.value as SunType; })}>
                 {Object.entries(SUNS).map(([k, v]) => <option key={k} value={k} disabled={v.level > p.level}>{v.name}{v.level > p.level ? ` — level ${v.level}` : ""}</option>)}
@@ -94,7 +94,8 @@ export default function Galaxy() {
         const full = !tgt || false;
         const last = [...data.galaxy].reverse().find((g) => g.planetID === pl.id);
         return (
-          <div className="card row" style={{ gap: 18, borderColor: "var(--accent)" }}>
+          <Modal onClose={() => setSelected(null)} width={720}>
+          <div className="row" style={{ gap: 18, alignItems: "flex-start" }}>
             <div style={{ background: "#0b0d16", borderRadius: 16, padding: 6 }}><PlanetCanvas planet={pl} size={140} animate locked={!unlocked} /></div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
               <div className="row"><h2 style={{ margin: 0 }}>{pl.name}</h2><LevelBadge level={unlockLevel(pl.group)} dim={!unlocked} /></div>
@@ -113,6 +114,7 @@ export default function Galaxy() {
             </div>
             <button className="icon-btn" onClick={() => setSelected(null)}>✕</button>
           </div>
+          </Modal>
         );
       })()}
 

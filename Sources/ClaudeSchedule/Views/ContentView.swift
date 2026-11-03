@@ -63,6 +63,7 @@ struct ContentView: View {
     @Environment(ChallengeService.self) private var challenges
     @Environment(FightClubService.self) private var fightClub
     @State private var showAdmin = false
+    @State private var gifts = PlanetGiftService.shared
     @State private var showQuickTask = false
     @State private var showAbout = false
     @Environment(\.colorScheme) private var scheme
@@ -116,6 +117,19 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showAbout) { AboutView() }
         .sheet(isPresented: $showQuickTask) { QuickTaskSheet() }
+        // a gift box from a friend opens as a little window in the middle of the screen
+        .overlay {
+            if let g = gifts.next {
+                GiftPopup(gift: g).id(g.id).transition(.opacity)
+            }
+        }
+        .task {
+            gifts.store = store
+            while !Task.isCancelled {
+                await gifts.refresh()
+                try? await Task.sleep(for: .seconds(25))
+            }
+        }
         // a new notification slides in at the top right
         .overlay(alignment: .topTrailing) {
             if let t = Inbox.shared.toast {

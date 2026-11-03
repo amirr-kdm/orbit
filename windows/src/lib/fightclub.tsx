@@ -1,5 +1,6 @@
 // Fight Club — a weekly World Boss for every Orbiter, same rules as the Mac app; the server runs them
-// (supabase/bosses.sql + supabase/world_boss.sql). The monster is random, the prize 1000 rockets split by damage.
+// (supabase/bosses.sql + supabase/world_boss.sql). The monster is random, the prize (1000 by default, set by the admin) is split by damage;
+// the fighter with the most damage is the one who "won" the boss (shown on their profile).
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useAccount } from "./account";
 import { useInbox } from "./inbox";
@@ -9,14 +10,17 @@ import { dayKey, weekStart } from "./dates";
 import { uid } from "./model";
 
 export interface Boss { id: string; creator: string; title: string; hp: number; deadline: string; monster: number; status: "alive" | "defeated" | "escaped"; created_at: string;
-  /** Set for the weekly World Boss (the Saturday its week starts) */ world_week?: string | null }
+  /** Set for the weekly World Boss (the Saturday its week starts) */ world_week?: string | null;
+  /** The World Boss prize it was created with (undefined = made before the admin could set it: 1000) */ prize?: number | null }
 export interface BossFighter { boss_id: string; user_id: string; minutes: number; damage: number; spent?: number }
 export interface BossInvite { boss_id: string; user_id: string; from_user: string }
 
 /** Same as the server: 45 rockets per hour of the goal, +15% per monster level above 1 */
 export const isWorld = (b: Boss) => !!b.world_week;
-/** World Boss: 1000 in all. Older monsters: 45 rockets per hour of the goal, +15% per level */
-export const prizeOf = (b: Boss) => (isWorld(b) ? 1000 : bossPool(b.hp));
+/** World Boss: its own prize (1000 unless the admin changed it). Older monsters: 45 rockets per hour of the goal, +15% per level */
+export const prizeOf = (b: Boss) => (isWorld(b) ? (b.prize ?? 1000) : bossPool(b.hp));
+/** Who has won the most World Boss fights */
+export interface Slayer { id: string; name: string; avatar?: string | null; wins: number }
 export const bossPool = (hp: number) => Math.floor((hp / 60) * 45 * (1 + 0.15 * (bossLevel(hp) - 1)));
 export const bossLevel = (hp: number) => (hp <= 300 ? 1 : hp <= 600 ? 2 : hp <= 1200 ? 3 : hp <= 2400 ? 4 : 5);
 
@@ -29,6 +33,9 @@ interface FightClub {
   names: Record<string, string>;
   /** Admin setting: hours of health per member for the next World Bosses */
   hoursPerMember: number; setHoursPerMember: (h: number) => Promise<void>;
+  /** Admin setting: rockets the next World Bosses pay (split by damage) */
+  prizePerWeek: number; setPrizePerWeek: (n: number) => Promise<void>;
+  slayers: Slayer[];
   healthLeft: (b: Boss) => number; ammo: (b: Boss) => number;
   create: (title: string, minutes: number, deadline: Date) => Promise<string | null>;
   sendInvites: (b: Boss, friends: string[], groups: string[]) => Promise<void>;
@@ -56,6 +63,8 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [names, setNames] = useState<Record<string, string>>({});
   const [hoursPerMember, setHours] = useState(5);
+  const [prizePerWeek, setPrize] = useState(1000);
+  const [slayers, setSlayers] = useState<Slayer[]>([]);
   const dataRef = useRef(data); dataRef.current = data;
   const notified = useRef(new Set<string>());
   const me = client.session?.userID.toLowerCase() ?? null;
@@ -87,7 +96,8 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
     if (!light) {
       // make sure this week's World Boss exists (the first app to ask creates it)
       try { await client.rpc("world_boss", { week_start: dayKey(weekStart(new Date())) }); } catch { /* not approved yet / offline */ }
-      try { const r: { hours_per_member: number }[] = await client.get("boss_settings?select=hours_per_member"); if (r[0]) setHours(r[0].hours_per_member); } catch { /* ignore */ }
+      try { const r: { hours_per_member: number; prize?: number | null }[] = await client.get("boss_settings?select=hours_per_member,prize"); if (r[0]) { setHours(r[0].hours_per_member); setPrize(r[0].prize ?? 1000); } } catch { /* ignore */ }
+      try { setSlayers(await client.rpc("boss_slayers", {})); } catch { /* ignore */ }
     }
     try {
       const since = new Date(Date.now() - 7 * 86400_000).toISOString();
@@ -155,7 +165,8 @@ export function FightClubProvider({ children }: { children: React.ReactNode }) {
   const week = dayKey(weekStart(new Date()));
   const worldBoss = bosses.find((b) => b.world_week === week) ?? bosses.find(isWorld);
   const value: FightClub = {
-    bosses, fighters, invites, error, busy, me, healthLeft, ammo, load, setError, taskFor, worldBoss, names, hoursPerMember,
+    bosses, fighters, invites, error, busy, me, healthLeft, ammo, load, setError, taskFor, worldBoss, names, hoursPerMember, prizePerWeek, slayers,
+    setPrizePerWeek: async (n) => { const ok = await perform(async () => { await client.rpc("admin_set_boss_prize", { amount: n }); return true; }); if (ok) setPrize(n); },
     setHoursPerMember: async (h) => { const ok = await perform(async () => { await client.rpc("admin_set_boss_hours", { hours: h }); return true; }); if (ok) setHours(h); },
     setSubject: (category, b) => update((d) => {
       const t = d.tasks.find((x) => x.bossID === b.id);

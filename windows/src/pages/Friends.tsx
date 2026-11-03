@@ -7,7 +7,7 @@ import { FriendCard, minutesOn, streak, studyingNow, supabaseConfigured, useFrie
 import { SUNS } from "../lib/planets";
 import { GROUP_WIN_ROCKETS } from "../lib/store";
 import { RocketIcon } from "./Store";
-import { AllOrbiters } from "./Orbiters";
+import { AllOrbiters, OrbiterProfile } from "./Orbiters";
 import { useStore } from "../lib/store";
 
 export default function Friends({ only }: { only?: "groups" } = {}) {
@@ -19,6 +19,7 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [galaxy, setGalaxy] = useState<FriendCard | null>(null);
   const [promising, setPromising] = useState<FriendCard | null>(null);
+  const [profileOf, setProfileOf] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [tab0, setTab] = useState<number>(() => Number(localStorage.getItem("friends-tab") ?? 0));
   const tab = only === "groups" ? 1 : tab0 === 1 ? 0 : tab0;
@@ -105,11 +106,12 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
               <div className="row" style={{ cursor: "pointer" }} onClick={() => setExpanded(open ? null : x.profile.id)} title="Show what they studied">
                 <span className="muted" style={{ transform: open ? "rotate(90deg)" : undefined, transition: ".2s" }}>›</span>
                 <span style={{ width: 28, textAlign: "center", fontSize: i < 3 ? 20 : 14 }}>{i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>
-                <Avatar name={x.profile.name} planet={x.profile.avatar} size={34} color={x.isMe ? "var(--accent)" : undefined} />
+                <span style={{ cursor: "pointer" }} title="Open profile" onClick={(e) => { e.stopPropagation(); setProfileOf(x.profile.id); }}><Avatar name={x.profile.name} planet={x.profile.avatar} size={34} color={x.isMe ? "var(--accent)" : undefined} /></span>
                 <div style={{ flex: 1 }}>
                   <div className="row"><b>{x.profile.name}{x.isMe ? " (you)" : ""}</b><LevelBadge level={x.profile.level ?? 1} />{studyingNow(x) && <span className="dot" style={{ background: "#22C55E" }} />}
                     <span className="spacer" />{streak(x) > 0 && <span><StreakIcon size={15} /> {streak(x)}</span>}
                     {x.profile.rockets !== undefined && <span title="Rockets"><RocketIcon size={15} /> {x.profile.rockets}</span>}<b style={{ width: 80, textAlign: "right" }}>{duration(weekMinutes(x) * 60)}</b>
+                    {!x.isMe && <button className="icon-btn" title={`Open ${x.profile.name}'s profile (gift a planet from there)`} onClick={(e) => { e.stopPropagation(); setProfileOf(x.profile.id); }}>👤</button>}
                     {!x.isMe && <button className="icon-btn" title={`Promise ${x.profile.name} you'll study — with rockets at stake`} onClick={(e) => { e.stopPropagation(); setPromising(x); }}>🤞</button>}</div>
                   <div className="progress" style={{ marginTop: 5 }}><div style={{ width: `${(weekMinutes(x) / top) * 100}%`, background: x.isMe ? undefined : "#94A3B8" }} /></div>
                 </div>
@@ -130,6 +132,7 @@ export default function Friends({ only }: { only?: "groups" } = {}) {
 
       {galaxy && <FriendGalaxy card={galaxy} onClose={() => setGalaxy(null)} />}
       {promising && <PromiseModal friend={promising} onClose={() => setPromising(null)} />}
+      {profileOf && <OrbiterProfile userID={profileOf} onClose={() => setProfileOf(null)} />}
     </div>
   );
 }

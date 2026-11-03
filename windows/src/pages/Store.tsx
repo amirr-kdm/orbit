@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNav } from "../App";
 import { Modal, PlanetCanvas } from "../components";
-import { PlanetDef } from "../lib/planets";
-import { RARITY_COLOR, Rarity, rarityOf, STORE, REWARDS } from "../lib/storePlanets";
+import { hasPicture, PlanetDef, storeAvailable } from "../lib/planets";
+import { GIFTS, isGiftOnly, RARITY_COLOR, Rarity, rarityOf, STORE, REWARDS } from "../lib/storePlanets";
+import { useFriends } from "../lib/friends";
+import { GiftSendModal } from "./Gifts";
 import {
   BONUS_TIERS, GROUP_WIN_ROCKETS, ownedCount, placedCount, progress, REFUND_TICKETS, refundsLeft, unplacedCount,
   useStore, wallet, weekBonuses, weeklyBonus,
@@ -13,11 +15,13 @@ export const RocketIcon = ({ size = 18 }: { size?: number }) => (
   <img src={rocketIcon} alt="rockets" style={{ width: size, height: size, borderRadius: size * 0.22, imageRendering: "pixelated", verticalAlign: "middle" }} />
 );
 
-const RARITIES: Rarity[] = ["common", "rare", "epic", "legendary"];
+const RARITIES: Rarity[] = ["common", "rare", "epic", "legendary", "mythic"];
+/** Gift-only planets are as rare as it gets */
+const rarityOfPlanet = (p: PlanetDef): Rarity => (isGiftOnly(p.id) ? "mythic" : rarityOf(p.price!));
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 function RarityChip({ p }: { p: PlanetDef }) {
-  const r = rarityOf(p.price!);
+  const r = rarityOfPlanet(p);
   return <span className="chip" style={{ background: `${RARITY_COLOR[r]}40`, color: RARITY_COLOR[r], fontWeight: 800, letterSpacing: 1, fontSize: 9 }}>{r.toUpperCase()}</span>;
 }
 
@@ -30,7 +34,8 @@ export default function StorePage() {
   const week = progress(data).weekHours;
   const next = [10, 15, 20, 25, 30, 30.01].find((h) => week < h);
   const last = weekBonuses(data).slice(-1)[0];
-  const items = STORE.filter((p) => !rarity || rarityOf(p.price!) === rarity);
+  // gift-only planets (locked, no price) sit at the end of their rarity
+  const items = [...storeAvailable(), ...GIFTS.filter(hasPicture)].filter((p) => !rarity || rarityOfPlanet(p) === rarity).sort((a, b) => (isGiftOnly(a.id) ? 1e9 : a.price!) - (isGiftOnly(b.id) ? 1e9 : b.price!));
 
   return (
     <div className="page">
@@ -64,14 +69,15 @@ export default function StorePage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 14 }}>
         {items.map((p) => {
-          const r = rarityOf(p.price!), owned = ownedCount(data, p.id);
+          const r = rarityOfPlanet(p), owned = ownedCount(data, p.id), gift = isGiftOnly(p.id);
           return (
             <div key={p.id} className="store-card" style={{ borderColor: `${RARITY_COLOR[r]}66`, background: `radial-gradient(circle at top, ${RARITY_COLOR[r]}38, #0B1020 70%)` }} onClick={() => setOpened(p)}>
               {owned > 0 && <span className="count" style={{ background: "#22C55E" }}>Owned ×{owned}</span>}
               <PlanetCanvas planet={p} size={150} />
               <b>{p.name}</b>
               <div className="row" style={{ width: "100%" }}><RarityChip p={p} /><span className="spacer" />
-                <span style={{ opacity: w.balance >= p.price! || owned ? 1 : 0.55 }}><RocketIcon size={15} /> <b>{p.price}</b></span></div>
+                {gift ? <span className="small" style={{ fontWeight: 800, color: RARITY_COLOR[r] }}>🔒 Admin gift</span>
+                  : <span style={{ opacity: w.balance >= p.price! || owned ? 1 : 0.55 }}><RocketIcon size={15} /> <b>{p.price}</b></span>}</div>
             </div>
           );
         })}
@@ -86,7 +92,9 @@ function StoreDetail({ planet, onClose }: { planet: PlanetDef; onClose: () => vo
   const nav = useNav();
   const [msg, setMsg] = useState<string | null>(null);
   const w = wallet(data), owned = ownedCount(data, planet.id), left = refundsLeft(data);
-  const r = rarityOf(planet.price!);
+  const r = rarityOfPlanet(planet), gift = isGiftOnly(planet.id);
+  const friends = useFriends();
+  const [giftTo, setGiftTo] = useState(false);
   return (
     <Modal onClose={onClose} width={760}>
       <div className="row" style={{ alignItems: "flex-start", gap: 24 }}>
@@ -95,11 +103,15 @@ function StoreDetail({ planet, onClose }: { planet: PlanetDef; onClose: () => vo
           <div style={{ color: RARITY_COLOR[r], fontWeight: 900, letterSpacing: 1.5, fontSize: 12 }}>{r.toUpperCase()}</div>
           <h1 style={{ margin: 0 }}>{planet.name}</h1>
           <div className="muted">{planet.blurb}</div>
-          <div className="row" style={{ gap: 6 }}><RocketIcon size={24} /><b style={{ fontSize: 22 }}>{planet.price}</b><span className="muted">· you have {w.balance}</span></div>
+          {gift ? <><div style={{ color: RARITY_COLOR[r], fontWeight: 800, fontSize: 18 }}>🔒 Locked · not for sale</div><div className="muted">Only the admin can give this planet.</div></>
+            : <div className="row" style={{ gap: 6 }}><RocketIcon size={24} /><b style={{ fontSize: 22 }}>{planet.price}</b><span className="muted">· you have {w.balance}</span></div>}
           {owned > 0 && <div style={{ color: "#22C55E" }}>✓ You own {owned}{unplacedCount(data, planet.id) ? ` · ${unplacedCount(data, planet.id)} not in your galaxy` : ""}</div>}
+          {gift ? (owned > 0 && <div className="row"><button className="btn" onClick={() => { nav.go("galaxy"); onClose(); }}>Go to My Galaxy</button></div>) : <>
           <div className="row">
             <button className="btn primary" disabled={w.balance < planet.price!} onClick={async () => { const err = await actions.buyPlanet(planet.id); setMsg(err ?? `${planet.name} is yours! 🎉 Place it from My Galaxy → Your Store Planets.`); }}>
               {w.balance >= planet.price! ? (owned ? "🛒 Buy another" : "🛒 Buy") : `🔒 Need ${planet.price! - w.balance} more`}</button>
+            <button className="btn" disabled={!friends.friends.length || w.balance < planet.price!} onClick={() => setGiftTo(true)}
+              title={!friends.friends.length ? "Add a friend first" : w.balance < planet.price! ? `You need ${planet.price! - w.balance} more rockets` : "Send this planet to a friend in a gift box"}>🎁 Gift</button>
             {owned > 0 && <>
               <button className="btn" onClick={() => { nav.go("galaxy"); onClose(); }}>Go to My Galaxy</button>
               <button className="btn" disabled={left <= 0} onClick={() => {
@@ -109,11 +121,12 @@ function StoreDetail({ planet, onClose }: { planet: PlanetDef; onClose: () => vo
               }}>🎟 Refund</button>
             </>}
           </div>
-          <div className="small muted">🎟 {left} of {REFUND_TICKETS} refund tickets left · a refund returns the full price</div>
+          <div className="small muted">🎟 {left} of {REFUND_TICKETS} refund tickets left · a refund returns the full price</div></>}
           {msg && <div style={{ color: "var(--accent)", fontWeight: 600 }}>{msg}</div>}
           <div className="row"><span className="spacer" /><button className="btn primary" onClick={onClose}>Done</button></div>
         </div>
       </div>
+      {giftTo && <GiftSendModal planet={planet} onClose={() => setGiftTo(false)} />}
     </Modal>
   );
 }
@@ -123,7 +136,7 @@ export function StoreShelf({ onToast }: { onToast: (t: string) => void }) {
   const { data, actions } = useStore();
   const [sel, setSel] = useState<string | null>(null);
   const [target, setTarget] = useState("");
-  const owned = [...REWARDS, ...STORE].filter((p) => ownedCount(data, p.id) > 0);
+  const owned = [...REWARDS, ...GIFTS, ...STORE].filter((p) => ownedCount(data, p.id) > 0);
   if (!owned.length) return null;
   const credits = progress(data).credits;
   const count = (sid: string) => data.galaxy.filter((g) => g.systemID === sid).length;
@@ -132,23 +145,25 @@ export function StoreShelf({ onToast }: { onToast: (t: string) => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div className="row"><h2 style={{ margin: 0 }}>Your Store Planets</h2><RocketIcon size={20} /></div>
-      <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+      {/* a grid that wraps, so every planet is visible without scrolling sideways */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
         {owned.map((x) => {
           const waiting = unplacedCount(data, x.id), placed = placedCount(data, x.id);
           return (
-            <div key={x.id} className="planet-tile" style={{ width: 140, outline: sel === x.id ? "2.5px solid var(--accent)" : undefined, borderColor: `${RARITY_COLOR[rarityOf(x.price!)]}88` }}
-              onClick={() => setSel(sel === x.id ? null : x.id)}>
+            <div key={x.id} className="planet-tile" style={{ outline: sel === x.id ? "2.5px solid var(--accent)" : undefined, borderColor: `${RARITY_COLOR[rarityOfPlanet(x)]}88` }}
+              onClick={() => setSel(x.id)}>
               <PlanetCanvas planet={x} size={96} />
               <b className="small">{x.name}</b>
               <span className="small" style={{ opacity: 0.7 }}>{waiting ? `${waiting} waiting · ${placed} placed` : `All ${placed} placed`}</span>
-              {data.avatarPlanet === x.id && <span className="small" style={{ color: "var(--accent)" }}>Profile</span>}
+              <span className="small" style={{ color: "var(--accent)", visibility: data.avatarPlanet === x.id ? "visible" : "hidden" }}>Profile</span>
             </div>
           );
         })}
       </div>
 
       {p && (
-        <div className="card row" style={{ alignItems: "flex-start", gap: 18, borderColor: "var(--accent)" }}>
+        <Modal onClose={() => setSel(null)} width={720}>
+        <div className="row" style={{ alignItems: "flex-start", gap: 18 }}>
           <div style={{ background: "#0b0d16", borderRadius: 16, padding: 6 }}><PlanetCanvas planet={p} size={130} /></div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
             <div className="row"><h2 style={{ margin: 0 }}>{p.name}</h2><RarityChip p={p} /></div>
@@ -178,6 +193,7 @@ export function StoreShelf({ onToast }: { onToast: (t: string) => void }) {
           </div>
           <button className="icon-btn" onClick={() => setSel(null)}>✕</button>
         </div>
+        </Modal>
       )}
       <div className="small muted">Click a planet to place, move or remove it. Placing uses one of your planet spots (one per level — {credits} free now).</div>
     </div>

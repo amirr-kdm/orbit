@@ -11,6 +11,7 @@ struct OrbiterProfileSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var info: FriendsService.OrbiterProfile?
     @State private var loaded = false
+    @State private var showGift = false
 
     var body: some View {
         let card = friends.people[userID]
@@ -46,7 +47,7 @@ struct OrbiterProfileSheet: View {
                         }
                         .frame(width: 26, height: 26)
                         .saturation((info?.slain ?? 0) > 0 ? 1 : 0).opacity((info?.slain ?? 0) > 0 ? 1 : 0.4)
-                    } value: { "\(info?.slain ?? 0)" } label: { "World Bosses beaten" }
+                    } value: { "\(info?.slain ?? 0)" } label: { "World Bosses won" }
                     fact {
                         Image(systemName: "calendar").font(.title2).foregroundStyle(.secondary)
                     } value: { info?.joined.map { Fmt.date($0, "MMM y", .persian) } ?? "—" } label: { "joined" }
@@ -91,6 +92,7 @@ struct OrbiterProfileSheet: View {
             .padding(20)
         }
         .frame(width: 420)
+        .sheet(isPresented: $showGift) { GiftSendSheet(friendID: userID, friendName: info?.name ?? friends.people[userID]?.profile.name ?? "friend") }
         .task {
             info = await friends.profile(of: userID)
             loaded = true
@@ -100,7 +102,10 @@ struct OrbiterProfileSheet: View {
     @ViewBuilder
     private var friendAction: some View {
         if friends.isFriend(userID) {
-            Label("Friends", systemImage: "person.fill.checkmark").foregroundStyle(.green)
+            HStack(spacing: 12) {
+                Label("Friends", systemImage: "person.fill.checkmark").foregroundStyle(.green)
+                Button { showGift = true } label: { Label("Gift", systemImage: "gift.fill") }
+            }
         } else if friends.incoming.contains(userID) {
             Button("Accept request") { Task { await friends.respond(to: userID, accept: true) } }.buttonStyle(.borderedProminent)
         } else if friends.outgoing.contains(userID) {

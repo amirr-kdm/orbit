@@ -7,7 +7,9 @@ struct StoreView: View {
     @State private var opened: PlanetDef?
 
     private var items: [PlanetDef] {
-        PlanetCatalog.storeAvailable.filter { rarity == nil || $0.rarity == rarity }.sorted { $0.price < $1.price }
+        // gift-only planets (locked, no price) sit at the end of their rarity
+        (PlanetCatalog.storeAvailable + PlanetCatalog.giftsAvailable).filter { rarity == nil || $0.rarity == rarity }
+            .sorted { ($0.isGiftOnly ? Int.max : $0.price) < ($1.isGiftOnly ? Int.max : $1.price) }
     }
 
     var body: some View {
@@ -118,11 +120,15 @@ private struct StoreCard: View {
                     .background(Capsule().fill(planet.rarity.color.opacity(0.25)))
                     .foregroundStyle(planet.rarity.color)
                 Spacer()
-                HStack(spacing: 4) {
-                    RocketIcon(size: 16)
-                    Text(planet.price.formatted()).font(.callout.weight(.bold).monospacedDigit())
+                if planet.isGiftOnly {
+                    Label("Admin gift", systemImage: "lock.fill").font(.caption.weight(.bold)).foregroundStyle(planet.rarity.color)
+                } else {
+                    HStack(spacing: 4) {
+                        RocketIcon(size: 16)
+                        Text(planet.price.formatted()).font(.callout.weight(.bold).monospacedDigit())
+                    }
+                    .opacity(affordable || owned > 0 ? 1 : 0.55)
                 }
-                .opacity(affordable || owned > 0 ? 1 : 0.55)
             }
         }
         .padding(14)
@@ -148,6 +154,9 @@ private struct StoreDetail: View {
     @Environment(Router.self) private var router
     @State private var message: String?
     @State private var confirmRefund = false
+    @State private var giftTo: ProfileTarget?
+    @State private var pickFriend = false
+    @Environment(FriendsService.self) private var friends
 
     var body: some View {
         let balance = store.rocketBalance
@@ -165,16 +174,24 @@ private struct StoreDetail: View {
                     .font(.caption.weight(.heavy)).tracking(1.5).foregroundStyle(planet.rarity.color)
                 Text(planet.name).font(.largeTitle.weight(.bold))
                 Text(planet.blurb).foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    RocketIcon(size: 24)
-                    Text(planet.price.formatted()).font(.title2.weight(.bold).monospacedDigit())
-                    Text("· you have \(balance.formatted())").foregroundStyle(.secondary)
+                if planet.isGiftOnly {
+                    Label("Locked · not for sale", systemImage: "lock.fill").font(.title3.weight(.bold)).foregroundStyle(planet.rarity.color)
+                    Text("Only the admin can give this planet.").font(.callout).foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: 6) {
+                        RocketIcon(size: 24)
+                        Text(planet.price.formatted()).font(.title2.weight(.bold).monospacedDigit())
+                        Text("· you have \(balance.formatted())").foregroundStyle(.secondary)
+                    }
                 }
                 if owned > 0 {
                     Label("You own \(owned)\(unplaced > 0 ? " · \(unplaced) not in your galaxy" : "")", systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
                 }
 
+                if planet.isGiftOnly {
+                    if owned > 0 { Button("Go to My Galaxy") { router.selection = .galaxy; dismiss() } }
+                } else {
                 HStack {
                     Button {
                         Task {
@@ -187,6 +204,9 @@ private struct StoreDetail: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(balance < planet.price)
+                    Button { pickFriend = true } label: { Label("Gift", systemImage: "gift.fill") }
+                        .disabled(friends.friends.isEmpty || balance < planet.price)
+                        .help(friends.friends.isEmpty ? "Add a friend first" : (balance < planet.price ? "You need \((planet.price - balance).formatted()) more rockets" : "Send this planet to a friend in a gift box"))
                     if owned > 0 {
                         Button("Go to My Galaxy") { router.selection = .galaxy; dismiss() }
                         Button {
@@ -198,9 +218,12 @@ private struct StoreDetail: View {
                         .help(store.refundTicketsLeft == 0 ? "No refund tickets left" : "Give one back for \(planet.price) rockets")
                     }
                 }
-                Label("\(store.refundTicketsLeft) of \(AppStore.refundTickets) refund tickets left · a refund returns the full price",
-                      systemImage: "ticket")
-                    .font(.caption).foregroundStyle(.secondary)
+                }
+                if !planet.isGiftOnly {
+                    Label("\(store.refundTicketsLeft) of \(AppStore.refundTickets) refund tickets left · a refund returns the full price",
+                          systemImage: "ticket")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if let message { Text(message).font(.callout.weight(.medium)).foregroundStyle(Color.accentColor) }
                 Spacer()
                 HStack { Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.defaultAction) }
@@ -208,6 +231,7 @@ private struct StoreDetail: View {
         }
         .padding(28)
         .frame(width: 760, height: 400)
+        .sheet(isPresented: $pickFriend) { GiftSendSheet(planet: planet) }
         .confirmationDialog("Refund \(planet.name)?", isPresented: $confirmRefund) {
             Button("Refund for \(planet.price) rockets") {
                 Task {

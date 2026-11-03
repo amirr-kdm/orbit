@@ -5,6 +5,7 @@ import { Avatar, LevelBadge, Modal, StreakIcon } from "../components";
 import { dayKey, duration, shortDuration, weekStart } from "../lib/dates";
 import { sharedClient as client, studyingNow, useFriends, weekMinutes, weekSubjects } from "../lib/friends";
 import slayer from "../assets/badge-slayer.png";
+import { GiftSendModal } from "./Gifts";
 
 interface Orbiter { id: string; name: string; avatar?: string | null; level?: number | null; minutes: number }
 interface OrbiterInfo { id: string; name: string; avatar?: string | null; level?: number | null; streak?: number | null; slain: number; joined?: string | null }
@@ -56,6 +57,7 @@ export function AllOrbiters() {
 export function OrbiterProfile({ userID, onClose }: { userID: string; onClose: () => void }) {
   const f = useFriends();
   const [info, setInfo] = useState<OrbiterInfo | null>(null);
+  const [gifting, setGifting] = useState(false);
   useEffect(() => { client.rpc("orbiter_profile", { uid: userID }).then((r: OrbiterInfo[]) => setInfo(r[0] ?? null)).catch(() => {}); }, [userID]);
   const isMe = userID === f.me?.id;
   const card = isMe ? f.myCard() : f.people[userID];
@@ -81,7 +83,7 @@ export function OrbiterProfile({ userID, onClose }: { userID: string; onClose: (
       </div>
       <div className="row" style={{ gap: 10, marginTop: 14 }}>
         {fact(<StreakIcon size={24} />, String(info?.streak ?? card?.profile.streak ?? 0), "day streak")}
-        {fact(<img src={slayer} alt="" style={{ height: 24, filter: (info?.slain ?? 0) > 0 ? undefined : "grayscale(1)", opacity: (info?.slain ?? 0) > 0 ? 1 : 0.4 }} />, String(info?.slain ?? 0), "World Bosses beaten")}
+        {fact(<img src={slayer} alt="" style={{ height: 24, filter: (info?.slain ?? 0) > 0 ? undefined : "grayscale(1)", opacity: (info?.slain ?? 0) > 0 ? 1 : 0.4 }} />, String(info?.slain ?? 0), "World Bosses won")}
         {fact(<span>📅</span>, info?.joined ? new Date(info.joined).toLocaleDateString("en-US-u-ca-persian", { month: "short", year: "numeric" }) : "—", "joined")}
       </div>
       {(isFriend || isMe) && card ? (
@@ -96,7 +98,8 @@ export function OrbiterProfile({ userID, onClose }: { userID: string; onClose: (
           ))}
         </div>
       ) : !isMe && <div className="small muted" style={{ marginTop: 14 }}>🔒 Study time and subjects are shared with friends only.</div>}
-      <div className="row" style={{ marginTop: 16 }}><FriendButton id={userID} /><span className="spacer" /><button className="btn primary" onClick={onClose}>Done</button></div>
+      <div className="row" style={{ marginTop: 16 }}><FriendButton id={userID} />{isFriend && !isMe && <button className="btn small" onClick={() => setGifting(true)}>🎁 Gift</button>}<span className="spacer" /><button className="btn primary" onClick={onClose}>Done</button></div>
+      {gifting && <GiftSendModal friendId={userID} friendName={name} onClose={() => setGifting(false)} />}
     </Modal>
   );
 }

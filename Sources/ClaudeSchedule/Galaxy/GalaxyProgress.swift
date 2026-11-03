@@ -57,6 +57,9 @@ struct SolarSystem: Codable, Identifiable, Hashable {
     /// Where it sits on the galaxy map (world coordinates); nil = its place on the spiral
     var x: Double?
     var y: Double?
+    /// This sun's own size and gap between its orbits (nil = the Mac-wide setting)
+    var sunSize: Double?
+    var orbitGap: Double?
 
     /// Planets one solar system can hold
     /// No limit on planets around a sun (the system view shrinks to fit)

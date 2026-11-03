@@ -52,7 +52,7 @@ export default function FightClubPage() {
         <div className="row" style={{ gap: 12, alignItems: "stretch" }}>
           {([["⏱", "#22D3EE", "1 · Study", "Every minute you study with the timer this week is one bullet."],
             ["🎯", "#EF4444", "2 · Fight", "Fly with ← →, fire with Space. Only hits do damage."],
-            ["🏆", "#FACC15", "3 · Share", "Beat it before Friday ends: 1,000 🚀 split by damage."]] as const).map(([icon, tint, title, text]) => (
+            ["🏆", "#FACC15", "3 · Share", `Beat it before Friday ends: ${(fc.worldBoss ? prizeOf(fc.worldBoss) : fc.prizePerWeek).toLocaleString()} 🚀 split by damage; top damage wins the boss.`]] as const).map(([icon, tint, title, text]) => (
             <div key={title} className="row" style={{ ...panel, flex: 1, padding: 14, alignItems: "flex-start", gap: 12 }}>
               <span style={{ width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", background: `${tint}26`, flexShrink: 0 }}>{icon}</span>
               <div><b>{title}</b><div className="small" style={{ opacity: 0.65 }}>{text}</div></div>
@@ -61,7 +61,7 @@ export default function FightClubPage() {
         </div>
         <div className="row" style={{ gap: 16, alignItems: "flex-start" }}>
           <Leaderboard b={w} onOpen={setShowing} />
-          <Graveyard current={w} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}><SlayerBoard onOpen={setShowing} /><Graveyard current={w} /></div>
         </div>
       </> : (
         <div style={{ minHeight: 300, display: "grid", placeItems: "center", opacity: 0.65 }}>
@@ -123,7 +123,7 @@ function Hero({ b, onFight }: { b: Boss; onFight: () => void }) {
         </div>
         <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
           {chip("👥", String(people), "fighting")}{chip("⚡", String(ammo), "your bullets")}
-          {chip("🎯", String(mine?.damage ?? 0), "your damage")}{chip("🎁", "1,000 🚀", "prize")}
+          {chip("🎯", String(mine?.damage ?? 0), "your damage")}{chip("🎁", `${prizeOf(b).toLocaleString()} 🚀`, "prize")}
         </div>
         <div className="row" style={{ gap: 12 }}>
           <button onClick={onFight} style={{ width: 170, height: 44, borderRadius: 99, border: "none", color: "white", fontWeight: 700, fontSize: 15,
@@ -168,6 +168,25 @@ function Leaderboard({ b, onOpen }: { b: Boss; onOpen: (id: string) => void }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** A small board of who has won the most World Bosses */
+function SlayerBoard({ onOpen }: { onOpen: (id: string) => void }) {
+  const fc = useFightClub();
+  const f = useFriends();
+  return (
+    <div style={{ ...panel, width: 280 }}>
+      <b style={{ color: "#FACC15" }}>👑 Boss Slayers</b>
+      {!fc.slayers.length && <div className="small" style={{ opacity: 0.65, marginTop: 6 }}>Win a World Boss with the most damage to appear here.</div>}
+      {fc.slayers.slice(0, 5).map((s, i) => (
+        <div key={s.id} className="row" style={{ gap: 8, padding: "5px 0", cursor: "pointer" }} onClick={() => onOpen(s.id)}>
+          <span style={{ width: 22, textAlign: "center" }}>{i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>
+          <b className="small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.id === fc.me ? "You" : f.people[s.id]?.profile.name ?? s.name}</b>
+          <span className="spacer" /><img src={slayer} alt="" style={{ height: 18 }} /><b>{s.wins}</b>
+        </div>
+      ))}
     </div>
   );
 }

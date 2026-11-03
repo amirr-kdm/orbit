@@ -393,6 +393,31 @@ final class AccountService {
         return ok
     }
 
+    /// Who already has (or has a waiting box with) each gift-only planet: planet id → member ids. The admin can't give it to them again.
+    private(set) var planetHolders: [String: Set<UUID>] = [:]
+
+    func loadPlanetHolders() async {
+        for p in PlanetCatalog.gifts {
+            struct Body: Encodable { let planet: String }
+            guard let data = try? await client.rpc("admin_planet_holders", Body(planet: p.id)),
+                  let ids = try? JSONDecoder().decode([UUID].self, from: data) else { continue }
+            planetHolders[p.id] = Set(ids)
+        }
+    }
+
+    /// Give a planet (one that can't be bought) to a member. It lands on their "Your Store Planets" shelf.
+    func giftPlanet(_ id: UUID, planet: String) async -> Bool {
+        var ok = false
+        await perform {
+            struct Body: Encodable { let uid: String; let planet: String }
+            _ = try await self.client.rpc("admin_gift_planet", Body(uid: id.uuidString, planet: planet))
+            ok = true
+        }
+        if ok { await loadPlanetHolders() }
+        if ok, id == (await client.userID) { await PlanetGiftService.shared.refresh() }
+        return ok
+    }
+
     /// The same gift for every approved member at once. Returns how many people got it.
     func giftEveryone(amount: Int, reason: String) async -> Int? {
         var count: Int?
@@ -417,7 +442,7 @@ final class AccountService {
         if !store.walletLive { store.rocketGrant += new.reduce(0) { $0 + $1.amount } }
         else { await store.walletRefresh() }
         // Tell about rockets received (buying, refunds, level rewards and fees are your own actions, so they stay quiet)
-        for g in new where g.amount > 0 && !(g.ref?.hasPrefix("refund:") ?? false) && !(g.ref?.hasPrefix("level:") ?? false) {
+        for g in new where g.amount > 0 && !(g.ref?.hasPrefix("refund:") ?? false) && !(g.ref?.hasPrefix("level:") ?? false) && !(g.ref?.hasPrefix("giftbox:") ?? false) && !(g.ref?.hasPrefix("giftback:") ?? false) {
             let text = g.reason.map { "\($0) (+\(g.amount) 🚀)" } ?? "You got \(g.amount) rockets from the Orbit admin! 🚀"
             giftNotice = text
             Inbox.shared.post(id: "gift-\(g.id)", title: g.reason == nil ? "You got \(g.amount) 🚀 rockets!" : "+\(g.amount) 🚀 rockets",

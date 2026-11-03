@@ -1,0 +1,26 @@
+-- Orbit — prices of the cut-out store planets (the server charges these). Safe to re-run.
+insert into public.store_prices (planet_id, price) values
+('s6_rocketkitty', 2500),
+('s6_neonrocket', 2600),
+('s6_ringbuddy', 2700),
+('s6_floatcat', 2800),
+('s6_spacepup', 2900),
+('s6_moonchase', 3000),
+('s6_wavesaturn', 3200),
+('s6_shuttleorbit', 2750),
+('s6_moon', 120),
+('s6_sandy', 170),
+('s6_lavender', 210),
+('s6_sleepymoon', 270),
+('s6_mars', 320),
+('s6_tiger', 370),
+('s6_blueberry', 430),
+('s6_honey', 500),
+('s6_mintring', 560),
+('s6_violetring', 640),
+('s6_earth', 720),
+('s6_star', 800),
+('s6_sun', 880),
+('s6_orbitrider', 3050),
+('s6_flagplanet', 3150)
+on conflict (planet_id) do update set price = excluded.price;

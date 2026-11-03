@@ -16,6 +16,7 @@ struct FriendsView: View {
     @State private var confirmDelete = false
     @State private var viewingGalaxy: FriendCard?
     @State private var promising: FriendCard?
+    @State private var profileOf: ProfileTarget?
     @State private var expandedRow: UUID?
     /// 0 = friends, 2 = all Orbiters (groups have their own page in the sidebar)
     @AppStorage("friendsTab") private var tab = 0
@@ -164,8 +165,13 @@ struct FriendsView: View {
                             LeaderboardRow(rank: i + 1, card: f, maxMinutes: top, accent: accent,
                                            expanded: expandedRow == f.id,
                                            onToggle: { withAnimation(.spring(duration: 0.3)) { expandedRow = expandedRow == f.id ? nil : f.id } },
-                                           onOpenGalaxy: { viewingGalaxy = f })
+                                           onOpenGalaxy: { viewingGalaxy = f },
+                                           onProfile: { profileOf = ProfileTarget(id: f.id) })
                             if !f.isMe {
+                                Button { profileOf = ProfileTarget(id: f.id) } label: { Image(systemName: "person.crop.circle") }
+                                    .buttonStyle(.borderless)
+                                    .padding(.top, 10)
+                                    .help("Open \(f.profile.name)'s profile (gift a planet from there)")
                                 Button { promising = f } label: { Image(systemName: "hand.raised.fingers.spread") }
                                     .buttonStyle(.borderless)
                                     .padding(.top, 10)
@@ -230,6 +236,7 @@ struct FriendsView: View {
         .sheet(isPresented: $renaming) { RenameSheet(current: friends.me?.name ?? "") }
         .sheet(item: $viewingGalaxy) { FriendGalaxySheet(card: $0) }
         .sheet(item: $promising) { PromiseSheet(friend: $0) }
+        .sheet(item: $profileOf) { OrbiterProfileSheet(userID: $0.id) }
     }
 
     private var myCodeCard: some View {
@@ -340,6 +347,7 @@ struct LeaderboardRow: View {
     var expanded = false
     var onToggle: () -> Void = {}
     var onOpenGalaxy: () -> Void = {}
+    var onProfile: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -365,6 +373,8 @@ struct LeaderboardRow: View {
                 .font(rank <= 3 ? .title3 : .headline)
                 .frame(width: 30)
             Avatar(name: card.profile.name, color: card.isMe ? accent : .gray, size: 34, planet: card.profile.avatar)
+                .onTapGesture { onProfile() }
+                .help("Open profile")
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(card.profile.name + (card.isMe ? " (you)" : "")).font(.headline)

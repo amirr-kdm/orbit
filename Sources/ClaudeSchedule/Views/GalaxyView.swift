@@ -9,6 +9,8 @@ struct GalaxyData: Codable, Hashable {
         var planets: [String]
         var x: Double?
         var y: Double?
+        var sunSize: Double?
+        var orbitGap: Double?
     }
     var systems: [System]
 }
@@ -23,7 +25,8 @@ extension AppStore {
 
     var galaxyData: GalaxyData {
         GalaxyData(systems: solarSystems.map { s in
-            GalaxyData.System(id: s.id, name: s.name, sun: s.sun, planets: planets(in: s).map(\.planetID), x: s.x, y: s.y)
+            GalaxyData.System(id: s.id, name: s.name, sun: s.sun, planets: planets(in: s).map(\.planetID), x: s.x, y: s.y,
+                              sunSize: s.sunSize, orbitGap: s.orbitGap)
         })
     }
 }
@@ -44,6 +47,13 @@ struct GalaxyPage: View {
 
     private var accent: Color { store.settings.template.style.accent }
 
+    /// The zoom slider works on a log scale: the same drag always changes the size by the same factor, from far out to close up
+    private var zoomSlider: Binding<Double> {
+        let lo = log(GalaxyMapView.zoomRange.lowerBound), hi = log(GalaxyMapView.zoomRange.upperBound)
+        return Binding(get: { (log(max(zoom, GalaxyMapView.zoomRange.lowerBound)) - lo) / (hi - lo) },
+                       set: { zoom = exp(lo + min(1, max(0, $0)) * (hi - lo)) })
+    }
+
     var body: some View {
         let progress = store.galaxyProgress()
         ScrollView {
@@ -57,6 +67,19 @@ struct GalaxyPage: View {
         .navigationTitle("My Galaxy")
         .onAppear { store.ensureHomeSystem() }
         .sheet(isPresented: $showPass) { LevelPassView() }
+        // A planet opens in its own small window (like the Store), where you place, move or remove it
+        .sheet(isPresented: Binding(get: { selectedStore != nil }, set: { if !$0 { selectedStore = nil } })) {
+            if let id = selectedStore, let p = PlanetCatalog.planet(id) { planetSheet { storePanel(p) } }
+        }
+        .sheet(isPresented: Binding(get: { selectedPlanet != nil }, set: { if !$0 { selectedPlanet = nil } })) {
+            if let id = selectedPlanet, let p = PlanetCatalog.planet(id) { planetSheet { selectedPanel(p, progress) } }
+        }
+    }
+
+    private func planetSheet<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        content()
+            .padding(20)
+            .frame(width: 720)
     }
 
     // MARK: Profile
@@ -160,13 +183,13 @@ struct GalaxyPage: View {
                 Spacer()
                 HStack(spacing: 8) {
                     if let focused {
-                        GalaxyLookButton()
+                        GalaxyLookButton(systemID: focused.id)
                         systemMenu(focused, progress)
                     } else {
                         HStack(spacing: 4) {
-                            Button { withAnimation { zoom = max(0.35, zoom - 0.12) } } label: { Image(systemName: "minus.magnifyingglass") }
-                            Slider(value: $zoom, in: 0.35...1.3).frame(width: 110)
-                            Button { withAnimation { zoom = min(1.3, zoom + 0.12) } } label: { Image(systemName: "plus.magnifyingglass") }
+                            Button { withAnimation { zoom = max(GalaxyMapView.zoomRange.lowerBound, zoom / 1.35) } } label: { Image(systemName: "minus.magnifyingglass") }
+                            Slider(value: zoomSlider, in: 0...1).frame(width: 130)
+                            Button { withAnimation { zoom = min(GalaxyMapView.zoomRange.upperBound, zoom * 1.35) } } label: { Image(systemName: "plus.magnifyingglass") }
                         }
                         .buttonStyle(.plain)
                         GalaxyLookButton()
@@ -266,8 +289,9 @@ struct GalaxyPage: View {
                 }
                 .frame(width: 280)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+            // a grid that wraps, so every planet is visible without scrolling sideways
+            Group {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12, alignment: .top)], spacing: 12) {
                     ForEach(store.ownedStorePlanets) { p in
                         let waiting = store.unplacedCount(p.id), placed = store.placedCount(p.id)
                         VStack(spacing: 6) {
@@ -275,22 +299,20 @@ struct GalaxyPage: View {
                             Text(p.name).font(.callout.weight(.semibold)).lineLimit(1)
                             Text(waiting > 0 ? "\(waiting) waiting · \(placed) placed" : "All \(placed) placed")
                                 .font(.caption2).foregroundStyle(.secondary)
-                            if store.avatarPlanet == p.id {
-                                Text("Profile").font(.caption2.weight(.semibold)).foregroundStyle(accent)
-                            }
+                            Text("Profile").font(.caption2.weight(.semibold)).foregroundStyle(accent)
+                                .opacity(store.avatarPlanet == p.id ? 1 : 0)
                         }
-                        .frame(width: 130)
+                        .frame(maxWidth: .infinity)
                         .padding(10)
                         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: "#0B1020")))
                         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .strokeBorder(selectedStore == p.id ? accent : p.rarity.color.opacity(0.5), lineWidth: selectedStore == p.id ? 2.5 : 1))
                         .foregroundStyle(.white)
                         .contentShape(Rectangle())
-                        .onTapGesture { withAnimation { selectedStore = selectedStore == p.id ? nil : p.id } }
+                        .onTapGesture { selectedStore = p.id }
                     }
                 }
             }
-            if let id = selectedStore, let p = PlanetCatalog.planet(id), store.ownedCount(id) > 0 { storePanel(p) }
             Text("Click a planet to place, move or remove it. Placing uses one of your planet spots (one per level — \(store.galaxyProgress().credits) free now). Removing a store planet from a system keeps it on this shelf.")
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -399,10 +421,6 @@ struct GalaxyPage: View {
                 Spacer()
             }
 
-            if let id = selectedPlanet, let planet = PlanetCatalog.planet(id) {
-                selectedPanel(planet, progress)
-            }
-
             ForEach(1...10, id: \.self) { group in
                 let planets = PlanetCatalog.all.filter { $0.level == group }
                 let level = PlanetCatalog.unlockLevel(group: group)
@@ -420,7 +438,7 @@ struct GalaxyPage: View {
                                        isSelected: selectedPlanet == planet.id,
                                        isAvatar: store.avatarPlanet == planet.id,
                                        count: store.galaxy.filter { $0.planetID == planet.id }.count)
-                                .onTapGesture { withAnimation(.spring(duration: 0.3)) { selectedPlanet = planet.id } }
+                                .onTapGesture { selectedPlanet = planet.id }
                         }
                     }
                 }
@@ -524,7 +542,8 @@ struct GalaxyMapView: View {
     var onDelete: ((UUID) -> Void)? = nil
     /// Pinch changes the outside zoom (e.g. the slider) instead of a private one
     var onZoom: ((Double) -> Void)? = nil
-    static let zoomRange = 0.35...1.3
+    /// Zoom limits (the slider is logarithmic, so every step changes the size by the same factor)
+    static let zoomRange = 0.1...5.0
     /// How big a solar system is drawn on the map (1.1 before; +15%)
     static let tileScale: CGFloat = 1.265
 
@@ -538,7 +557,7 @@ struct GalaxyMapView: View {
     @State private var lastPinch: CGFloat = 1
     @State private var viewSize = CGSize(width: 900, height: 600)
 
-    private var baseZoom: Double { min(1.8, max(0.25, zoom * userScale)) }
+    private var baseZoom: Double { min(6, max(0.08, zoom * userScale)) }
 
     static let worldSize = CGSize(width: 2600, height: 1700)
 
@@ -556,13 +575,15 @@ struct GalaxyMapView: View {
                     .position(x: -o.width + geo.size.width / 2, y: -o.height + geo.size.height / 2)
                     .allowsHitTesting(false)
                 // The backdrop is rendered once at the normal zoom and scaled for close-ups (keeps memory low)
+                // (never bigger than the normal zoom, however far you zoom in: a huge picture would eat the memory)
+                let backdropZoom = min(baseZoom, 1.3)
                 GalaxyBackdrop()
-                    .frame(width: Self.worldSize.width * baseZoom, height: Self.worldSize.height * baseZoom)
+                    .frame(width: Self.worldSize.width * backdropZoom, height: Self.worldSize.height * backdropZoom)
                     .drawingGroup()
                     // fade the spiral's rectangle into the endless starfield (no visible edge)
                     .mask(EllipticalGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: 0.62),
                                                      .init(color: .clear, location: 1)], center: .center))
-                    .scaleEffect(zoom / baseZoom)
+                    .scaleEffect(zoom / backdropZoom)
                     .frame(width: w, height: h)
 
                 ForEach(Array(data.systems.enumerated()), id: \.element.id) { i, system in
@@ -573,7 +594,7 @@ struct GalaxyMapView: View {
                     let sy = base.y * zoom - h / 2 + geo.size.height / 2 + offset.height
                     let half = CGSize(width: 165 * zoom * GalaxyMapView.tileScale, height: 130 * zoom * GalaxyMapView.tileScale)
                     let onScreen = sx + half.width > 0 && sx - half.width < geo.size.width && sy + half.height > 0 && sy - half.height < geo.size.height
-                    MapSystemTile(system: system, zoom: zoom, still: !onScreen || !(focused == nil || isOpen), showName: focused == nil, canMove: focused == nil && onMove != nil,
+                    MapSystemTile(system: system, zoom: zoom, offscreen: !onScreen, still: !onScreen || !(focused == nil || isOpen), showName: focused == nil, canMove: focused == nil && onMove != nil,
                                   onTap: { if focused == nil { onSelect?(system.id) } },
                                   onDrop: { t in onMove?(system.id, CGPoint(x: base.x + t.width / zoom, y: base.y + t.height / zoom)) })
                         .opacity(focused == nil || isOpen ? 1 : 0)
@@ -611,7 +632,7 @@ struct GalaxyMapView: View {
         // Trackpad pinch zooms (scrolling is left to the page)
         .simultaneousGesture(MagnifyGesture()
             .onChanged { v in
-                guard focused == nil, flyZoom == nil else { return }
+                guard focused != nil || flyZoom == nil else { return }
                 let k = v.magnification / max(0.01, lastPinch)
                 lastPinch = v.magnification
                 rescale(by: k)
@@ -628,20 +649,27 @@ struct GalaxyMapView: View {
     private func startTrackpad() {
         guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .magnify) { e in
-            guard hovering, focused == nil, flyZoom == nil else { return e }
+            guard hovering, focused != nil || flyZoom == nil else { return e }
             rescale(by: 1 + e.magnification)
             return nil
         }
     }
 
     private func rescale(by k: Double) {
+        // Flown in on one solar system: zoom out to see the whole of a big one (or in for a closer look)
+        if focused != nil, let z = flyZoom {
+            let new = min(6, max(0.3, z * k))
+            pan = CGSize(width: pan.width * new / z, height: pan.height * new / z)
+            flyZoom = new
+            return
+        }
         // With a zoom slider outside, move the slider (it stays in step with the pinch)
         if let onZoom {
             onZoom(min(Self.zoomRange.upperBound, max(Self.zoomRange.lowerBound, zoom * k)))
             return
         }
         let before = baseZoom
-        userScale = min(1.8 / max(zoom, 0.01), max(0.25 / max(zoom, 0.01), userScale * k))
+        userScale = min(6 / max(zoom, 0.01), max(0.08 / max(zoom, 0.01), userScale * k))
         let ratio = baseZoom / before
         pan = CGSize(width: pan.width * ratio, height: pan.height * ratio)
     }
@@ -767,6 +795,8 @@ struct SolarSystemView: View {
     var large = false
     /// Map tiles: draw the 330×260 layout scaled up to this factor (sharp at any zoom)
     var paintScale: CGFloat = 1
+    /// Map tiles: the 330×260 tile the system is fitted to (the canvas itself may be bigger)
+    var fit: CGSize? = nil
     var showName = true
     /// Off-screen or hidden: draw once, don't animate
     var still = false
@@ -778,7 +808,7 @@ struct SolarSystemView: View {
                 if large { StarsBackground.paint(&ctx, size: size) }
                 ctx.scaleBy(x: paintScale, y: paintScale)
                 Self.paint(system, in: &ctx, size: CGSize(width: size.width / paintScale, height: size.height / paintScale),
-                           time: t, large: large, showName: showName)
+                           time: t, large: large, showName: showName, fit: fit)
             }
         }
         .background(large ? Color.black : Color.clear)
@@ -787,22 +817,39 @@ struct SolarSystemView: View {
     struct Slot { let radius: Double; let offset: Double; let speed: Double }
 
     /// One planet per orbit, inner orbits are faster
-    static func layout(count: Int) -> [Slot] {
+    static func layout(count: Int, orbit: Double, sun: Double) -> [Slot] {
         (0..<count).map { i in
-            let look = GalaxyLook.current
             // the first orbit clears the sun (whatever its size); then one ring every 32 × spacing
-            let radius = 100 * max(1, look.sun * 0.95) + Double(i) * 32 * look.orbit
+            let radius = 100 * max(1, sun * 0.95) + Double(i) * 32 * orbit
             let speed = 0.35 / sqrt(Double(i + 1)) * (i % 3 == 2 ? -1 : 1)
             return Slot(radius: radius, offset: Double(i) * 2.1, speed: speed)
         }
     }
 
-    static func paint(_ system: GalaxyData.System, in ctx: inout GraphicsContext, size: CGSize, time t: Double, large: Bool, showName: Bool = true) {
-        let slots = layout(count: system.planets.count)
-        let maxR = slots.map(\.radius).max() ?? 60
-        let scale = min(large ? 1.6 : 1.0, (min(size.width, size.height * 1.5) / 2 - 20) / (maxR + 30))
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+    /// How much the whole system is shrunk to fit a tile of `fit`. It is worked out for the *default* orbit gap and sun
+    /// size, so moving the sliders only moves the orbits / resizes that sun: planets and suns keep their size.
+    static func fitScale(planets: Int, fit: CGSize, large: Bool) -> Double {
+        let maxR = layout(count: planets, orbit: 1, sun: 1).map(\.radius).max() ?? 60
+        return min(large ? 1.6 : 1.0, (min(fit.width, fit.height * 1.5) / 2 - 20) / (maxR + 30))
+    }
+
+    /// Size (in tile units) of the canvas a system needs: the 330×260 tile, or more when its orbits reach further out
+    static func canvasUnits(_ system: GalaxyData.System) -> CGSize {
         let look = GalaxyLook.current
+        let slots = layout(count: system.planets.count, orbit: system.orbitGap ?? look.orbit, sun: system.sunSize ?? look.sun)
+        let scale = fitScale(planets: system.planets.count, fit: CGSize(width: 330, height: 260), large: false)
+        let maxR = (slots.map(\.radius).max() ?? 60) * scale
+        return CGSize(width: max(330, 2 * (maxR + 60)), height: max(260, 2 * (maxR * 0.55 + 70)))
+    }
+
+    static func paint(_ system: GalaxyData.System, in ctx: inout GraphicsContext, size: CGSize, time t: Double, large: Bool,
+                      showName: Bool = true, fit: CGSize? = nil) {
+        let look = GalaxyLook.current
+        let orbitGap = system.orbitGap ?? look.orbit
+        let sunSize = system.sunSize ?? look.sun
+        let slots = layout(count: system.planets.count, orbit: orbitGap, sun: sunSize)
+        let scale = fitScale(planets: system.planets.count, fit: fit ?? size, large: large)
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
         let planetSize = (large ? 42 : 30) * max(scale, 0.7) * look.planet
 
         // orbits
@@ -829,7 +876,7 @@ struct SolarSystemView: View {
         }
         for item in placed where item.2 < 0 { drawPlanet(item) }
         SunPainter.paint(system.sun, in: &ctx, center: center,
-                         radius: (large ? 46 : 30) * system.sun.scale * max(scale, 0.75) * look.sun, time: t)
+                         radius: (large ? 46 : 30) * system.sun.scale * max(scale, 0.75) * sunSize, time: t)
         for item in placed where item.2 >= 0 { drawPlanet(item) }
 
         if !large && showName {
@@ -891,8 +938,9 @@ enum SunPainter {
         switch sun {
         case .binary:
             let a = time * 0.8
-            star(at: CGPoint(x: c.x + cos(a) * r * 0.9, y: c.y + sin(a) * r * 0.45), radius: r * 0.7)
-            star(at: CGPoint(x: c.x - cos(a) * r * 0.9, y: c.y - sin(a) * r * 0.45), radius: r * 0.55)
+            // the pair together spans about the same width as a single star of radius r
+            star(at: CGPoint(x: c.x + cos(a) * r * 0.42, y: c.y + sin(a) * r * 0.21), radius: r * 0.6)
+            star(at: CGPoint(x: c.x - cos(a) * r * 0.42, y: c.y - sin(a) * r * 0.21), radius: r * 0.48)
         case .pulsar:
             for k in [0.0, .pi] {
                 let a = time * 1.6 + k
@@ -904,7 +952,7 @@ enum SunPainter {
                 ctx.fill(beam, with: .linearGradient(Gradient(colors: [colors[1].opacity(0.8), .clear]),
                                                      startPoint: c, endPoint: CGPoint(x: c.x + cos(a) * r * 4, y: c.y + sin(a) * r * 4)))
             }
-            star(at: c, radius: r * 0.65)
+            star(at: c, radius: r)
         default:
             star(at: c, radius: r)
         }
@@ -1045,18 +1093,29 @@ struct InfiniteStars: View {
 private struct MapSystemTile: View {
     let system: GalaxyData.System
     let zoom: Double
+    var offscreen = false
     var still = false
     let showName: Bool
     let canMove: Bool
     let onTap: () -> Void
     let onDrop: (CGSize) -> Void
     @GestureState private var drag: CGSize = .zero
+    /// Names only show while the mouse is over a solar system
+    @State private var hovering = false
 
     var body: some View {
         // Painted at the real on-screen size, so it stays sharp when zoomed in
-        SolarSystemView(system: system, large: false, paintScale: zoom * GalaxyMapView.tileScale, showName: showName, still: still)
-            .frame(width: 330 * zoom * GalaxyMapView.tileScale, height: 260 * zoom * GalaxyMapView.tileScale)
+        let units = SolarSystemView.canvasUnits(system)
+        // a system far off screen isn't painted at all (at a close zoom each tile would be a couple of thousand pixels wide)
+        Group {
+            if offscreen { Color.clear } else {
+                SolarSystemView(system: system, large: false, paintScale: zoom * GalaxyMapView.tileScale, fit: CGSize(width: 330, height: 260),
+                                showName: showName && hovering, still: still)
+            }
+        }
+            .frame(width: units.width * zoom * GalaxyMapView.tileScale, height: units.height * zoom * GalaxyMapView.tileScale)
             .contentShape(Ellipse())
+            .onHover { hovering = $0 }
             .offset(drag)
             .onTapGesture(perform: onTap)
             // Measured in window coordinates: the tile itself moves while dragging
@@ -1083,12 +1142,29 @@ struct GalaxyLook {
     }
 }
 
-/// Sliders for orbit spacing, sun size and planet size
+/// Sliders for orbit spacing and sun size (of the open solar system) and planet size (all systems)
 struct GalaxyLookButton: View {
+    /// The solar system the orbit and sun sliders belong to; nil = the Mac-wide default for systems with no setting of their own
+    var systemID: UUID? = nil
+    @Environment(AppStore.self) private var store
+    /// In the galaxy view (no system open) the solar system to change is picked here; nil = the default for all
+    @State private var picked: UUID?
     @AppStorage("galaxy.orbit") private var orbit = GalaxyLook.defaults.orbit
     @AppStorage("galaxy.sun") private var sun = GalaxyLook.defaults.sun
     @AppStorage("galaxy.planet") private var planet = GalaxyLook.defaults.planet
     @State private var open = false
+
+    private var targetID: UUID? { systemID ?? picked }
+    private var system: SolarSystem? { targetID.flatMap { id in store.solarSystems.first { $0.id == id } } }
+
+    private var orbitValue: Binding<Double> {
+        Binding(get: { system?.orbitGap ?? orbit },
+                set: { v in if let id = targetID { store.updateSystem(id) { $0.orbitGap = v } } else { orbit = v } })
+    }
+    private var sunValue: Binding<Double> {
+        Binding(get: { system?.sunSize ?? sun },
+                set: { v in if let id = targetID { store.updateSystem(id) { $0.sunSize = v } } else { sun = v } })
+    }
 
     var body: some View {
         Button { open.toggle() } label: { Image(systemName: "slider.horizontal.3") }
@@ -1096,20 +1172,30 @@ struct GalaxyLookButton: View {
             .help("Orbit spacing, sun size and planet size")
             .popover(isPresented: $open, arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Solar system look").font(.headline)
-                    slider("Orbit spacing", "circle.dashed", $orbit, 0.6...2.2)
-                    slider("Sun size", "sun.max.fill", $sun, 0.5...2.0)
-                    slider("Planet size", "globe.americas.fill", $planet, 0.6...2.6)
+                    if systemID == nil {
+                        Text("Solar system look").font(.headline)
+                        Picker("Solar system", selection: $picked) {
+                            Text("All (default)").tag(UUID?.none)
+                            ForEach(store.solarSystems) { Text($0.name).tag(UUID?.some($0.id)) }
+                        }
+                    } else {
+                        Text(system?.name ?? "Solar system look").font(.headline)
+                    }
+                    slider("Orbit spacing", "circle.dashed", orbitValue, 0.5...6)
+                    slider("Sun size", "sun.max.fill", sunValue, 0.4...3.5)
+                    slider("Planet size (all systems)", "globe.americas.fill", $planet, 0.6...2.6)
                     HStack {
                         Spacer()
                         Button("Reset") {
-                            orbit = GalaxyLook.defaults.orbit; sun = GalaxyLook.defaults.sun; planet = GalaxyLook.defaults.planet
+                            if let id = targetID { store.updateSystem(id) { $0.orbitGap = nil; $0.sunSize = nil } }
+                            else { orbit = GalaxyLook.defaults.orbit; sun = GalaxyLook.defaults.sun }
+                            planet = GalaxyLook.defaults.planet
                         }
                         .controlSize(.small)
                     }
                 }
                 .padding(16)
-                .frame(width: 280)
+                .frame(width: 290)
             }
     }
 

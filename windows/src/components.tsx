@@ -129,7 +129,7 @@ export function Modal({ onClose, children, width }: { onClose: () => void; child
 
 // ---------- Galaxy / solar systems ----------
 
-const slots = (n: number) => { const L = galaxyLook(); return Array.from({ length: n }, (_, i) => ({ radius: 100 * Math.max(1, L.sun * 0.95) + i * 32 * L.orbit, offset: i * 2.1, speed: (0.35 / Math.sqrt(i + 1)) * (i % 3 === 2 ? -1 : 1) })); };
+const slots = (n: number, orbit: number, sun: number) => Array.from({ length: n }, (_, i) => ({ radius: 100 * Math.max(1, sun * 0.95) + i * 32 * orbit, offset: i * 2.1, speed: (0.35 / Math.sqrt(i + 1)) * (i % 3 === 2 ? -1 : 1) }));
 
 function drawStars(ctx: CanvasRenderingContext2D, w: number, h: number, seed = 7) {
   let s = seed;
@@ -140,12 +140,28 @@ function drawStars(ctx: CanvasRenderingContext2D, w: number, h: number, seed = 7
   }
 }
 
-/** Paint a solar system into a w×h area at time t (seconds) */
-export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["systems"][number], w: number, h: number, t: number, large: boolean, cache: Map<string, HTMLCanvasElement>, hideName = false) {
-  const L = galaxyLook();
-  const sl = slots(sys.planets.length);
+type SystemLike = GalaxyData["systems"][number];
+/** How much the whole system is shrunk to fit its tile. Worked out for the *default* orbit gap and sun size, so moving the
+ *  sliders only moves the orbits / resizes that sun: planets and suns keep their size. */
+const fitScale = (planets: number, fw: number, fh: number, large: boolean) => {
+  const sl = slots(planets, 1, 1);
   const maxR = sl.length ? sl[sl.length - 1].radius : 60;
-  const scale = Math.min(large ? 1.6 : 1, (Math.min(w, h * 1.5) / 2 - 20) / (maxR + 30));
+  return Math.min(large ? 1.6 : 1, (Math.min(fw, fh * 1.5) / 2 - 20) / (maxR + 30));
+};
+/** The size (in tile units) of the canvas a system needs: the 330×260 tile, or more when its orbits reach further out */
+export function canvasUnits(sys: SystemLike) {
+  const L = galaxyLook();
+  const sl = slots(sys.planets.length, sys.orbitGap ?? L.orbit, sys.sunSize ?? L.sun);
+  const maxR = (sl.length ? sl[sl.length - 1].radius : 60) * fitScale(sys.planets.length, 330, 260, false);
+  return { w: Math.max(330, 2 * (maxR + 60)), h: Math.max(260, 2 * (maxR * 0.55 + 70)) };
+}
+
+/** Paint a solar system into a w×h area at time t (seconds). `fit` is the tile it is fitted to (defaults to w×h). */
+export function paintSystem(ctx: CanvasRenderingContext2D, sys: SystemLike, w: number, h: number, t: number, large: boolean, cache: Map<string, HTMLCanvasElement>, hideName = false, fit?: { w: number; h: number }) {
+  const L = galaxyLook();
+  const orbitGap = sys.orbitGap ?? L.orbit, sunSize = sys.sunSize ?? L.sun;
+  const sl = slots(sys.planets.length, orbitGap, sunSize);
+  const scale = fitScale(sys.planets.length, fit?.w ?? w, fit?.h ?? h, large);
   const cx = w / 2, cy = h / 2, ps = (large ? 42 : 30) * Math.max(scale, 0.7) * L.planet;
   ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.lineWidth = 1;
   for (const s of sl) { ctx.beginPath(); ctx.ellipse(cx, cy, s.radius * scale, s.radius * scale * 0.55, 0, 0, Math.PI * 2); ctx.stroke(); }
@@ -157,7 +173,7 @@ export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["syst
     const p = planetByID(it.id); if (!p) return;
     // Anything that moves (rings, moons, creatures walking on it, spacecraft in orbit, animated pictures) is redrawn
     // every frame, like the Mac app; only completely still planets are cached
-    const animated = !!p.ring || !!p.moons || !!p.walkers?.length || !!p.crafts?.length || !!p.image;
+    const animated = !!p.ring || !!p.moons || !!p.walkers?.length || !!p.crafts?.length || !!p.image || !!p.emoji?.startsWith("art:");
     let img = cache.get(it.id + ps);
     if (!img || animated) {
       img = img ?? document.createElement("canvas");
@@ -168,26 +184,28 @@ export function paintSystem(ctx: CanvasRenderingContext2D, sys: GalaxyData["syst
     ctx.drawImage(img, it.x - ps / 2, it.y - ps / 2, ps, ps);
   };
   items.filter((i) => i.z < 0).forEach(draw);
-  paintSun(ctx, sys.sun, cx, cy, (large ? 46 : 30) * (SUNS[sys.sun]?.scale ?? 1) * Math.max(scale, 0.75) * L.sun, t);
+  paintSun(ctx, sys.sun, cx, cy, (large ? 46 : 30) * (SUNS[sys.sun]?.scale ?? 1) * Math.max(scale, 0.75) * sunSize, t);
   items.filter((i) => i.z >= 0).forEach(draw);
   if (!large && !hideName) { ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.font = "bold 15px 'Segoe UI', sans-serif"; ctx.textAlign = "center"; ctx.fillText(sys.name, cx, h - 8); }
 }
 
-export function SystemCanvas({ sys, width, height, large, res = 1, hideName = false }: { sys: GalaxyData["systems"][number]; width: number; height: number; large: boolean; res?: number; hideName?: boolean }) {
+export function SystemCanvas({ sys, width, height, large, res = 1, hideName = false, units }: { sys: SystemLike; width: number; height: number; large: boolean; res?: number; hideName?: boolean; units?: { w: number; h: number } }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     // res > 1: drawn extra sharp because it is shown zoomed in
     const cv = ref.current!; const dpr = (window.devicePixelRatio || 1) * res;
-    cv.width = width * dpr; cv.height = height * dpr;
+    cv.width = Math.ceil(width * dpr); cv.height = Math.ceil(height * dpr);
     const ctx = cv.getContext("2d")!; const cache = new Map<string, HTMLCanvasElement>();
+    // map tiles are painted in "tile units" (330×260 or more) and scaled up, so zooming never changes how big things are
+    const uw = units?.w ?? width, uh = units?.h ?? height, sc = width / uw;
     const paint = () => {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
+      ctx.setTransform(dpr * sc, 0, 0, dpr * sc, 0, 0); ctx.clearRect(0, 0, uw, uh);
       if (large) drawStars(ctx, width, height);
-      paintSystem(ctx, sys, width, height, performance.now() / 1000, large && !hideName, cache, hideName);
+      paintSystem(ctx, sys, uw, uh, performance.now() / 1000, large && !hideName, cache, hideName, units ? { w: 330, h: 260 } : undefined);
     };
     paint();
     return frameLoop(paint, large || res > 1 ? 30 : 15);
-  }, [sys, width, height, large, res, hideName]);
+  }, [sys, width, height, large, res, hideName, units?.w, units?.h]);
   return <canvas ref={ref} style={{ width, height, display: "block" }} />;
 }
 
@@ -197,27 +215,43 @@ export function galaxyLook(): typeof LOOK_DEFAULTS {
   try { return { ...LOOK_DEFAULTS, ...JSON.parse(localStorage.getItem("galaxy-look") ?? "{}") }; } catch { return LOOK_DEFAULTS; }
 }
 
-/** Sliders for orbit spacing, sun size and planet size */
-export function GalaxyLookButton() {
+/** Sliders for orbit spacing and sun size (of one solar system, or the default for systems with no setting of their own) and planet size (all) */
+export function GalaxyLookButton({ systemId }: { systemId?: string }) {
+  const { data, actions } = useStore();
   const [open, setOpen] = useState(false);
   const [look, setLook] = useState(galaxyLook());
-  const set = (k: keyof typeof LOOK_DEFAULTS, v: number) => { const n = { ...look, [k]: v }; setLook(n); localStorage.setItem("galaxy-look", JSON.stringify(n)); };
-  const row = (label: string, k: keyof typeof LOOK_DEFAULTS, min: number, max: number) => (
+  const [picked, setPicked] = useState<string>("");
+  const target = systemId ?? (picked || undefined);
+  const sys = target ? data.solarSystems.find((x) => x.id === target) : undefined;
+  const save = (n: typeof LOOK_DEFAULTS) => { setLook(n); localStorage.setItem("galaxy-look", JSON.stringify(n)); };
+  const orbit = sys?.orbitGap ?? look.orbit, sun = sys?.sunSize ?? look.sun;
+  const setOrbit = (v: number) => (sys ? actions.updateSystem(sys.id, (x) => { x.orbitGap = v; }) : save({ ...look, orbit: v }));
+  const setSun = (v: number) => (sys ? actions.updateSystem(sys.id, (x) => { x.sunSize = v; }) : save({ ...look, sun: v }));
+  const row = (label: string, value: number, min: number, max: number, set: (v: number) => void) => (
     <label style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <span className="row small"><span>{label}</span><span className="spacer" /><span className="muted">{Math.round(look[k] * 100)}%</span></span>
-      <input type="range" min={min} max={max} step={0.01} value={look[k]} onChange={(e) => set(k, +e.target.value)} style={{ padding: 0 }} />
+      <span className="row small"><span>{label}</span><span className="spacer" /><span className="muted">{Math.round(value * 100)}%</span></span>
+      <input type="range" min={min} max={max} step={0.01} value={value} onChange={(e) => set(+e.target.value)} style={{ padding: 0 }} />
     </label>
   );
   return (
     <div style={{ position: "relative" }}>
       <button className="btn small" title="Orbit spacing, sun size and planet size" onClick={() => setOpen((o) => !o)}>☰</button>
       {open && (
-        <div className="popover" style={{ top: 34, right: 0, width: 260, color: "var(--text)" }} onMouseDown={(e) => e.stopPropagation()}>
-          <b>Solar system look</b>
-          {row("◌ Orbit spacing", "orbit", 0.6, 2.2)}
-          {row("☀️ Sun size", "sun", 0.5, 2)}
-          {row("🌍 Planet size", "planet", 0.6, 2.6)}
-          <div className="row"><span className="spacer" /><button className="btn small" onClick={() => { setLook(LOOK_DEFAULTS); localStorage.setItem("galaxy-look", JSON.stringify(LOOK_DEFAULTS)); }}>Reset</button>
+        <div className="popover" style={{ top: 34, right: 0, width: 280, color: "var(--text)" }} onMouseDown={(e) => e.stopPropagation()}>
+          {systemId ? <b>{sys?.name ?? "Solar system look"}</b> : <>
+            <b>Solar system look</b>
+            <select value={picked} onChange={(e) => setPicked(e.target.value)}>
+              <option value="">All (default)</option>
+              {data.solarSystems.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </>}
+          {row("◌ Orbit spacing", orbit, 0.5, 6, setOrbit)}
+          {row("☀️ Sun size", sun, 0.4, 3.5, setSun)}
+          {row("🌍 Planet size (all systems)", look.planet, 0.6, 2.6, (v) => save({ ...look, planet: v }))}
+          <div className="row"><span className="spacer" /><button className="btn small" onClick={() => {
+            if (sys) actions.updateSystem(sys.id, (x) => { delete x.orbitGap; delete x.sunSize; }); else save({ ...look, orbit: LOOK_DEFAULTS.orbit, sun: LOOK_DEFAULTS.sun });
+            save({ ...(sys ? look : { ...look, orbit: LOOK_DEFAULTS.orbit, sun: LOOK_DEFAULTS.sun }), planet: LOOK_DEFAULTS.planet });
+          }}>Reset</button>
             <button className="btn small" onClick={() => setOpen(false)}>Close</button></div>
         </div>
       )}
@@ -228,7 +262,10 @@ export function GalaxyLookButton() {
 const WORLD_W = 2600, WORLD_H = 1700;
 /** How big a solar system is drawn on the map */
 export const TILE_SCALE = 1.265;
-export const ZOOM_MIN = 0.35, ZOOM_MAX = 1.3;
+/** The zoom slider is logarithmic, so every step changes the size by the same factor */
+export const ZOOM_MIN = 0.1, ZOOM_MAX = 5;
+const zoomToSlider = (z: number) => (Math.log(z) - Math.log(ZOOM_MIN)) / (Math.log(ZOOM_MAX) - Math.log(ZOOM_MIN));
+const sliderToZoom = (v: number) => Math.exp(Math.log(ZOOM_MIN) + v * (Math.log(ZOOM_MAX) - Math.log(ZOOM_MIN)));
 const spiralPos = (i: number) => {
   if (i === 0) return { x: WORLD_W / 2 + 260, y: WORLD_H / 2 - 60 };
   const k = Math.floor((i + 1) / 2), arm = i % 2 === 0 ? 0 : Math.PI, a = arm + 0.25 + k * 1.05, r = 300 + k * 190;
@@ -272,6 +309,8 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
   const [size, setSize] = useState({ w: 900, h: height });
   const drag = useRef<{ x: number; y: number; px: number; py: number; moved: boolean; sys?: string; sx?: number; sy?: number } | null>(null);
   const [moving, setMoving] = useState<{ id: string; dx: number; dy: number } | null>(null);
+  /** Names only show while the mouse is over a solar system */
+  const [hover, setHover] = useState<string | null>(null);
   const bg = useRef<HTMLCanvasElement>(null);
   const flight = useRef(0);
   useEffect(() => {
@@ -359,26 +398,37 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
       backgroundColor: "#020617", backgroundImage: `url(${starTileURL()})`, backgroundSize: `${tile}px ${tile}px`, backgroundPosition: `${ox}px ${oy}px` }}
       onWheel={(e) => {
         // Windows touchpads send a pinch as Ctrl + wheel; a plain wheel scrolls the page
-        if (!e.ctrlKey || focused || cam) return;
+        if (!e.ctrlKey) return;
+        if (focused || cam) {   // flown in on one system: zoom out to see all of a big one (or in for a closer look)
+          if (!cam) return;
+          const nz = Math.min(6, Math.max(0.3, cam.z * (1 - e.deltaY * 0.01)));
+          setCam({ z: nz, x: cam.x * nz / cam.z, y: cam.y * nz / cam.z }); return;
+        }
         const nz = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom * (1 - e.deltaY * 0.01)));
         setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz);
       }}
       onMouseDown={(e) => { if (focused) return; startDrag(e, { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false }); }}>
       <div style={{ position: "absolute", left: ox, top: oy, width: w, height: h }}>
-        <canvas ref={bg} style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
+        {/* never bigger than the normal zoom, however far you zoom in: a huge picture would eat the memory */}
+        <canvas ref={bg} style={{ position: "absolute", left: 0, top: 0, width: WORLD_W * Math.min(z, 1.3), height: WORLD_H * Math.min(z, 1.3),
+          transform: `scale(${z / Math.min(z, 1.3)})`, transformOrigin: "0 0",
           maskImage: "radial-gradient(ellipse at center, black 55%, transparent 72%)", WebkitMaskImage: "radial-gradient(ellipse at center, black 55%, transparent 72%)" }} />
         {data.systems.map((s, i) => {
           const p0 = systemPos(s, i);
           const mv = moving?.id === s.id ? moving : null;
           const p = { x: p0.x + (mv ? mv.dx / z : 0), y: p0.y + (mv ? mv.dy / z : 0) };
-          const tw = 330 * zoom * TILE_SCALE, th = 260 * zoom * TILE_SCALE, k = z / zoom;
+          const units = canvasUnits(s);
+          const tw = units.w * zoom * TILE_SCALE, th = units.h * zoom * TILE_SCALE, k = z / zoom;
           const open = focused === s.id;
+          // a system far off screen isn't painted at all (at a close zoom each tile would be a couple of thousand pixels wide)
+          const sx = ox + p.x * z, sy = oy + p.y * z, visible = sx + (tw * k) / 2 > 0 && sx - (tw * k) / 2 < size.w && sy + (th * k) / 2 > 0 && sy - (th * k) / 2 < size.h;
           return (
             <div key={s.id} title={focused ? undefined : `Open ${s.name} · drag to move it`}
               style={{ position: "absolute", left: p.x * z - tw / 2, top: p.y * z - th / 2, width: tw, height: th, transform: `scale(${k})`,
                 cursor: focused ? "default" : "pointer", opacity: !focused || open ? 1 : 0, transition: "opacity .4s", zIndex: mv ? 2 : 1 }}
+              onMouseEnter={() => setHover(s.id)} onMouseLeave={() => setHover((h) => (h === s.id ? null : h))}
               onMouseDown={(e) => { if (focused) return; e.stopPropagation(); startDrag(e, { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y, moved: false, sys: s.id, sx: p0.x, sy: p0.y }); }}>
-              <SystemCanvas sys={s} width={tw} height={th} large={false} res={open ? Math.min(4, k) : 1} hideName={!!focused} />
+              {visible && <SystemCanvas sys={s} width={tw} height={th} units={units} large={false} res={open ? Math.min(4, k) : 1} hideName={!!focused || hover !== s.id} />}
             </div>
           );
         })}
@@ -386,7 +436,7 @@ export function GalaxyMap({ data, height = 560, focused = null, onSelect, onMove
       {!focused && (
         <div style={{ position: "absolute", right: 16, bottom: 14, display: "flex", gap: 8, alignItems: "center", background: "rgba(0,0,0,.35)", padding: "6px 12px", borderRadius: 99 }}>
           <span className="small">🔍</span>
-          <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={0.01} value={zoom} onChange={(e) => { const nz = +e.target.value; setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz); }} style={{ width: 120, padding: 0 }} />
+          <input type="range" min={0} max={1} step={0.002} value={zoomToSlider(zoom)} onChange={(e) => { const nz = sliderToZoom(+e.target.value); setPan((p) => ({ x: p.x * nz / zoom, y: p.y * nz / zoom })); setZoom(nz); }} style={{ width: 130, padding: 0 }} />
         </div>
       )}
     </div>

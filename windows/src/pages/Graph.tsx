@@ -149,6 +149,64 @@ export default function Graph({ catFilter }: { catFilter: string }) {
     }, 30);
   });
 
+
+  /** Soft constraints on top of the forces: items keep to their own category's space, a link never passes through another node,
+   *  and category names never overlap each other or other nodes. (Same as the Mac app.) */
+  function separate(nodes: GNode[], links: [number, number][]) {
+    const n = nodes.length, parent = new Map<number, number>();
+    for (const [a, b] of links) parent.set(b, a);
+    const L = lookRef.current;
+    // 1. items keep to their own category's space
+    for (let i = 0; i < n; i++) {
+      const it = nodes[i]; if (it.hub) continue;
+      const h = parent.get(i); if (h == null) continue;
+      const own = nodes[h], maxOwn = (74 + 4 * Math.sqrt(own.degree)) * L.link + radius(own) + 20;
+      let dx = it.x - own.x, dy = it.y - own.y; const d = Math.max(0.01, Math.hypot(dx, dy));
+      if (d > maxOwn) { const k = ((d - maxOwn) / d) * 0.35; it.vx -= dx * k; it.vy -= dy * k; }   // never wander far from its own category
+      for (let j = 0; j < n; j++) {   // and never settle inside another category's circle
+        const o = nodes[j]; if (!o.hub || j === h) continue;
+        dx = it.x - o.x; dy = it.y - o.y;
+        const dist = Math.max(0.01, Math.hypot(dx, dy)), keepOut = radius(o) + (46 + 3 * Math.sqrt(o.degree)) * L.link + 18;
+        if (dist < keepOut) { const push = ((keepOut - dist) / dist) * 0.5; it.x += dx * push; it.y += dy * push; }
+      }
+    }
+    // 2. a link never runs through a node that isn't one of its ends
+    for (const [a, b] of links) {
+      const ax = nodes[a].x, ay = nodes[a].y, ex = nodes[b].x - ax, ey = nodes[b].y - ay, len2 = Math.max(1, ex * ex + ey * ey);
+      for (let k = 0; k < n; k++) {
+        if (k === a || k === b) continue;
+        const t = Math.max(0, Math.min(1, ((nodes[k].x - ax) * ex + (nodes[k].y - ay) * ey) / len2));
+        let dx = nodes[k].x - (ax + ex * t), dy = nodes[k].y - (ay + ey * t);
+        const d = Math.max(0.01, Math.hypot(dx, dy)), clear = radius(nodes[k]) + 7;
+        if (d >= clear) continue;
+        if (d < 0.02) { dx = -ey; dy = ex; }   // exactly on the line: slide sideways
+        const push = ((clear - d) / Math.max(0.01, Math.hypot(dx, dy))) * 0.5;
+        if (!nodes[k].pinned) { nodes[k].x += dx * push; nodes[k].y += dy * push; }
+      }
+    }
+    // 3. category names: no two boxes overlap, and no node sits on a name
+    const box = (x: GNode) => { const w = Math.min(26, x.title.length) * 7.2 + 8; return { x: x.x - w / 2, y: x.y + radius(x) + 5, w, h: 17 }; };
+    type R = { x: number; y: number; w: number; h: number };
+    const pad = (r: R): R => ({ x: r.x - 4, y: r.y - 3, w: r.w + 8, h: r.h + 6 });
+    for (let i = 0; i < n; i++) {
+      if (!nodes[i].hub) continue;
+      const bi = pad(box(nodes[i]));
+      for (let j = 0; j < n; j++) {
+        if (j === i) continue;
+        const A = nodes[j];
+        if (A.hub && j < i) continue;
+        const rj: R = A.hub ? pad(box(A)) : { x: A.x - radius(A), y: A.y - radius(A), w: radius(A) * 2, h: radius(A) * 2 };
+        const ox = Math.min(bi.x + bi.w, rj.x + rj.w) - Math.max(bi.x, rj.x), oy = Math.min(bi.y + bi.h, rj.y + rj.h) - Math.max(bi.y, rj.y);
+        if (ox <= 0 || oy <= 0) continue;
+        const moveY = oy <= ox;   // push apart along the thinner overlap
+        const dir = moveY ? (rj.y + rj.h / 2 >= bi.y + bi.h / 2 ? 1 : -1) : (rj.x + rj.w / 2 >= bi.x + bi.w / 2 ? 1 : -1);
+        const amount = (moveY ? oy : ox) * 0.5 + 1;
+        if (A.hub) { if (moveY) { A.y += dir * amount; nodes[i].y -= dir * amount; } else { A.x += dir * amount; nodes[i].x -= dir * amount; } }
+        else if (!A.pinned) { if (moveY) A.y += dir * amount; else A.x += dir * amount; }
+      }
+    }
+  }
+
   function step() {
     const s = shared.sim, { nodes, links } = s, n = nodes.length;
     const target = nodes.some((x) => x.pinned) ? 0.3 : 0;
@@ -185,6 +243,7 @@ export default function Graph({ catFilter }: { catFilter: string }) {
       A.x -= dx * push * wi; A.y -= dy * push * wi; B.x += dx * push * wj; B.y += dy * push * wj;
       if (A.anchor) A.anchor = [A.x, A.y]; if (B.anchor) B.anchor = [B.x, B.y];
     }
+    separate(nodes, links);   // keeps things from sitting on top of each other (the floating motion stays, this only nudges)
     for (const p of nodes) { if (p.pinned) { p.vx = p.vy = 0; continue; } p.vx *= 0.58; p.vy *= 0.58; p.x += p.vx; p.y += p.vy; }
   }
 

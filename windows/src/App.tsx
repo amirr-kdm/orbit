@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useStore } from "./lib/store";
+import { GiftHost } from "./pages/Gifts";
 import { APP_VERSION, RELEASES_PAGE, useUpdateCheck } from "./lib/updates";
 import { useTimer } from "./lib/timer";
 import { clock } from "./lib/dates";
@@ -192,6 +193,7 @@ export default function App() {
         {showAdmin && account.isAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
         {showAbout && <About onClose={() => setShowAbout(false)} />}
         {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+        <GiftHost />
         {passMoment && <LevelPass key={passMoment.id} fromHours={passMoment.from} onClose={() => setPassMoment(null)} />}
       </div>
     </NavCtx.Provider>

@@ -1091,6 +1091,9 @@ final class GraphSim {
             }
         }
 
+        // Keep things from sitting on top of each other (the floating motion stays, this only nudges)
+        separate(alpha: alpha)
+
         // Move with friction
         for i in 0..<n {
             if nodes[i].pinned { nodes[i].vx = 0; nodes[i].vy = 0; continue }
@@ -1102,6 +1105,91 @@ final class GraphSim {
             if !nodes[i].x.isFinite || !nodes[i].y.isFinite || abs(nodes[i].x) > 1e5 || abs(nodes[i].y) > 1e5 {
                 nodes[i].x = .random(in: -40...40); nodes[i].y = .random(in: -40...40)
                 nodes[i].vx = 0; nodes[i].vy = 0; nodes[i].anchor = nil
+            }
+        }
+    }
+
+
+    // MARK: Keeping things apart
+
+    /// A hub's label sits under it: its box, in world units (text ≈ 7 pt per letter at the default zoom)
+    private func labelBox(_ n: Node) -> CGRect {
+        let w = CGFloat(min(26, n.title.count)) * 7.2 + 8
+        let top = n.y + radius(n) + 5
+        return CGRect(x: n.x - w / 2, y: top, width: w, height: 17)
+    }
+
+    /// Soft constraints on top of the forces:
+    /// - an item stays near its own category and out of other categories' space (no mixing),
+    /// - a link never passes through another node,
+    /// - category names never overlap each other or other nodes.
+    private func separate(alpha: CGFloat) {
+        let n = nodes.count
+        var parent: [Int: Int] = [:]
+        for (a, b) in links { parent[b] = a }
+
+        // 1. items keep to their own category's space
+        for i in 0..<n where !nodes[i].isHub {
+            guard let h = parent[i] else { continue }
+            let own = nodes[h]
+            let maxOwn = (74 + 4 * sqrt(CGFloat(own.degree))) * linkLength + radius(own) + 20
+            var dx = nodes[i].x - own.x, dy = nodes[i].y - own.y
+            let d = max(0.01, hypot(dx, dy))
+            if d > maxOwn {   // never wander far from its own category
+                let k = (d - maxOwn) / d * 0.35
+                nodes[i].vx -= dx * k; nodes[i].vy -= dy * k
+            }
+            // and never settle inside another category's circle
+            for j in 0..<n where nodes[j].isHub && j != h {
+                dx = nodes[i].x - nodes[j].x; dy = nodes[i].y - nodes[j].y
+                let dist = max(0.01, hypot(dx, dy))
+                let keepOut = radius(nodes[j]) + (46 + 3 * sqrt(CGFloat(nodes[j].degree))) * linkLength + 18
+                if dist < keepOut {
+                    let push = (keepOut - dist) / dist * 0.5
+                    nodes[i].x += dx * push; nodes[i].y += dy * push
+                }
+            }
+        }
+
+        // 2. a link never runs through a node that isn't one of its ends
+        for (a, b) in links {
+            let ax = nodes[a].x, ay = nodes[a].y, bx = nodes[b].x, by = nodes[b].y
+            let ex = bx - ax, ey = by - ay
+            let len2 = max(1, ex * ex + ey * ey)
+            for k in 0..<n where k != a && k != b {
+                let t = max(0, min(1, ((nodes[k].x - ax) * ex + (nodes[k].y - ay) * ey) / len2))
+                let px = ax + ex * t, py = ay + ey * t
+                var dx = nodes[k].x - px, dy = nodes[k].y - py
+                let d = max(0.01, hypot(dx, dy))
+                let clear = radius(nodes[k]) + 7
+                guard d < clear else { continue }
+                if d < 0.02 { dx = -ey; dy = ex }   // exactly on the line: slide sideways
+                let push = (clear - d) / max(0.01, hypot(dx, dy)) * 0.5
+                if !nodes[k].pinned { nodes[k].x += dx * push; nodes[k].y += dy * push }
+            }
+        }
+
+        // 3. category names: no two boxes overlap, and no node sits on a name
+        let hubs = nodes.indices.filter { nodes[$0].isHub }
+        for i in hubs {
+            let bi = labelBox(nodes[i]).insetBy(dx: -4, dy: -3)
+            for j in 0..<n where j != i {
+                let rj: CGRect
+                if nodes[j].isHub { rj = labelBox(nodes[j]).insetBy(dx: -4, dy: -3) }
+                else { rj = CGRect(x: nodes[j].x - radius(nodes[j]), y: nodes[j].y - radius(nodes[j]), width: radius(nodes[j]) * 2, height: radius(nodes[j]) * 2) }
+                guard nodes[j].isHub ? j > i : true, bi.intersects(rj) else { continue }
+                let inter = bi.intersection(rj)
+                // push apart along the thinner overlap
+                let moveY = inter.height <= inter.width
+                let dir: CGFloat = (moveY ? (rj.midY >= bi.midY ? 1 : -1) : (rj.midX >= bi.midX ? 1 : -1))
+                let amount = (moveY ? inter.height : inter.width) * 0.5 + 1
+                if nodes[j].isHub {
+                    if moveY { nodes[j].y += dir * amount; nodes[i].y -= dir * amount }
+                    else { nodes[j].x += dir * amount; nodes[i].x -= dir * amount }
+                } else if !nodes[j].pinned {
+                    // an item sitting on a name moves away from the hub it covers (keeps clear of the label)
+                    if moveY { nodes[j].y += dir * amount } else { nodes[j].x += dir * amount }
+                }
             }
         }
     }

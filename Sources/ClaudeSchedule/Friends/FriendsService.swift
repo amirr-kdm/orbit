@@ -73,10 +73,13 @@ struct FriendCard: Identifiable, Hashable {
         return n
     }
 
-    /// Studying right now (live status updated in the last 15 minutes)
+    /// Studying right now (live status updated in the last 15 minutes, and a session that started less than 8 hours ago:
+    /// a timer someone forgot running keeps refreshing its status, but nobody studies that long without stopping)
+    static let maxLiveSession: TimeInterval = 8 * 3600
     var studyingNow: String? {
         guard let live, let what = live.studying, let updated = live.updated_at,
               Date().timeIntervalSince(updated) < 15 * 60 else { return nil }
+        if let started = live.started_at, Date().timeIntervalSince(started) > FriendCard.maxLiveSession { return nil }
         return what
     }
 
@@ -443,6 +446,8 @@ final class FriendsService {
 
     private func liveTitle(_ timer: TimerEngine) -> String? {
         guard timer.isRunning, timer.phase == .focus else { return nil }
+        // a timer left running for ages isn't "studying now": stop telling friends
+        if let start = timer.sessionStart, Date().timeIntervalSince(start) > FriendCard.maxLiveSession { return nil }
         return timer.targetTitle ?? store.categoryLabel(timer.categoryID) ?? "Studying"
     }
 
