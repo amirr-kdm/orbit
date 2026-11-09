@@ -259,6 +259,10 @@ struct ReportsView: View {
                     }
                 }
 
+                ReportCard(title: "Words reviewed · Leitner boxes", icon: "rectangle.stack.fill", tint: .mint) {
+                    LeitnerReportChart(days: days)
+                }
+
                 HStack(alignment: .top, spacing: 14) {
                     ReportCard(title: "Study rhythm", icon: "square.grid.3x3.fill", tint: accent) {
                         RhythmGrid(days: days, perDay: perDay, goal: goal, tint: accent, kind: kind, cal: cal)

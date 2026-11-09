@@ -25,6 +25,12 @@ struct WeeklyScheduleView: View {
     @State private var newRecurrence: Recurrence = .weekly
     /// 0 = this week, 1 = next week, -1 = last week…
     @State private var weekOffset = 0
+    /// The cell whose info card is showing (after the mouse rests on it for a moment)
+    @State private var infoKey: CellKey?
+    @State private var infoTask: Task<Void, Never>?
+    /// The mouse is over the card itself, or the member clicked inside it (typing a note): it stays open
+    @State private var overInfo = false
+    @State private var infoPinned = false
 
     /// Any date inside the week being viewed
     private var viewDate: Date {
@@ -274,8 +280,19 @@ struct WeeklyScheduleView: View {
                             draft: $draft,
                             onCommit: { commit(key) },
                             onCancel: { cancel(key) },
-                            onToggleDone: entry.map { e in { store.tapStatus(.schedule(e.id), on: date) } }
+                            onToggleDone: entry.map { e in { store.tapStatus(.schedule(e.id), on: date) } },
+                            onStart: entry.map { e in { timer.select(.schedule(e.id)); router.selection = .timer } }
                         )
+                        .popover(isPresented: Binding(get: { infoKey == key && entry != nil && editing == nil },
+                                                      set: { if !$0 && infoKey == key { infoKey = nil; infoPinned = false; overInfo = false } }), arrowEdge: .bottom) {
+                            if let entry {
+                                ScheduleHoverCard(entryID: entry.id, isDone: store.isDone(.schedule(entry.id), on: date),
+                                                  onStart: { infoKey = nil; timer.select(.schedule(entry.id)); router.selection = .timer },
+                                                  onEdit: { infoKey = nil; infoPinned = false; beginEditing(key) })
+                                    .onHover { inside in overInfo = inside; if !inside { closeInfoSoon(key) } }
+                                    .simultaneousGesture(TapGesture().onEnded { infoPinned = true })
+                            }
+                        }
                         .overlay {
                             // Empty this week, but used in other weeks (e.g. an every-other-week class)
                             if entry == nil && editing != key, let other = otherWeeks(day: day, slotID: slot.id) {
@@ -288,9 +305,16 @@ struct WeeklyScheduleView: View {
                                     .allowsHitTesting(false)
                             }
                         }
-                        .onTapGesture { beginEditing(key) }
+                        .onTapGesture {
+                            // a filled cell opens its card (edit it from there or with right-click → Edit); an empty one only
+                            // starts typing from right-click → Edit
+                            infoTask?.cancel(); infoPinned = false
+                            if entry != nil { infoKey = (infoKey == key ? nil : key) } else { infoKey = nil }
+                            selected = key
+                        }
                         .onHover { inside in
-                            if inside { hovered = key } else if hovered == key { hovered = nil }
+                            if inside { hovered = key; infoTask?.cancel() }
+                            else { if hovered == key { hovered = nil }; closeInfoSoon(key) }
                         }
                         .contextMenu { contextMenu(key: key, entry: entry) }
                     }
@@ -471,6 +495,15 @@ struct WeeklyScheduleView: View {
         .padding(.vertical, -12)
     }
 
+    /// Close the card shortly after the mouse leaves the cell, unless it moved onto the card (or the member is using it)
+    private func closeInfoSoon(_ key: CellKey) {
+        infoTask?.cancel()
+        infoTask = Task {
+            try? await Task.sleep(for: .milliseconds(220))
+            if !Task.isCancelled, infoKey == key, hovered != key, !overInfo, !infoPinned { infoKey = nil }
+        }
+    }
+
     private var divider: some View {
         Rectangle().fill(Color.primary.opacity(0.12)).frame(width: 1, height: 20)
     }
@@ -480,6 +513,9 @@ struct WeeklyScheduleView: View {
     @ViewBuilder
     private func contextMenu(key: CellKey, entry: ScheduleEntry?) -> some View {
         Button("Edit") { beginEditing(key) }
+        if let entry { Button("Copy") { store.copyEntry(entry.id) } }
+        Button(entry == nil ? "Paste" : "Paste (replace this)") { store.pasteIntoCell(weekday: key.weekday, slotID: key.slotID, weekOf: viewDate) }
+            .disabled(!store.hasTodoClip)
         if let entry {
             Picker("Type", selection: Binding(
                 get: { entry.kind },
@@ -618,6 +654,8 @@ struct ScheduleCellView: View {
     var onCommit: () -> Void = {}
     var onCancel: () -> Void = {}
     var onToggleDone: (() -> Void)?
+    /// Study this now (shown on to-do cells while the mouse is over them)
+    var onStart: (() -> Void)?
     var minHeight: CGFloat = 54
     var showBadge = true
 
@@ -680,6 +718,13 @@ struct ScheduleCellView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
 
                 if showBadge { badge(entry) }
+
+                if isHovered, entry.kind == .todo, let onStart, !isDone {
+                    VStack { Spacer(); HStack { Spacer()
+                        Button(action: onStart) { Image(systemName: "play.circle.fill").font(.system(size: 15)).foregroundStyle(textColor.opacity(0.9)) }
+                            .buttonStyle(.plain).help(entry.minutes.map { "Study this now — \($0)-minute Pomodoro" } ?? "Study this now")
+                    } }.padding(5)
+                }
             } else if isHovered {
                 Image(systemName: "plus")
                     .font(.system(size: 14, weight: .semibold))
@@ -931,6 +976,74 @@ final class CenteredTextView: NSTextView {
         let top = max(2, (bounds.height - used) / 2)
         if abs(textContainerInset.height - top) > 0.5 {
             textContainerInset = NSSize(width: 4, height: top)
+        }
+    }
+}
+
+
+// MARK: - Hover card
+
+/// What opens when the mouse rests on a cell: its details, the time to study it (for a to-do) and its notes — all editable here
+struct ScheduleHoverCard: View {
+    let entryID: UUID
+    let isDone: Bool
+    let onStart: () -> Void
+    let onEdit: () -> Void
+    @Environment(AppStore.self) private var store
+    @State private var appeared = false
+
+    var body: some View {
+        if let entry = store.entry(entryID) {
+            let category = store.category(entry.categoryID)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    Text(entry.text).font(.headline).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Button { store.copyEntry(entryID) } label: { Label("Copy", systemImage: "doc.on.doc") }
+                        .controlSize(.small).help("Copy this to-do, then paste it into another cell or on the Tasks page")
+                    Button(action: onEdit) { Label("Edit cell", systemImage: "pencil") }
+                        .controlSize(.small).help("Change the cell's text")
+                }
+                HStack(spacing: 8) {
+                    if let category { Label(category.name, systemImage: "tag.fill").foregroundStyle(category.color) }
+                    Label(entry.kind == .fixed ? "Fixed" : (isDone ? "Done" : "To-do"), systemImage: entry.kind == .fixed ? "pin" : (isDone ? "checkmark.circle.fill" : "checklist"))
+                    Label(entry.recurrence.title, systemImage: entry.recurrence.icon)
+                }
+                .font(.caption).foregroundStyle(.secondary)
+
+                if entry.kind == .todo {
+                    Divider()
+                    HStack {
+                        Toggle("Study time", isOn: Binding(get: { entry.minutes != nil },
+                                                           set: { on in store.updateEntry(entryID) { $0.minutes = on ? 30 : nil } }))
+                        Spacer()
+                        if let m = entry.minutes {
+                            MinutesField(title: "", icon: "⏱", minutes: Binding(get: { m }, set: { v in store.updateEntry(entryID) { $0.minutes = v } }),
+                                         range: 1...180, ink: .primary)
+                        }
+                    }
+                }
+
+                Text("Notes").font(.subheadline.weight(.semibold))
+                TextEditor(text: Binding(get: { entry.notes }, set: { v in store.updateEntry(entryID) { $0.notes = v } }))
+                    .font(.callout).scrollContentBackground(.hidden)
+                    .padding(4).frame(height: 96)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+                    .overlay(alignment: .topLeading) {
+                        if entry.notes.isEmpty { Text("Write a note…").font(.callout).foregroundStyle(.tertiary).padding(9).allowsHitTesting(false) }
+                    }
+
+                if entry.kind == .todo, !isDone {
+                    Button(action: onStart) {
+                        Label(entry.minutes.map { "Study now · \($0) min Pomodoro" } ?? "Study now", systemImage: "play.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.orange)
+                }
+            }
+            .padding(14).frame(width: 320, alignment: .leading)
+            // it grows in from the cell with a little spring
+            .scaleEffect(appeared ? 1 : 0.9, anchor: .top).opacity(appeared ? 1 : 0)
+            .onAppear { withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) { appeared = true } }
         }
     }
 }

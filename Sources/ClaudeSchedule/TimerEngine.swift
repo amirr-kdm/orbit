@@ -38,6 +38,53 @@ final class TimerEngine {
 
     init(store: AppStore) {
         self.store = store
+        restore()
+        // closing the app keeps the timer where it was (paused), instead of throwing the session away
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.persist() }
+        }
+    }
+
+    // MARK: Keeping the timer across a restart
+
+    private static let saveKey = "timer.snapshot"
+    @ObservationIgnored private var lastPersist = Date.distantPast
+
+    private func refString(_ r: TodoRef?) -> String {
+        switch r { case .schedule(let id)?: "schedule:\(id.uuidString)"; case .task(let id)?: "task:\(id.uuidString)"; case nil: "" }
+    }
+
+    private func ref(_ s: String) -> TodoRef? {
+        let p = s.split(separator: ":").map(String.init)
+        guard p.count == 2, let id = UUID(uuidString: p[1]) else { return nil }
+        return p[0] == "schedule" ? .schedule(id) : .task(id)
+    }
+
+    /// Write the running (or paused) session to disk; an idle timer clears it
+    private func persist() {
+        lastPersist = Date()
+        guard let start = sessionStart else { UserDefaults.standard.removeObject(forKey: Self.saveKey); return }
+        let e = accumulated + (runStart.map { Date().timeIntervalSince($0) } ?? 0)
+        UserDefaults.standard.set([
+            "mode": mode.rawValue, "phase": phase == .focus ? "focus" : "rest", "target": refString(target),
+            "category": categoryID?.uuidString ?? "", "note": note, "elapsed": e, "start": start.timeIntervalSince1970,
+            "completed": completedPomodoros,
+        ] as [String: Any], forKey: Self.saveKey)
+    }
+
+    /// A session that was open when the app closed comes back paused, with the time it had; continue it or save it
+    private func restore() {
+        guard let d = UserDefaults.standard.dictionary(forKey: Self.saveKey), let start = d["start"] as? Double else { return }
+        mode = Mode(rawValue: d["mode"] as? String ?? "") ?? .stopwatch
+        phase = (d["phase"] as? String) == "rest" ? .rest : .focus
+        target = ref(d["target"] as? String ?? "")
+        categoryID = (d["category"] as? String).flatMap(UUID.init(uuidString:))
+        note = d["note"] as? String ?? ""
+        accumulated = d["elapsed"] as? Double ?? 0
+        completedPomodoros = d["completed"] as? Int ?? 0
+        sessionStart = Date(timeIntervalSince1970: start)
+        runStart = nil
+        isRunning = false
     }
 
     var elapsed: TimeInterval {
@@ -69,6 +116,7 @@ final class TimerEngine {
         runStart = Date()
         now = Date()
         isRunning = true
+        persist()
         scheduleAlarm()
         ticker?.invalidate()
         let t = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -87,6 +135,7 @@ final class TimerEngine {
         cancelAlarm()
         ticker?.invalidate()
         ticker = nil
+        persist()
     }
 
     func toggle() { isRunning ? pause() : start() }
@@ -99,10 +148,23 @@ final class TimerEngine {
         phase = .focus
     }
 
+    /// The member didn't answer "Are you still there?": stop, keeping only the time up to the question
+    func stopIdle(keeping seconds: TimeInterval) {
+        now = Date()
+        if phase == .focus { saveSession(duration: min(seconds, elapsed)) }
+        reset()
+        phase = .focus
+    }
+
     /// Pick what to study (only while the timer is idle)
     func select(_ ref: TodoRef?) {
         guard !isActive else { return }
         target = ref
+        // a schedule to-do with a planned time: study it in a Pomodoro of exactly that length
+        if case .schedule(let id)? = ref, let m = store.entry(id)?.minutes {
+            mode = .pomodoro
+            store.settings.pomodoroMinutes = min(180, max(1, m))
+        }
     }
 
     func skipBreak() {
@@ -120,6 +182,7 @@ final class TimerEngine {
         runStart = nil
         sessionStart = nil
         isRunning = false
+        persist()
     }
 
     private func saveSession(duration: TimeInterval) {
@@ -131,6 +194,7 @@ final class TimerEngine {
 
     private func tick() {
         now = Date()
+        if Date().timeIntervalSince(lastPersist) > 3 { persist() }
         if let phaseLength, elapsed >= phaseLength { phaseFinished(length: phaseLength) }
     }
 

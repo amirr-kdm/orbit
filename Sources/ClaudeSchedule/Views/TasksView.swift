@@ -506,6 +506,9 @@ struct DayColumn: View {
         .dropDestination(for: String.self) { items, _ in
             DragPayload.drop(items, on: day, store: store)
         } isTargeted: { isTargeted = $0 }
+        .contextMenu {
+            Button("Paste Here") { withAnimation { store.pasteAsTask(on: day) } }.disabled(!store.hasTodoClip)
+        }
     }
 }
 
@@ -524,8 +527,9 @@ struct BoardScheduleCard: View {
 
         BoardCard(color: color, isDone: row.isDone, isSkipped: row.isSkipped, hovering: hovering,
                   toggle: { store.tapStatus(.schedule(e.id), on: row.date) },
-                  play: row.isDone || row.isSkipped || timer.isActive ? nil : {
-                      timer.select(.schedule(e.id))
+                  playHelp: timer.isActive ? "A timer is running — open it" : "Study in the timer",
+                  play: row.isDone || row.isSkipped ? nil : {
+                      if !timer.isActive { timer.select(.schedule(e.id)) }
                       router.selection = .timer
                   }) {
             Text(e.title).strikethrough(row.isDone || row.isSkipped)
@@ -546,6 +550,7 @@ struct BoardScheduleCard: View {
             MoveToMenu(from: row.date) { day in withAnimation { store.moveOccurrence(e.id, from: row.date, to: day) } }
             Button("Study Now") { timer.select(.schedule(e.id)); router.selection = .timer }
                 .disabled(timer.isActive)
+            Button("Copy") { store.copyEntry(e.id) }
             Button("Show in Weekly Schedule") { router.selection = .schedule }
         }
     }
@@ -566,8 +571,9 @@ struct BoardTaskCard: View {
         BoardCard(color: category?.color ?? .gray, isDone: task.isDone, isSkipped: task.isSkipped, hovering: hovering,
                   toggle: { store.tapStatus(.task(task.id), on: task.dueDate ?? Date()) },
                   edit: onEdit,
-                  play: task.isDone || task.isSkipped || timer.isActive ? nil : {
-                      timer.select(.task(task.id))
+                  playHelp: timer.isActive ? "A timer is running — open it" : "Study in the timer",
+                  play: task.isDone || task.isSkipped ? nil : {
+                      if !timer.isActive { timer.select(.task(task.id)) }
                       router.selection = .timer
                   }) {
             Text(task.title).strikethrough(task.isDone || task.isSkipped)
@@ -584,6 +590,7 @@ struct BoardTaskCard: View {
         }
         .contextMenu {
             Button("Edit", action: onEdit)
+            Button("Copy") { store.copyTask(task.id) }
             StatusMenuItems(ref: .task(task.id), day: task.dueDate ?? Date())
             MoveToMenu(from: task.dueDate ?? Date()) { day in withAnimation { store.moveTask(task.id, to: day) } }
             Divider()
@@ -600,6 +607,7 @@ struct BoardCard<Title: View, Meta: View>: View {
     let hovering: Bool
     var toggle: () -> Void
     var edit: (() -> Void)? = nil
+    var playHelp = "Study in the timer"
     var play: (() -> Void)?
     @ViewBuilder var title: Title
     @ViewBuilder var meta: Meta
@@ -633,7 +641,7 @@ struct BoardCard<Title: View, Meta: View>: View {
                 Button(action: play) { Image(systemName: "play.circle.fill").font(.title3) }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentColor)
-                    .help("Study in the timer")
+                    .help(playHelp)
             }
         }
         .padding(.vertical, 7)

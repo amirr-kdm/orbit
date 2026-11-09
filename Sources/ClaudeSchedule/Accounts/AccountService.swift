@@ -68,6 +68,15 @@ final class AccountService {
         self.friends = friends
         store.onSaved = { [weak self] in self?.localChanged() }
         Task { await bootstrap() }
+        // A slow or missing connection must never keep the app on the spinner: after 6 seconds open with what this Mac already knows
+        // (the checks go on in the background and update the screen when they finish)
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard let self, self.state == .loading, let session = await self.client.currentSession else { return }
+            self.state = (!session.isAnonymous && Self.cachedApproval(session.userID)) ? .approved : .pending
+            self.store.accountReady = self.syncedAccount == session.userID.uuidString
+            if self.state == .approved && self.loops.isEmpty { self.startLoops() }
+        }
     }
 
     // MARK: Start-up

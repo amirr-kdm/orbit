@@ -11,3 +11,8 @@ Resources/Supabase.plist
 
 # Store art for personal builds only (not redistributable)
 Resources/art-local/
+
+ios/OrbitPhone/Supabase.plist
+ios/OrbitPhone.xcodeproj/xcuserdata/
+ios/OrbitPhone/Art/
+ios/OrbitPhoneWidgets/Art/

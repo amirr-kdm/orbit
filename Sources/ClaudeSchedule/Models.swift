@@ -130,6 +130,8 @@ struct ScheduleEntry: Identifiable, Codable, Hashable {
     var weekStart: Date?
     /// Free notes about this item (shown and edited in the Tasks graph)
     var notes = ""
+    /// How long this to-do should take (minutes). "Study" on it sets the Pomodoro focus time to this.
+    var minutes: Int?
 
     /// First line of the cell, used as the to-do title
     var title: String {
@@ -315,6 +317,7 @@ extension ScheduleEntry {
         recurrence = (try? c.decodeIfPresent(Recurrence.self, forKey: .recurrence)) ?? .weekly
         weekStart = try c.decodeIfPresent(Date.self, forKey: .weekStart)
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        minutes = try c.decodeIfPresent(Int.self, forKey: .minutes)
     }
 }
 

@@ -1,17 +1,17 @@
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case today, schedule, planner, timer, tasks, calendar, reports, galaxy, store, friends, groups, challenges, fightClub, settings, about
+    case today, schedule, planner, timer, leitner, spelling, countdown, phoneSync, notchbit, tasks, calendar, reports, galaxy, store, friends, groups, challenges, fightClub, settings, about
 
     var id: String { rawValue }
 
     /// Sidebar groups, in order: plan the week → do the work → progress & rewards → people → app
     static let sections: [(title: String, items: [SidebarItem])] = [
         ("Plan", [.today, .schedule, .tasks, .calendar, .planner]),
-        ("Focus", [.timer, .reports]),
+        ("Focus", [.timer, .leitner, .spelling, .countdown, .reports]),
         ("Rewards", [.galaxy, .store]),
         ("Social", [.friends, .groups, .challenges, .fightClub]),
-        ("App", [.settings, .about]),
+        ("App", [.notchbit, .phoneSync, .settings, .about]),
     ]
     var title: String {
         switch self {
@@ -19,6 +19,11 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .schedule: "Weekly Schedule"
         case .planner: "Notes & Brainstorm"
         case .timer: "Timer"
+        case .leitner: "Leitner Box"
+        case .spelling: "Spelling"
+        case .notchbit: "Notchbit"
+        case .countdown: "Countdown"
+        case .phoneSync: "Phone Sync"
         case .tasks: "Tasks"
         case .calendar: "Calendar"
         case .reports: "Reports"
@@ -38,6 +43,11 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .schedule: "tablecells"
         case .planner: "brain.head.profile"
         case .timer: "timer"
+        case .leitner: "archivebox.fill"
+        case .spelling: "ear.and.waveform"
+        case .notchbit: "capsule.tophalf.filled"
+        case .countdown: "hourglass"
+        case .phoneSync: MacSync.unlocked ? "iphone" : "lock.fill"
         case .tasks: "tray.full"
         case .calendar: "calendar"
         case .reports: "chart.bar.xaxis"
@@ -98,6 +108,7 @@ struct ContentView: View {
             .navigationSplitViewColumnWidth(min: 190, ideal: 210)
             .scrollContentBackground(pageColor != nil ? .hidden : .automatic)
             .background(pageColor ?? Color.clear)
+            .safeAreaInset(edge: .top) { SidebarCountdown() }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
                     if timer.isActive { miniTimer }
@@ -213,6 +224,9 @@ struct ContentView: View {
         case .friends:
             let n = friends.friends.filter { $0.studyingNow != nil }.count
             if n > 0 { badge("\(n)", .green, help: "\(n) friend\(n == 1 ? " is" : "s are") studying right now") }
+        case .leitner:
+            let n = LeitnerStore.shared.totalDue
+            if n > 0 { badge("\(n)", .orange, help: "\(n) word\(n == 1 ? "" : "s") to review today") }
         case .challenges:
             let n = challenges.liveCount()
             if n > 0 { badge("\(n)", .orange, help: "\(n) challenge\(n == 1 ? "" : "s") running now") }
@@ -236,6 +250,11 @@ struct ContentView: View {
             case .schedule: WeeklyScheduleView()
             case .planner: PlannerView()
             case .timer: TimerView()
+            case .leitner: LeitnerView()
+            case .spelling: LeitnerSpellingPage()
+            case .notchbit: NotchbitPage()
+            case .countdown: CountdownPage()
+            case .phoneSync: PhoneSyncPage()
             case .tasks: TasksView()
             case .calendar: CalendarView()
             case .reports: ReportsView()

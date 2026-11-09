@@ -558,6 +558,9 @@ extension PlanetPainter {
 // MARK: - Picture planets
 
 extension PlanetPainter {
+    /// Set while the notch draws one frame of an animated planet at a time (nil = follow the clock)
+    nonisolated(unsafe) static var frameOverride: Int?
+
     private static var imageCache: [String: NSImage] = [:]
 
     static func bundleImage(_ name: String) -> NSImage? {
@@ -592,7 +595,7 @@ extension PlanetPainter {
         let rect = CGRect(x: c.x - side / 2, y: c.y - side / 2 + bob, width: side, height: side)
         let frames = p.image.map(Self.frames) ?? []
         // Animated pictures play at about 8 frames a second
-        let img = frames.isEmpty ? img : frames[Int(Date().timeIntervalSinceReferenceDate * 8) % frames.count]
+        let img = frames.isEmpty ? img : frames[(frameOverride ?? Int(Date().timeIntervalSinceReferenceDate * 8)) % frames.count]
         // The cut-out illustrations (s6_…) are smooth, not pixel art
         let smooth = (p.image ?? "").hasPrefix("s6_")
         guard p.image == "ufo" else {

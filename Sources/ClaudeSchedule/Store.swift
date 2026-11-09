@@ -274,6 +274,7 @@ final class AppStore {
         do {
             try data.write(to: fileURL, options: .atomic)
             onSaved?()
+            NotificationCenter.default.post(name: .orbitDataSaved, object: nil)
         } catch {
             NSLog("ClaudeSchedule: failed to save data: \(error)")
         }
@@ -405,6 +406,59 @@ final class AppStore {
     func entry(_ id: UUID?) -> ScheduleEntry? {
         guard let id else { return nil }
         return schedule.first { $0.id == id }
+    }
+
+    // MARK: Copy and paste of a to-do
+
+    /// What was copied from a schedule cell or a task (kept while the app is open)
+    struct TodoClip {
+        var text: String
+        var notes = ""
+        var colorHex: String?
+        var categoryID: UUID?
+        var minutes: Int?
+        var kind: EntryKind = .todo
+        var recurrence: Recurrence = .weekly
+        var priority: Priority = .medium
+        var title: String { text.split(separator: "\n").first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? text }
+    }
+    @ObservationIgnored private var clip: TodoClip?
+    /// Mirrors `clip` so menus enable "Paste" as soon as something was copied
+    var hasTodoClip = false
+
+    func copyEntry(_ id: UUID) {
+        guard let e = entry(id) else { return }
+        clip = TodoClip(text: e.text, notes: e.notes, colorHex: e.colorHex, categoryID: e.categoryID, minutes: e.minutes, kind: e.kind, recurrence: e.recurrence)
+        hasTodoClip = true
+    }
+
+    func copyTask(_ id: UUID) {
+        guard let t = tasks.first(where: { $0.id == id }) else { return }
+        clip = TodoClip(text: t.title, notes: t.notes, categoryID: t.categoryID, minutes: t.estimatedMinutes, kind: .todo, priority: t.priority)
+        hasTodoClip = true
+    }
+
+    /// Paste into a schedule cell: whatever the cell shows that week is replaced
+    func pasteIntoCell(weekday: Int, slotID: UUID, weekOf date: Date) {
+        guard let c = clip else { return }
+        if let existing = entry(weekday: weekday, slotID: slotID, inWeekOf: date) { schedule.removeAll { $0.id == existing.id } }
+        var e = ScheduleEntry(weekday: weekday, slotID: slotID, text: c.text, colorHex: c.colorHex, kind: c.kind, categoryID: c.categoryID,
+                              recurrence: c.recurrence, weekStart: c.recurrence == .once ? Cal.weekStart(date) : nil)
+        e.notes = c.notes
+        e.minutes = c.minutes
+        schedule.append(e)
+        normalizeSchedule()
+    }
+
+    /// Paste onto a day of the Tasks board: it becomes a task on that day
+    func pasteAsTask(on day: Date) {
+        guard let c = clip else { return }
+        let lines = c.text.split(separator: "\n", maxSplits: 1).map(String.init)
+        var t = TaskItem(title: c.title, notes: [c.notes, lines.count > 1 ? lines[1] : ""].filter { !$0.isEmpty }.joined(separator: "\n"), categoryID: c.categoryID)
+        t.priority = c.priority
+        t.estimatedMinutes = c.minutes ?? 30
+        t.dueDate = Cal.persian.startOfDay(for: day)
+        tasks.append(t)
     }
 
     // MARK: Odd / even weeks

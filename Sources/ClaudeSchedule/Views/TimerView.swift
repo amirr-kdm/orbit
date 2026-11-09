@@ -81,6 +81,18 @@ struct TimerView: View {
             .frame(width: 240)
             .disabled(timer.isActive)
 
+            // Pomodoro: pick the focus and break lengths right here (locked while a session is running)
+            if timer.mode == .pomodoro {
+                @Bindable var store = store
+                HStack(spacing: 18) {
+                    MinutesField(title: "Focus", icon: "🍅", minutes: $store.settings.pomodoroMinutes, range: 1...180, ink: ink)
+                    MinutesField(title: "Break", icon: "☕️", minutes: $store.settings.breakMinutes, range: 1...60, ink: ink)
+                }
+                .disabled(timer.isActive)
+                .opacity(timer.isActive ? 0.5 : 1)
+                .help(timer.isActive ? "Stop the timer to change the lengths" : "How long each focus session and each break lasts")
+            }
+
             ZStack {
                 SolarDial(time: timer.displayTime, spin: timer.elapsed, progress: progress, tint: ringColor,
                           moving: timer.isRunning, rest: timer.phase == .rest)
@@ -488,3 +500,28 @@ struct ManualSessionSheet: View {
     }
 }
 
+
+
+/// A small "− 25 min +" control: type the minutes or step by one (hold ⌥ to step by 5)
+struct MinutesField: View {
+    let title: String
+    let icon: String
+    @Binding var minutes: Int
+    let range: ClosedRange<Int>
+    let ink: Color
+
+    private func set(_ v: Int) { minutes = min(range.upperBound, max(range.lowerBound, v)) }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("\(icon) \(title)").font(.caption.weight(.semibold)).foregroundStyle(ink.opacity(0.75))
+            Button { set(minutes - (NSEvent.modifierFlags.contains(.option) ? 5 : 1)) } label: { Image(systemName: "minus") }
+                .buttonStyle(.bordered).controlSize(.small).disabled(minutes <= range.lowerBound)
+            TextField("", value: Binding(get: { minutes }, set: { set($0) }), format: .number)
+                .textFieldStyle(.roundedBorder).multilineTextAlignment(.center).frame(width: 46).monospacedDigit()
+            Text("min").font(.caption).foregroundStyle(ink.opacity(0.6))
+            Button { set(minutes + (NSEvent.modifierFlags.contains(.option) ? 5 : 1)) } label: { Image(systemName: "plus") }
+                .buttonStyle(.bordered).controlSize(.small).disabled(minutes >= range.upperBound)
+        }
+    }
+}
