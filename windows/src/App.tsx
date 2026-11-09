@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { inTauri } from "./lib/notify";
+import { todosOn } from "./lib/store";
 import { useStore } from "./lib/store";
 import { GiftHost } from "./pages/Gifts";
 import { APP_VERSION, RELEASES_PAGE, useUpdateCheck } from "./lib/updates";
-import { useTimer } from "./lib/timer";
+import { useTimer, TimerGuardPrompt } from "./lib/timer";
 import { clock } from "./lib/dates";
 import Today from "./pages/Today";
 import Schedule from "./pages/Schedule";
@@ -16,6 +18,13 @@ import StorePage from "./pages/Store";
 import Friends from "./pages/Friends";
 import FightClubPage from "./pages/FightClub";
 import ChallengesPage from "./pages/Challenges";
+import CountdownPage from "./pages/Countdown";
+import LeitnerPage from "./pages/Leitner";
+import SpellingPage from "./pages/Spelling";
+import NotchbitPage from "./pages/Notchbit";
+import { shown as shownCountdown, shortText } from "./lib/countdown";
+import { islandSnapshot, useIslandCommands } from "./lib/island";
+import { dueCount } from "./lib/leitner";
 import About from "./pages/About";
 import { ambient, fontOf, templateOf } from "./lib/themes";
 import Settings from "./pages/Settings";
@@ -33,7 +42,7 @@ import { studyingNow, useFriends } from "./lib/friends";
 import { QuickTaskModal } from "./lib/anytime";
 import { progress, wallet } from "./lib/store";
 
-export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "groups" | "fightClub" | "challenges" | "settings";
+export type Tab = "today" | "schedule" | "planner" | "timer" | "tasks" | "calendar" | "reports" | "galaxy" | "store" | "friends" | "groups" | "fightClub" | "challenges" | "countdown" | "leitner" | "spelling" | "notchbit" | "settings";
 const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
   { id: "today", title: "Today", icon: "☀️", section: "Plan" },
   { id: "schedule", title: "Weekly Schedule", icon: "🗓️", section: "Plan" },
@@ -41,6 +50,9 @@ const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
   { id: "calendar", title: "Calendar", icon: "📆", section: "Plan" },
   { id: "planner", title: "Notes & Brainstorm", icon: "🧠", section: "Plan" },
   { id: "timer", title: "Timer", icon: "⏱️", section: "Focus" },
+  { id: "leitner", title: "Leitner Box", icon: "🗂", section: "Focus" },
+  { id: "spelling", title: "Spelling", icon: "👂", section: "Focus" },
+  { id: "countdown", title: "Countdown", icon: "⏳", section: "Focus" },
   { id: "reports", title: "Reports", icon: "📊", section: "Focus" },
   { id: "galaxy", title: "My Galaxy", icon: "✨", section: "Rewards" },
   { id: "store", title: "Store", icon: "🛍️", section: "Rewards" },
@@ -48,6 +60,7 @@ const TABS: { id: Tab; title: string; icon: string; section: string }[] = [
   { id: "groups", title: "Groups", icon: "🫂", section: "Social" },
   { id: "challenges", title: "Challenges", icon: "🏁", section: "Social" },
   { id: "fightClub", title: "Fight Club", icon: "💥", section: "Social" },
+  { id: "notchbit", title: "Notchbit", icon: "🪐", section: "App" },
   { id: "settings", title: "Settings", icon: "⚙️", section: "App" },
 ];
 
@@ -68,6 +81,14 @@ export default function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [quick, setQuick] = useState(false);
   const challenges = useChallenges();
+  // The island window: open/close with the setting, and keep what it shows up to date (it reads this from storage and sends its buttons back as commands)
+  const islandOn = !!data.settings.islandOn;
+  useEffect(() => { if (inTauri()) void import("@tauri-apps/api/core").then((m) => m.invoke("island_show", { show: islandOn })).catch(() => {}); }, [islandOn]);
+  const [nextTick, setNextTick] = useState(0);
+  const islandInfo = useMemo(() => islandSnapshot(data, new Date(), nextTick), [data, nextTick]);
+  useEffect(() => { try { localStorage.setItem("orbit-island-info", islandInfo); } catch { /* blocked */ } }, [islandInfo]);
+  // "Next up" needs a look when the minute turns over; one slow timer, only while the island is on
+  useEffect(() => { if (!islandOn) return; const id = setInterval(() => setNextTick((n) => n + 1), 60_000); return () => clearInterval(id); }, [islandOn]);
   const fc = useFightClub();
   const fr = useFriends();
   const update = useUpdateCheck();
@@ -104,7 +125,9 @@ export default function App() {
   }, []);
 
   const nav: Nav = { tab, go: (t, d) => { setTab(t); setFocusDay(d); }, focusDay, clearFocus: () => setFocusDay(undefined) };
-  const Page = { today: Today, schedule: Schedule, planner: PlannerPage, timer: TimerPage, tasks: Tasks, calendar: Calendar, reports: Reports, galaxy: Galaxy, store: StorePage, friends: Friends, groups: GroupsPage, fightClub: FightClubPage, challenges: ChallengesPage, settings: Settings }[tab];
+  const Page = { today: Today, schedule: Schedule, planner: PlannerPage, timer: TimerPage, tasks: Tasks, calendar: Calendar, reports: Reports, galaxy: Galaxy, store: StorePage, friends: Friends, groups: GroupsPage, fightClub: FightClubPage, challenges: ChallengesPage, countdown: CountdownPage, leitner: LeitnerPage, spelling: SpellingPage, notchbit: NotchbitPage, settings: Settings }[tab];
+
+  useIslandCommands(nav.go);
 
   const openNotice = (n: Notice) => {
     if (n.route) {
@@ -112,9 +135,11 @@ export default function App() {
       nav.go(n.route as Tab);
     }
   };
+
   /** Little numbers on the sidebar: friends studying, challenges running, my Fight Club place */
   const badge = (id: Tab): { text: string; color: string } | null => {
     if (id === "friends") { const n = fr.friends.filter((x) => studyingNow(x)).length; return n ? { text: String(n), color: "#22C55E" } : null; }
+    if (id === "leitner") { const n = dueCount(data.leitner); return n ? { text: String(n), color: "#F97316" } : null; }
     if (id === "challenges") { const n = challenges.liveCount(); return n ? { text: String(n), color: "#F97316" } : null; }
     if (id === "fightClub" && fc.worldBoss) {
       const ranked = (fc.fighters[fc.worldBoss.id] ?? []).filter((x) => x.damage > 0), mine = ranked.find((x) => x.user_id === fc.me);
@@ -134,6 +159,7 @@ export default function App() {
       <div className="app">
         <aside className="sidebar">
           <div className="brand"><img src={iconUrl} alt="" />Orbit</div>
+          <SidebarCountdown />
           {TABS.map((t, i) => (<React.Fragment key={t.id}>
             {t.section !== TABS[i - 1]?.section && <div className="nav-section">{t.section}</div>}
             <button className={`nav ${tab === t.id ? "active" : ""}`} onClick={() => nav.go(t.id)}>
@@ -187,6 +213,7 @@ export default function App() {
             <Bell onOpenNotice={openNotice} />
           </div>
           <div className="main-scroll" key={tab}><Page /></div>
+          <TimerGuardPrompt />
         </main>
         <Toast onOpenNotice={openNotice} />
         {quick && <QuickTaskModal onClose={() => setQuick(false)} onStudy={(id) => { timer.setTarget({ kind: "task", id }); nav.go("timer"); }} />}
@@ -221,5 +248,26 @@ function StreakChip() {
         {info.frozen.length > 0 && <span className="small" style={{ color: "#22D3EE" }}>Frozen: {info.frozen.slice(0, 5).map((d) => d.toLocaleDateString()).join(", ")}</span>}
       </span>
     </span>
+  );
+}
+
+/** The pinned / next event at the top of the sidebar (turn it off on the Countdown page). Redraws once a minute. */
+function SidebarCountdown() {
+  const { data } = useStore();
+  const nav = useNav();
+  const [now, setNow] = useState(new Date());
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 60_000); return () => clearInterval(id); }, []);
+  const e = shownCountdown(data, now);
+  if (data.settings.countdownSidebar === false || !e) return null;
+  return (
+    <button onClick={() => nav.go("countdown")} title="Open Countdown"
+      style={{ display: "flex", gap: 10, alignItems: "center", width: "calc(100% - 20px)", margin: "4px 10px 6px", padding: "8px 12px", borderRadius: 10, border: "none", cursor: "pointer",
+        color: "inherit", font: "inherit", textAlign: "left", background: `linear-gradient(90deg, ${e.colorHex}73, ${e.colorHex}26)` }}>
+      <span style={{ fontSize: 22 }}>{e.emoji}</span>
+      <span style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.title}</div>
+        <div style={{ fontSize: 11, opacity: 0.7, fontVariantNumeric: "tabular-nums" }}>{shortText(e, now)}</div>
+      </span>
+    </button>
   );
 }

@@ -2,6 +2,7 @@ import { PageHero } from "../components";
 import { useEffect, useState } from "react";
 import { useNav } from "../App";
 import { Modal, MenuItem, useContextMenu } from "../components";
+import { copyEntry, copyTask, pasteAsTask, useHasClip } from "../lib/clip";
 import { addDays, isToday, monthDay, startOfDay, WEEKDAYS, WEEKDAYS_SHORT, weekDays, weekdayIndex, weekStart } from "../lib/dates";
 import { RECURRENCE_BADGE, TaskItem } from "../lib/model";
 import { categoryOf, parity, scheduleRows, ScheduleRow, slotTitle, tasksOn, titleOf, useStore, categoryLabel, orderedCategories, isInside, entryColor } from "../lib/store";
@@ -80,13 +81,14 @@ function moveMenu(from: Date, onMove: (d?: Date) => void): MenuItem[] {
 }
 
 function DayColumn({ day, rows, tasks, onOpen, onEdit }: { day: Date; rows: ScheduleRow[]; tasks: TaskItem[]; onOpen: () => void; onEdit: (t: TaskItem) => void }) {
-  const { data, actions } = useStore();
+  const { data, actions, update } = useStore();
+  const menu = useContextMenu(); const hasClip = useHasClip();
   const [over, setOver] = useState(false);
   const [title, setTitle] = useState("");
   const total = rows.length + tasks.length, done = rows.filter((r) => r.isDone).length + tasks.filter((t) => t.isDone).length;
   const today = isToday(day);
   return (
-    <div className={`col ${over ? "drop" : ""}`} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+    <div className={`col ${over ? "drop" : ""}`} onContextMenu={(e) => { if (e.target === e.currentTarget) menu.open(e, [{ label: "Paste Here", disabled: !hasClip, onClick: () => update((d) => pasteAsTask(d, day)) }]); }} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
       onDrop={(e) => {
         setOver(false); e.preventDefault(); const raw = e.dataTransfer.getData("text/plain");
         if (raw.startsWith("occ:")) { const [id, ts] = raw.slice(4).split("|"); actions.moveOccurrence(id, new Date(+ts), day); }
@@ -100,6 +102,7 @@ function DayColumn({ day, rows, tasks, onOpen, onEdit }: { day: Date; rows: Sche
       </div>
       {rows.map((r) => <OccCard key={r.entry.id} r={r} />)}
       {tasks.map((t) => <TaskCard key={t.id} t={t} onEdit={onEdit} />)}
+      {menu.node}
       <input placeholder="＋ Add" value={title} style={{ background: "transparent", border: "1px dashed var(--line)" }} onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" && title.trim()) { actions.addTask(title.trim(), day); setTitle(""); } }} />
     </div>
@@ -114,7 +117,7 @@ function OccCard({ r }: { r: ScheduleRow }) {
   return (
     <div className="bcard" draggable style={{ ["--c" as string]: entryColor(data, r.entry) ?? c?.colorHex ?? "var(--accent)" }}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", `occ:${r.entry.id}|${r.date.getTime()}`)} title="Drag to another day to move just this session"
-      onContextMenu={(e) => menu.open(e, [{ label: r.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone(ref, r.date) },
+      onContextMenu={(e) => menu.open(e, [{ label: "Copy", onClick: () => copyEntry(r.entry) }, { label: r.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone(ref, r.date) },
         { label: r.isSkipped ? "Bring back to to-do" : "Skip (won't do)", onClick: () => actions.setSkipped(ref, r.date, !r.isSkipped) },
         { label: "▶ Study now", disabled: timer.active, onClick: () => { timer.setTarget(ref); nav.go("timer"); } }, { separator: true },
         ...moveMenu(r.date, (d) => actions.moveOccurrence(r.entry.id, r.date, d))])}>
@@ -136,7 +139,7 @@ function TaskCard({ t, onEdit }: { t: TaskItem; onEdit: (t: TaskItem) => void })
   return (
     <div className="bcard" draggable style={{ ["--c" as string]: c?.colorHex ?? "#8E8E93" }} onDragStart={(e) => e.dataTransfer.setData("text/plain", `task:${t.id}`)}
       onDoubleClick={() => onEdit(t)}
-      onContextMenu={(e) => menu.open(e, [{ label: "Edit", onClick: () => onEdit(t) }, { label: t.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone({ kind: "task", id: t.id }, from) },
+      onContextMenu={(e) => menu.open(e, [{ label: "Edit", onClick: () => onEdit(t) }, { label: "Copy", onClick: () => copyTask(t) }, { label: t.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone({ kind: "task", id: t.id }, from) },
         { label: t.isSkipped ? "Bring back to to-do" : "Skip (won't do)", onClick: () => actions.setSkipped({ kind: "task", id: t.id }, from, !t.isSkipped) },
         { label: "▶ Study now", disabled: timer.active, onClick: () => { timer.setTarget({ kind: "task", id: t.id }); nav.go("timer"); } }, { separator: true },
         ...moveMenu(from, (d) => actions.moveTask(t.id, d)), { separator: true }, { label: "Delete", onClick: () => actions.deleteTask(t.id) }])}>

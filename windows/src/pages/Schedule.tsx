@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cellLook, fontOf, isDarkMode, templateOf } from "../lib/themes";
 import { useNav } from "../App";
 import { AnytimeBox } from "../lib/anytime";
 import { CellPalette, useContextMenu, MenuItem } from "../components";
+import { copyEntry, pasteIntoCell, useHasClip } from "../lib/clip";
 import { addDays, dualDate, minuteOfDay, monthDay, WEEKDAYS, weekdayIndex, weekStart } from "../lib/dates";
 import { EntryKind, isLight, Recurrence, RECURRENCE_BADGE, RECURRENCE_TITLE, ScheduleEntry } from "../lib/model";
 import { categoryOf, currentSlot, entryAt, isDone, parity, slotTitle, titleOf, useStore, categoryLabel, orderedCategories, entryColor } from "../lib/store";
@@ -16,6 +18,11 @@ export default function Schedule() {
   const timer = useTimer();
   const nav = useNav();
   const menu = useContextMenu();
+  const hasClip = useHasClip();
+  const [info, setInfo] = useState<Key | null>(null);   // the cell whose card is open
+  const infoPinned = useRef(false);
+  const closeTimer = useRef<number | undefined>(undefined);
+  const closeInfoSoon = () => { window.clearTimeout(closeTimer.current); closeTimer.current = window.setTimeout(() => { if (!infoPinned.current) setInfo(null); }, 350); };
   const [offset, setOffset] = useState(0);
   const [editing, setEditing] = useState<Key | null>(null);
   const [selected, setSelected] = useState<Key | null>(null);
@@ -60,7 +67,9 @@ export default function Schedule() {
   };
 
   const cellMenu = (k: Key, e?: ScheduleEntry): MenuItem[] => {
-    const items: MenuItem[] = [{ label: "Edit", onClick: () => begin(k) }];
+    const items: MenuItem[] = [{ label: "Edit", onClick: () => begin(k) },
+      ...(e ? [{ label: "Copy", onClick: () => copyEntry(e) }] : []),
+      { label: e ? "Paste (replace this)" : "Paste", disabled: !hasClip, onClick: () => update((d) => pasteIntoCell(d, k.day, k.slot, viewDate)) }];
     if (!e) return items;
     const day = addDays(ws, k.day);
     return [...items,
@@ -71,7 +80,7 @@ export default function Schedule() {
       { separator: true },
       ...(e.kind === "todo" ? [
         { label: isDone(data, { kind: "schedule", id: e.id }, day) ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone({ kind: "schedule", id: e.id }, day) },
-        { label: "▶ Study this now", disabled: timer.active, onClick: () => { timer.setTarget({ kind: "schedule", id: e.id }); nav.go("timer"); } },
+        { label: "▶ Study this now", disabled: timer.active, onClick: () => { if (e.minutes) timer.setMode("pomodoro"); timer.setTarget({ kind: "schedule", id: e.id }); nav.go("timer"); } },
       ] : []),
       { label: "Clear cell", onClick: () => { actions.deleteEntry(e.id); setSelected(null); } },
     ];
@@ -136,7 +145,13 @@ export default function Schedule() {
                 return (
                   <div key={s.id} className={`cell ${e || isEdit ? "filled" : ""} ${day === todayIdx ? "today-row" : ""} ${isNow ? "now" : ""} ${same(k, selected) && !isNow ? "selected" : ""}`}
                     style={{ ...look.style, color: textColor }}
-                    onClick={(ev) => { ev.stopPropagation(); begin(k); }}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      // a filled cell opens its card (edit from there or right-click → Edit); an empty one starts typing
+                      if (e && !isEdit) { infoPinned.current = false; window.clearTimeout(closeTimer.current); setSelected(k); setInfo(same(info, k) ? null : k); } else { setInfo(null); begin(k); }
+                    }}
+                    onMouseEnter={() => { window.clearTimeout(closeTimer.current); if (e && !isEdit && !editing && !infoPinned.current) setInfo(k); }}
+                    onMouseLeave={closeInfoSoon}
                     onContextMenu={(ev) => menu.open(ev, cellMenu(k, e))}>
                     {isEdit ? (
                       <textarea autoFocus value={draft} style={{ fontSize, color: textColor }} onChange={(ev) => setDraft(ev.target.value)}
@@ -147,6 +162,9 @@ export default function Schedule() {
                         }} />
                     ) : e ? (
                       <>
+                        {same(info, k) && <HoverCard e={e} date={date} isDone={done} onEnter={() => { window.clearTimeout(closeTimer.current); }} onLeave={closeInfoSoon} onPin={() => { infoPinned.current = true; }}
+                          onClose={() => { setInfo(null); infoPinned.current = false; }} onEdit={() => { setInfo(null); infoPinned.current = false; begin(k); }}
+                          onStart={() => { setInfo(null); if (e.minutes) timer.setMode("pomodoro"); timer.setTarget({ kind: "schedule", id: e.id }); nav.go("timer"); }} />}
                         {RECURRENCE_BADGE[e.recurrence] && <span className="tag">{RECURRENCE_BADGE[e.recurrence]}</span>}
                         <span className="corner" onClick={(ev) => { if (e.kind === "todo") { ev.stopPropagation(); actions.toggleDone({ kind: "schedule", id: e.id }, date); } }}>
                           {e.kind === "fixed" ? "📌" : done ? "✅" : "○"}
@@ -189,5 +207,50 @@ export default function Schedule() {
       </div>
       {menu.node}
     </div>
+  );
+}
+
+/** What opens when the pointer rests on a cell: its details, the time to study it (for a to-do) and its notes, all editable here */
+function HoverCard({ e, date, isDone: done, onEnter, onLeave, onPin, onClose, onEdit, onStart }: { e: ScheduleEntry; date: Date; isDone: boolean; onEnter: () => void; onLeave: () => void; onPin: () => void; onClose: () => void; onEdit: () => void; onStart: () => void }) {
+  const { data, actions } = useStore();
+  const timer = useTimer();
+  const c = categoryOf(data, e.categoryID);
+  // fixed position next to the cell (the table scrolls, so an absolute card would be clipped)
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const cell = anchor.current?.parentElement; if (!cell) return;
+    const r = cell.getBoundingClientRect(), h = 360;
+    const top = r.bottom + 6 + h > window.innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6;
+    setPos({ left: Math.max(8, Math.min(window.innerWidth - 328, r.left + r.width / 2 - 160)), top });
+  }, []);
+  const upd = (fn: (x: ScheduleEntry) => void) => actions.updateEntry(e.id, fn);
+  return (
+    <><span ref={anchor} hidden />
+    {pos && createPortal(<div onMouseEnter={onEnter} onMouseLeave={onLeave} onMouseDown={onPin} onClick={(ev) => ev.stopPropagation()}
+      style={{ position: "fixed", zIndex: 60, top: pos.top, left: pos.left, width: 320, padding: 14, textAlign: "left", cursor: "default",
+        background: "var(--card)", color: "var(--text)", fontWeight: 400, lineHeight: 1.35, fontSize: 13, border: "1px solid var(--line)", borderRadius: 14, boxShadow: "0 12px 30px rgba(0,0,0,.28)" }}>
+      <div className="row" style={{ alignItems: "flex-start", gap: 6 }}>
+        <b style={{ flex: 1, fontSize: 15, whiteSpace: "pre-wrap" }}>{e.text}</b>
+        <button className="btn small" title="Copy this to-do, then paste it into another cell or on the Tasks page" onClick={() => copyEntry(e)}>⧉ Copy</button>
+        <button className="btn small" onClick={onEdit}>✎ Edit cell</button>
+        <button className="icon-btn" onClick={onClose}>✕</button>
+      </div>
+      <div className="row small muted" style={{ gap: 10, margin: "8px 0", flexWrap: "wrap" }}>
+        {c && <span>🏷 {c.name}</span>}
+        <span>{e.kind === "fixed" ? "📌 Fixed" : done ? "✅ Done" : "☑️ To-do"}</span>
+        <span>🔁 {RECURRENCE_TITLE[e.recurrence]}</span>
+      </div>
+      {e.kind === "todo" && <div className="row" style={{ borderTop: "1px solid var(--line)", paddingTop: 8, marginBottom: 8 }}>
+        <label style={{ flex: 1 }}><input type="checkbox" checked={e.minutes != null} onChange={(ev) => upd((x) => { x.minutes = ev.target.checked ? 30 : undefined; })} /> Study time</label>
+        {e.minutes != null && <><input type="number" min={1} max={180} value={e.minutes} style={{ width: 64 }} onChange={(ev) => upd((x) => { x.minutes = Math.max(1, Math.min(180, +ev.target.value || 1)); })} /> min</>}
+      </div>}
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>Notes</div>
+      <textarea rows={4} placeholder="Write a note…" value={e.notes ?? ""} onChange={(ev) => upd((x) => { x.notes = ev.target.value; })} style={{ width: "100%" }} />
+      {e.kind === "todo" && !done && <button className="btn" disabled={timer.active} style={{ width: "100%", marginTop: 8, background: "#F97316", color: "#fff" }} onClick={onStart}>
+        ▶ {e.minutes ? `Study now · ${e.minutes} min Pomodoro` : "Study now"}</button>}
+      {/* date is part of the signature so the same card can later show per-day state */}
+      <span hidden>{date.getTime()}</span>
+    </div>, document.body)}</>
   );
 }

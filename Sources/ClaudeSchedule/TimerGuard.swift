@@ -76,10 +76,10 @@ final class TimerGuard {
         // the member paused, stopped or finished by themselves: the question is no longer needed
         if asking && !running && !testing { closePanel(); asking = false }
         guard Self.enabled, running, !asking, timer.mode == .stopwatch || timer.phase == .focus else { return }
-        // using the keyboard or mouse recently means they are there
+        // ask once the keyboard and mouse have been untouched for the chosen time (and not again right after an answer)
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
-        if idle < 120 { lastPresence = Date(); return }
-        if Date().timeIntervalSince(lastPresence) >= Double(Self.minutes) * 60 { ask(test: false) }
+        let limit = Double(Self.minutes) * 60
+        if idle >= limit, Date().timeIntervalSince(lastPresence) >= limit { ask(test: false) }
     }
 
     func ask(test: Bool) {
@@ -232,12 +232,12 @@ struct AwakeCheckSettings: View {
         Toggle(isOn: $enabled) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Ask if I'm still there")
-                Text("A small window pops up over any app and asks \"Are you still there?\". If you don't answer in 3 minutes, the timer stops and keeps the time up to the question. It doesn't ask while you are typing or moving the mouse.")
+                Text("A small window pops up over any app and asks \"Are you still there?\". If you don't answer in 3 minutes, the timer stops and keeps the time up to the question. It only asks when the keyboard and mouse have not been touched for the time below.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         if enabled {
-            Stepper(value: $minutes, in: 5...180, step: 5) { LabeledContent("Ask every", value: "\(minutes) min") }
+            Stepper(value: $minutes, in: 1...180, step: 1) { LabeledContent("Ask after no keyboard or mouse for", value: "\(minutes) min") }
         }
         Button("Try it now") { TimerGuard.shared.ask(test: true) }
     }

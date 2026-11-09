@@ -41,6 +41,8 @@ export interface ScheduleEntry {
   weekStart?: string; // ISO, for "once"
   /** Free notes (edited in the Tasks graph) */
   notes?: string;
+  /** Study time for this to-do: "Study now" sets the Pomodoro to exactly this long */
+  minutes?: number;
 }
 
 /** A store planet bought with rockets */
@@ -84,6 +86,19 @@ export interface Settings {
   /** Font (lib/themes.ts FONTS) and the weekly schedule's cell text size */
   font?: string;
   scheduleFontSize?: number;
+  /** "Are you still there?" after this many idle minutes while the timer runs (0 / missing = off) */
+  guardMinutes?: number;
+  /** Show the always-on-top island at the top of the screen (Windows app) */
+  islandOn?: boolean;
+  /** "Next up" card minutes before a schedule item starts (default 10) and whether it shows */
+  islandLead?: number; islandNextUp?: boolean;
+  /** Island look and feel (same settings as the Mac Notchbit page) */
+  islandPlanet?: string; islandMotion?: boolean; islandDue?: boolean; islandMusic?: boolean; islandClickOnly?: boolean;
+  islandSpeed?: number; islandOpenDelay?: number; islandCloseDelay?: number; islandPlanetSize?: number; islandMusicHold?: number;
+  /** Show the nearest countdown at the top of the sidebar (default on) */
+  countdownSidebar?: boolean;
+  /** Program file names (e.g. telegram.exe) that pause the timer while in front */
+  pauseApps?: string[];
 }
 
 /** A rich-text note inside a planner (HTML) */
@@ -132,7 +147,21 @@ export interface AppData {
   plannerFolders?: PlannerFolder[];
   /** Level Pass rewards taken */
   claimedLevels?: number[];
+  /** Days to count down to (exams…) */
+  countdowns?: Countdown[];
+  /** The pinned countdown (shown in the sidebar and the island), else the next one coming */
+  countdownPinned?: string;
+  /** Leitner boxes; a topic is a box named "Topic › Box" */
+  leitner?: LeitnerBox[];
+  /** Words to review per day (minimum) and how many were done today */
+  leitnerGoal?: number;
+  leitnerToday?: { day: string; n: number };
 }
+
+export interface Countdown { id: string; title: string; date: string /* ISO date and time */; emoji: string; colorHex: string }
+/** box 1…5 = the 1/2/4/8/16 day sections, 6 = learned. `due` is a yyyy-MM-dd day */
+export interface LeitnerWord { id: string; term: string; meaning: string; box: number; due: string; /** Spelling section 1…5 (6 = spelled well) and its due day */ sBox?: number; sDue?: string }
+export interface LeitnerBox { id: string; name: string; words: LeitnerWord[] }
 
 export const uid = () =>
   (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).toUpperCase();

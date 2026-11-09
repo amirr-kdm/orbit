@@ -10,6 +10,7 @@ import { ChallengesProvider } from "./lib/challenges";
 import { FightClubProvider } from "./lib/fightclub";
 import { InboxProvider } from "./lib/inbox";
 import { GiftsProvider } from "./lib/gifts";
+import Island from "./pages/Island";
 import { registerPicture } from "./lib/planets";
 import ufo from "./assets/ufo.png";
 import satellite from "./assets/satellite.png";
@@ -29,6 +30,9 @@ window.addEventListener("wheel", (e) => { if (e.ctrlKey) e.preventDefault(); }, 
 window.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && ["+", "-", "=", "_", "0"].includes(e.key)) e.preventDefault(); });
 for (const t of ["gesturestart", "gesturechange"]) window.addEventListener(t, (e) => e.preventDefault());
 
+if (new URLSearchParams(location.search).get("island")) {
+  ReactDOM.createRoot(document.getElementById("root")!).render(<Island />);
+} else
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <InboxProvider><StoreProvider>

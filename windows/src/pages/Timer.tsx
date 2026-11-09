@@ -11,7 +11,7 @@ import earthUrl from "../assets/timer-earth.png";
 
 /** The timer — same as the Mac app: a solar-system clock over a night launch sky, "Today's flights" on the side */
 export default function TimerPage() {
-  const { data, actions } = useStore();
+  const { data, actions, update } = useStore();
   const t = useTimer();
   // day or night: the night launch sky, or a daylight sky with a light dial
   const day = !isDarkMode(data.settings.appearance);
@@ -67,6 +67,12 @@ export default function TimerPage() {
           {(["stopwatch", "pomodoro"] as const).map((m) => <button key={m} style={{ color: t.mode === m ? "white" : ink, background: t.mode === m ? color : undefined, fontWeight: t.mode === m ? 600 : undefined }}
             disabled={t.active} onClick={() => t.setMode(m)}>{m === "stopwatch" ? "Stopwatch" : "Pomodoro"}</button>)}
         </div>
+        {t.mode === "pomodoro" && <div className="row small" style={{ gap: 8 }}>
+          Focus <input type="number" min={1} max={180} disabled={t.active} style={{ width: 54 }} value={data.settings.pomodoroMinutes}
+            onChange={(e) => update((d) => { d.settings.pomodoroMinutes = Math.max(1, Math.min(180, Number(e.target.value) || 25)); })} />
+          Break <input type="number" min={1} max={60} disabled={t.active} style={{ width: 54 }} value={data.settings.breakMinutes}
+            onChange={(e) => update((d) => { d.settings.breakMinutes = Math.max(1, Math.min(60, Number(e.target.value) || 5)); })} /> min
+        </div>}
         <div style={{ position: "relative", width: "min(330px, 42vh)", aspectRatio: "1", flexShrink: 0 }}>
           <SolarDial time={t.display} spin={t.elapsed} progress={progress} tint={color} moving={t.running} rest={rest} day={day} />
           <img src={breakUrl} alt="" style={{ position: "absolute", left: "27%", top: "27%", width: "46%", height: "46%", borderRadius: "50%", objectFit: "cover",
