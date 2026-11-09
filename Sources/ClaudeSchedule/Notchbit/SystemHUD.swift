@@ -74,7 +74,7 @@ final class SystemHUD {
         watchDefaultDevice()
         attachVolume()
         startBrightness()
-        syncKeys(prompt: false)
+        syncKeys(prompt: true)
     }
 
     func stop() {
@@ -375,7 +375,7 @@ final class SystemHUD {
 
     private var wantsKeys: Bool {
         let d = UserDefaults.standard
-        return (d.object(forKey: "notchbit.hud") as? Bool ?? true) && (d.object(forKey: "notchbit.hideOSD") as? Bool ?? false)
+        return (d.object(forKey: "notchbit.hud") as? Bool ?? true) && (d.object(forKey: "notchbit.hideOSD") as? Bool ?? true)
     }
 
     /// Called when a setting may have changed or the app comes to the front

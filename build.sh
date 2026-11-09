@@ -39,7 +39,7 @@ cp Resources/rocket.png "$APP/Contents/Resources/rocket.png"
 cp Resources/streak.png "$APP/Contents/Resources/streak.png"
 cp Resources/art/*.png "$APP/Contents/Resources/"
 # Art you may not redistribute stays out of release builds (Resources/art-local is git-ignored)
-if [ "${1:-}" != "release" ] && ls Resources/art-local/*.png >/dev/null 2>&1; then
+if { [ "${1:-}" != "release" ] || [ "${INCLUDE_LOCAL_ART:-}" = "1" ]; } && ls Resources/art-local/*.png >/dev/null 2>&1; then
     cp Resources/art-local/*.png "$APP/Contents/Resources/"
     cp Resources/art-local/*.json "$APP/Contents/Resources/" 2>/dev/null || true
 fi

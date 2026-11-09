@@ -24,12 +24,12 @@ struct NotchbitPage: View {
     @AppStorage("notchbit.closeDelay") private var closeDelay = 0.35
     @AppStorage("notchbit.hud") private var hudOn = true
     @AppStorage("notchbit.hudStyle") private var hudStyle = "drop"
-    @AppStorage("notchbit.hideOSD") private var hideOSD = false
+    @AppStorage("notchbit.hideOSD") private var hideOSD = true
     @AppStorage("notchbit.hudKeyboard") private var hudKeyboard = true
     @AppStorage("notchbit.hudBattery") private var hudBattery = true
     @AppStorage("notchbit.hudSong") private var hudSong = true
     @AppStorage("notchbit.hudLock") private var hudLock = true
-    @AppStorage("notchbit.lockScreen") private var lockScreen = false
+    @AppStorage("notchbit.lockScreen") private var lockScreen = true
     @AppStorage("notchbit.nextUp") private var nextUpOn = true
     @AppStorage("notchbit.nextUpLead") private var nextUpLead = 10
     @AppStorage("notchbit.hudVolumeHex") private var volumeHex = ""

@@ -12,7 +12,7 @@ enum LockScreen {
 
     private static var space: Int32 = 0
 
-    static var wanted: Bool { UserDefaults.standard.object(forKey: "notchbit.lockScreen") as? Bool ?? false }
+    static var wanted: Bool { UserDefaults.standard.object(forKey: "notchbit.lockScreen") as? Bool ?? true }
 
     @discardableResult
     static func attach(_ window: NSWindow) -> Bool {
