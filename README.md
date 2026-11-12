@@ -298,8 +298,6 @@ Add friends with your **friend code**. See who is **studying right now** (live, 
 
 ## 🫂 Groups
 
-<img src="docs/screenshots/groups.png" alt="Groups" width="100%">
-
 Make a group for your class or study team (a name, an invite code). Members' study is shown side by side, the **top studier of the week wins 100 rockets**, and groups can run their own **group challenges** that only members can join.
 
 ## 🏆 Challenges
