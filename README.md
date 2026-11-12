@@ -256,6 +256,8 @@ Your study time, turned into a universe.
 
 ## 🏁 Level Pass
 
+<img src="docs/screenshots/level-pass.png" alt="Level Pass" width="100%">
+
 Your ship flies forward after every study session, and every level has a reward waiting.
 
 - Claim **rockets on every level**: **25** up to level 9, **75** from level 10, **125** from level 20, and +50 with every ten levels.
@@ -388,7 +390,9 @@ Settings are grouped in six tabs:
 - Your data lives **on your computer**, is **backed up to your account** and stays **in sync** between your Mac and your PC. Orbit **works offline** and opens right away even on a slow connection (it does not wait on the spinner).
 - Your profile (the **account button** at the bottom of the sidebar) shows your name, level, rockets and streak, and lets you sign out. If you forget your password the admin can set a temporary one.
 - **Light on battery**: animations pause while Orbit is in the background, and only what is on screen moves.
-- **About** shows the version, who built Orbit, and links to the Orbit Telegram channel (news and updates) and the Orbiters' group (find friends and plan challenges).
+- **About** (bottom of the sidebar, a window with the Orbit icon) shows the version, who built Orbit, and links to the Orbit Telegram channel (news and updates) and the Orbiters' group (find friends and plan challenges).
+
+<img src="docs/screenshots/about.png" alt="About" width="100%">
 
 ## ⌨️ Shortcuts and little helpers
 
