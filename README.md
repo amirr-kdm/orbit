@@ -341,6 +341,14 @@ Top right, with an unread count: new challenges, gifts, prizes and new versions 
 
 On a Mac with a notch (and a pretend one on Macs without), a **small planet sits beside the notch** and grows into a control panel. Everything wakes up from system events: nothing runs in a loop, so it is light on the battery.
 
+<p align="center">
+<img src="docs/screenshots/notch-closed.png" alt="Notch: closed" height="46"> &nbsp; <img src="docs/screenshots/notch-peek.png" alt="Notch: peek" height="120">
+</p>
+<p align="center">
+<img src="docs/screenshots/notch-timer.png" alt="Notch: Timer" width="49%"> <img src="docs/screenshots/notch-tasks.png" alt="Notch: Tasks" width="49%">
+<img src="docs/screenshots/notch-music.png" alt="Notch: Music" width="49%"> <img src="docs/screenshots/notch-days.png" alt="Notch: Days" width="49%">
+</p>
+
 **The three states**
 - **Closed**: your planet on the left, the timer (or a headphones picture while music plays) on the right of the notch, an orange number for words to review.
 - **Peek**: rest the pointer on it (or swipe down with two fingers). It shows what matters right now: *Next up*, the music, the running timer, or *"Ready to focus?"* with a Start button.
