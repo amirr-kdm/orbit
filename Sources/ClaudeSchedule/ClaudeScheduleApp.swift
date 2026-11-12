@@ -183,6 +183,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    /// Set when the member really wants Orbit gone ("Quit Orbit completely")
+    @MainActor static var reallyQuit = false
+
+    /// ⌘Q (or Quit in the Dock) keeps Orbit alive for the notch: the windows close and the Dock icon goes away, but the notch stays.
+    /// Log out, shut down and restart are never held back, and "Quit Orbit completely" (Notchbit page) really quits.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let d = UserDefaults.standard
+        let keep = (d.object(forKey: "notchbit.keepRunning") as? Bool ?? true) && (d.object(forKey: "notchbit.enabled") as? Bool ?? true)
+        if MainActor.assumeIsolated({ Self.reallyQuit }) || !keep { return .terminateNow }
+        // the system asking (log out / shut down / restart) must go through
+        let reason = NSAppleEventManager.shared().currentAppleEvent?.attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason))?.enumCodeValue
+        if let r = reason, [OSType(kAEReallyLogOut), OSType(kAEShowRestartDialog), OSType(kAEShowShutdownDialog), OSType(kAERestart), OSType(kAEShutDown), OSType(kAELogOut)].contains(r) {
+            return .terminateNow
+        }
+        MainActor.assumeIsolated {
+            for w in NSApp.windows where w.identifier?.rawValue.hasPrefix("main") == true { w.orderOut(nil) }
+            NSApp.setActivationPolicy(.accessory)
+        }
+        return .terminateCancel
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated { LeitnerHotKey.register(); WordsStatusItem.shared.start(); NotchbitController.shared.start() }
     }
@@ -193,6 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor static func showMain() {
+        if NSApp.activationPolicy() != .regular { NSApp.setActivationPolicy(.regular) }
         if let w = NSApp.windows.first(where: { $0.identifier?.rawValue.hasPrefix("main") == true && $0.canBecomeMain }) {
             w.makeKeyAndOrderFront(nil)
         } else {

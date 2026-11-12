@@ -61,7 +61,21 @@ enum PlanetCatalog {
         return byID[id]
     }
 
-    static let byID: [String: PlanetDef] = Dictionary(uniqueKeysWithValues: (all + store + rewards + gifts).map { ($0.id, $0) })
+    static let byID: [String: PlanetDef] = Dictionary(uniqueKeysWithValues: (all + store + rewards + gifts + notchOnly).map { ($0.id, $0) })
+
+    /// Pictures that only the notch offers as its planet (not in the galaxy, the store or the level list)
+    static let notchOnly: [PlanetDef] = [
+        PlanetDef(id: "notch_octopus", name: "DJ Octopus", level: 1, blurb: "Listening to music with its headphones on.",
+                  colors: ["#FDBA74", "#F97316", "#1E3A8A"], accent: "#FB923C", image: "n1_octopus"),
+        PlanetDef(id: "notch_fire", name: "Claude on Fire", level: 1, blurb: "Burning through the work.",
+                  colors: ["#FED7AA", "#F97316", "#7C2D12"], accent: "#F97316", image: "s6_notchfire"),
+        PlanetDef(id: "notch_window1", name: "Sleepy Window", level: 1, blurb: "Two tired friends watching through the window.",
+                  colors: ["#BFDBFE", "#60A5FA", "#1E3A8A"], accent: "#93C5FD", image: "s6_notchwindow1"),
+        PlanetDef(id: "notch_window2", name: "Grumpy Window", level: 1, blurb: "Not in the mood for anything.",
+                  colors: ["#BFDBFE", "#64748B", "#1E293B"], accent: "#94A3B8", image: "s6_notchwindow2"),
+        PlanetDef(id: "notch_batman", name: "Couch Knight", level: 1, blurb: "Off duty on the sofa.",
+                  colors: ["#FDE68A", "#B45309", "#451A03"], accent: "#FBBF24", image: "s6_notchbatman"),
+    ]
 
     static func unlocked(at level: Int) -> [PlanetDef] { all.filter { $0.unlockLevel <= level } }
 

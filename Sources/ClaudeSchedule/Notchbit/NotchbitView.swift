@@ -54,7 +54,9 @@ struct NotchbitView: View {
     /// and out before it closes. No clipping or masking is needed, which keeps the animation light.
     private func chrome(_ level: NotchbitModel.Level) -> some View {
         let size = model.size(level)
-        let layout = model.size(model.layoutLevel)
+        // What is showing is laid out at its own size at once; only when closing does the old (bigger) layout stay, so the content can fade out in place.
+        // (Laying a small view out in the old big frame put it below the shrinking shape, on the desktop.)
+        let layout = model.size(level == .closed ? model.layoutLevel : level)
         let fade: AnyTransition = .asymmetric(insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.12)),
                                               removal: .opacity.animation(.easeIn(duration: 0.08)))
         return ZStack(alignment: .top) {

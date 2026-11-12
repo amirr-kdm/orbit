@@ -400,7 +400,8 @@ final class AppStore {
     // MARK: Weekly schedule
 
     func slot(_ id: UUID) -> TimeSlot? {
-        settings.timeSlots.first { $0.id == id }
+        if id == TimeSlot.anytimeID { return .anytime }
+        return settings.timeSlots.first { $0.id == id }
     }
 
     func entry(_ id: UUID?) -> ScheduleEntry? {
@@ -494,7 +495,9 @@ final class AppStore {
 
     /// True when this entry is the one displayed in its cell that week
     func isShown(_ e: ScheduleEntry, inWeekOf date: Date) -> Bool {
-        entry(weekday: e.weekday, slotID: e.slotID, inWeekOf: date)?.id == e.id
+        // "no specific time" to-dos do not share a cell: each one shows on its day
+        if e.slotID == TimeSlot.anytimeID { return applies(e, toWeekOf: date) }
+        return entry(weekday: e.weekday, slotID: e.slotID, inWeekOf: date)?.id == e.id
     }
 
     /// Entries visible in a week
@@ -529,7 +532,7 @@ final class AppStore {
     /// EVEN / ODD tag, and the shadowed copy never hides in Today, Tasks or the graph.
     func normalizeSchedule() {
         var changed = schedule
-        let groups = Dictionary(grouping: changed.indices) { "\(changed[$0].weekday)|\(changed[$0].slotID)" }
+        let groups = Dictionary(grouping: changed.indices.filter { changed[$0].slotID != TimeSlot.anytimeID }) { "\(changed[$0].weekday)|\(changed[$0].slotID)" }
         for (_, idx) in groups where idx.count > 1 {
             let parities = Set(idx.map { changed[$0].recurrence }.filter { $0 == .even || $0 == .odd })
             guard parities.count == 1, let taken = parities.first else { continue }
@@ -577,11 +580,10 @@ final class AppStore {
 
     /// Schedule to-dos as task rows: one per weekly cell, dated to this week's occurrence
     func scheduleTodoRows(inWeekOf date: Date = Date()) -> [ScheduleTodoRow] {
-        let slots = settings.timeSlots
         return schedule
             .filter { $0.kind == .todo && isShown($0, inWeekOf: date) }
             .compactMap { e -> ScheduleTodoRow? in
-                guard let slot = slots.first(where: { $0.id == e.slotID }) else { return nil }
+                guard let slot = slot(e.slotID) else { return nil }
                 let day = occurrence(of: e, inWeekOf: date)
                 if isMoved(e.id, from: day) { return nil }
                 return ScheduleTodoRow(entry: e, slot: slot, date: day,
@@ -621,7 +623,10 @@ final class AppStore {
 
         let lines = e.text.split(separator: "\n", maxSplits: 1).map(String.init)
         var t = TaskItem(title: e.title, notes: lines.count > 1 ? lines[1] : "", categoryID: e.categoryID)
-        if let newDay, let slot = slot(e.slotID) {
+        if let newDay, let slot = slot(e.slotID), slot.isAnytime {
+            t.dueDate = Cal.persian.startOfDay(for: newDay)
+            if let m = e.minutes { t.estimatedMinutes = m }
+        } else if let newDay, let slot = slot(e.slotID) {
             let start = Cal.persian.startOfDay(for: newDay)
             t.dueDate = start.addingTimeInterval(TimeInterval(slot.startMinute * 60))
             t.hasTime = true
@@ -719,12 +724,11 @@ final class AppStore {
     /// Schedule cells marked "To-do" for that weekday
     func scheduleTodos(on day: Date) -> [TodoItem] {
         let weekday = Cal.weekdayIndex(day)
-        let slots = settings.timeSlots
         return schedule
             .filter { $0.weekday == weekday && $0.kind == .todo && isShown($0, inWeekOf: day)
                       && !isMoved($0.id, from: day) }
             .compactMap { e -> TodoItem? in
-                guard let slot = slots.first(where: { $0.id == e.slotID }) else { return nil }
+                guard let slot = slot(e.slotID) else { return nil }
                 let detail = categoryLabel(e.categoryID).map { "\(slot.title) · \($0)" } ?? slot.title
                 return TodoItem(ref: .schedule(e.id), title: e.title, detail: detail,
                                 color: color(of: e) ?? .accentColor,

@@ -519,6 +519,7 @@ struct BoardScheduleCard: View {
     @Environment(TimerEngine.self) private var timer
     @Environment(Router.self) private var router
     @State private var hovering = false
+    @State private var editing = false
 
     var body: some View {
         let e = row.entry
@@ -545,7 +546,10 @@ struct BoardScheduleCard: View {
                 .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
         }
         .help("Drag to another day to move just this day's session")
+        .sheet(isPresented: $editing) { ScheduleEntryEditor(entryID: e.id, day: row.date) }
         .contextMenu {
+            Button("Edit…") { editing = true }
+            Divider()
             StatusMenuItems(ref: .schedule(e.id), day: row.date)
             MoveToMenu(from: row.date) { day in withAnimation { store.moveOccurrence(e.id, from: row.date, to: day) } }
             Button("Study Now") { timer.select(.schedule(e.id)); router.selection = .timer }
@@ -754,6 +758,7 @@ struct TaskEditor: View {
 /// A To-do cell from the weekly schedule, shown as a recurring task
 struct ScheduleTaskRow: View {
     let row: ScheduleTodoRow
+    @State private var editingEntry = false
 
     @Environment(AppStore.self) private var store
     @Environment(TimerEngine.self) private var timer
@@ -828,7 +833,10 @@ struct ScheduleTaskRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+        .sheet(isPresented: $editingEntry) { ScheduleEntryEditor(entryID: entry.id, day: row.date) }
         .contextMenu {
+            Button("Edit…") { editingEntry = true }
+            Divider()
             StatusMenuItems(ref: .schedule(entry.id), day: row.date)
             Button("Show in Weekly Schedule") { router.selection = .schedule }
         }
@@ -885,5 +893,102 @@ struct MoveToMenu: View {
             }
             Button("No Date") { onMove(nil) }
         }
+    }
+}
+
+
+/// Edits a to-do of the weekly schedule from the Tasks page: its text, category, day and time slot in the week, how often it repeats, study time and notes
+struct ScheduleEntryEditor: View {
+    let entryID: UUID
+    /// The day it was opened from (decides which week "This week only" belongs to)
+    let day: Date
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @State private var categoryID: UUID?
+    @State private var weekday = 0
+    @State private var slotID = UUID()
+    @State private var recurrence = Recurrence.weekly
+    @State private var hasMinutes = false
+    @State private var minutes = 30
+    @State private var notes = ""
+    @State private var loaded = false
+
+    private var slots: [TimeSlot] { store.settings.timeSlots.sorted { $0.startMinute < $1.startMinute } }
+
+    /// Another cell that this one would replace if saved here
+    private var clash: ScheduleEntry? {
+        slotID == TimeSlot.anytimeID ? nil : store.schedule.first { $0.id != entryID && $0.weekday == weekday && $0.slotID == slotID && Self.overlap($0.recurrence, recurrence) }
+    }
+    private static func overlap(_ a: Recurrence, _ b: Recurrence) -> Bool {
+        // only two cells that repeat the same way fight for the cell (an every-week one can sit beside an even / odd / this-week one)
+        a == b
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                TextField("Title", text: $text, axis: .vertical).lineLimit(1...4)
+                Picker("Category", selection: $categoryID) {
+                    Text("None").tag(UUID?.none)
+                    ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
+                }
+                Section("When in the week") {
+                    Picker("Day", selection: $weekday) {
+                        ForEach(0..<7, id: \.self) { Text(Cal.weekdayNames[$0]).tag($0) }
+                    }
+                    Picker("Time", selection: $slotID) {
+                        Text("No specific time").tag(TimeSlot.anytimeID)
+                        Divider()
+                        ForEach(slots) { Text($0.title).tag($0.id) }
+                    }
+                    Picker("Repeats", selection: $recurrence) {
+                        ForEach(Recurrence.allCases) { Text($0.title).tag($0) }
+                    }
+                    if let clash {
+                        Label("This cell already has “\(clash.title)”. Saving replaces it.", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                }
+                Section {
+                    Toggle("Study time", isOn: $hasMinutes)
+                    if hasMinutes {
+                        Stepper(value: $minutes, in: 1...180) { LabeledContent("Pomodoro focus", value: "\(minutes) min") }
+                    }
+                }
+                TextField("Notes", text: $notes, axis: .vertical).lineLimit(3...6)
+            }
+            .formStyle(.grouped)
+            HStack {
+                Button("Delete", role: .destructive) { store.deleteEntry(entryID); dismiss() }
+                Spacer()
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Save") { save() }.keyboardShortcut(.defaultAction).disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding()
+        }
+        .frame(width: 480)
+        .onAppear {
+            guard !loaded, let e = store.entry(entryID) else { return }
+            loaded = true
+            text = e.text; categoryID = e.categoryID; weekday = e.weekday; slotID = e.slotID; recurrence = e.recurrence
+            hasMinutes = e.minutes != nil; minutes = e.minutes ?? 30; notes = e.notes
+        }
+    }
+
+    private func save() {
+        if let clash { store.deleteEntry(clash.id) }
+        store.updateEntry(entryID) {
+            $0.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            $0.categoryID = categoryID
+            $0.weekday = weekday
+            $0.slotID = slotID
+            $0.recurrence = recurrence
+            $0.weekStart = recurrence == .once ? ($0.weekStart ?? Cal.weekStart(day)) : nil
+            $0.minutes = hasMinutes ? minutes : nil
+            $0.notes = notes
+        }
+        store.normalizeSchedule()
+        dismiss()
     }
 }

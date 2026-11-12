@@ -60,7 +60,7 @@ final class NextUp {
         let day = Calendar.current.startOfDay(for: now)
         let lead = TimeInterval(leadMinutes * 60)
         var best: (fire: Date, info: NextUpInfo)?
-        for r in store.scheduleRows(on: now) where !r.isDone && !r.isSkipped {
+        for r in store.scheduleRows(on: now) where !r.isDone && !r.isSkipped && !r.slot.isAnytime {
             let start = day.addingTimeInterval(TimeInterval(r.slot.startMinute * 60))
             guard start > now else { continue }
             let key = "\(r.entry.id)|\(Int(day.timeIntervalSince1970))"

@@ -52,7 +52,12 @@ struct TimeSlot: Identifiable, Codable, Hashable {
     var startMinute: Int
     var endMinute: Int
 
-    var title: String { "\(Fmt.slotTime(startMinute))-\(Fmt.slotTime(endMinute))" }
+    var title: String { isAnytime ? "Any time" : "\(Fmt.slotTime(startMinute))-\(Fmt.slotTime(endMinute))" }
+
+    /// A weekly to-do with a day but no time uses this fixed "slot" (it is not one of the real time slots, so nothing else changes)
+    static let anytimeID = UUID(uuidString: "00000000-0000-0000-0000-00000000A117")!
+    static let anytime = TimeSlot(id: anytimeID, startMinute: 24 * 60, endMinute: 24 * 60)
+    var isAnytime: Bool { id == Self.anytimeID }
     var duration: TimeInterval { TimeInterval((endMinute - startMinute) * 60) }
 
     static let defaults: [TimeSlot] = stride(from: 6 * 60, through: 22 * 60, by: 120).map {

@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 /// Notchbit: a tiny Orbit that lives in the notch. Everything about it is switched here.
 struct NotchbitPage: View {
@@ -30,6 +31,8 @@ struct NotchbitPage: View {
     @AppStorage("notchbit.hudSong") private var hudSong = true
     @AppStorage("notchbit.hudLock") private var hudLock = true
     @AppStorage("notchbit.lockScreen") private var lockScreen = true
+    @AppStorage("notchbit.keepRunning") private var keepRunning = true
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("notchbit.nextUp") private var nextUpOn = true
     @AppStorage("notchbit.nextUpLead") private var nextUpLead = 10
     @AppStorage("notchbit.hudVolumeHex") private var volumeHex = ""
@@ -44,7 +47,7 @@ struct NotchbitPage: View {
     /// Worked out once when the page opens (in a fixed order), not on every redraw
     private func loadPlanets() {
         let level = store.galaxyProgress().level
-        let all = PlanetCatalog.unlocked(at: level) + store.purchases.compactMap { PlanetCatalog.planet($0.planetID) }
+        let all = PlanetCatalog.unlocked(at: level) + store.purchases.compactMap { PlanetCatalog.planet($0.planetID) } + PlanetCatalog.notchOnly
         var seen = Set<String>()
         planets = all.filter { seen.insert($0.id).inserted }
     }
@@ -81,6 +84,14 @@ struct NotchbitPage: View {
                                 }
                             }
                         }
+                    }
+                    card("Always on", "power") {
+                        toggle("Keep the notch when I quit", "⌘Q (or Quit in the Dock) closes the windows and the Dock icon, but the notch stays. To really quit, use the button below. Logging out and shutting down are never blocked.", $keepRunning)
+                        toggle("Open Orbit when I log in", "So the notch is there as soon as the Mac starts.", Binding(get: { launchAtLogin }, set: { on in
+                            do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch {}
+                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                        }))
+                        Button("Quit Orbit completely") { AppDelegate.reallyQuit = true; NSApp.terminate(nil) }.controlSize(.small)
                     }
                     card("Next up", "clock.badge") {
                         toggle("Remind me before a weekly to-do starts", "A few minutes before an item of your weekly schedule starts, the notch opens with its name and a Start button. It closes by itself.", $nextUpOn)
