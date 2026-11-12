@@ -123,17 +123,50 @@ fn open_main(app: tauri::AppHandle) {
     }
 }
 
+/// "Keep the island when I close the window" (set from the app's settings)
+static KEEP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+#[tauri::command]
+fn set_keep_running(keep: bool) { KEEP.store(keep, Ordering::SeqCst); }
+
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") { let _ = w.unminimize(); let _ = w.show(); let _ = w.set_focus(); }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
-        .setup(|app| { media::start(app.handle().clone()); Ok(()) })
+        .setup(|app| {
+            media::start(app.handle().clone());
+            // tray icon: left click opens Orbit, the menu can open it or quit for real
+            use tauri::menu::{Menu, MenuItem};
+            use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+            let open = MenuItem::with_id(app, "open", "Open Orbit", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit Orbit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &quit])?;
+            let mut tray = TrayIconBuilder::new().tooltip("Orbit").menu(&menu).show_menu_on_left_click(false)
+                .on_menu_event(|app, e| match e.id.as_ref() { "open" => show_main(app), "quit" => app.exit(0), _ => {} })
+                .on_tray_icon_event(|tray, e| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e { show_main(tray.app_handle()); }
+                });
+            if let Some(icon) = app.default_window_icon() { tray = tray.icon(icon.clone()); }
+            tray.build(app)?;
+            Ok(())
+        })
         .on_window_event(|window, event| {
-            // closing the main window quits Orbit, even while the island window is open
-            if window.label() == "main" {
-                if let tauri::WindowEvent::Destroyed = event { window.app_handle().exit(0); }
+            if window.label() != "main" { return; }
+            match event {
+                // while the island is on (and "keep running" is on), closing the window only hides it: the island stays, and the tray icon quits
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    let island = window.app_handle().get_webview_window("island").is_some();
+                    if island && KEEP.load(Ordering::SeqCst) { api.prevent_close(); let _ = window.hide(); }
+                }
+                // otherwise closing the main window quits Orbit, even if the island window is somehow still open
+                tauri::WindowEvent::Destroyed => window.app_handle().exit(0),
+                _ => {}
             }
         })
-        .invoke_handler(tauri::generate_handler![schedule_alarm, cancel_alarm, idle_seconds, foreground_app, island_show, island_resize, open_main, media::media_current, media::media_command])
+        .invoke_handler(tauri::generate_handler![schedule_alarm, cancel_alarm, idle_seconds, foreground_app, island_show, island_resize, open_main, set_keep_running, media::media_current, media::media_command])
         .run(tauri::generate_context!())
         .expect("error while running Orbit");
 }

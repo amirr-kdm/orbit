@@ -2,6 +2,7 @@ import { PageHero } from "../components";
 import { useEffect, useState } from "react";
 import { useNav } from "../App";
 import { Modal, MenuItem, useContextMenu } from "../components";
+import EntryEditor from "./EntryEditor";
 import { copyEntry, copyTask, pasteAsTask, useHasClip } from "../lib/clip";
 import { addDays, isToday, monthDay, startOfDay, WEEKDAYS, WEEKDAYS_SHORT, weekDays, weekdayIndex, weekStart } from "../lib/dates";
 import { RECURRENCE_BADGE, TaskItem } from "../lib/model";
@@ -111,13 +112,14 @@ function DayColumn({ day, rows, tasks, onOpen, onEdit }: { day: Date; rows: Sche
 
 function OccCard({ r }: { r: ScheduleRow }) {
   const { data, actions } = useStore();
+  const [editing, setEditing] = useState(false);
   const timer = useTimer(); const nav = useNav(); const menu = useContextMenu();
   const c = categoryOf(data, r.entry.categoryID);
   const ref = { kind: "schedule" as const, id: r.entry.id };
   return (
     <div className="bcard" draggable style={{ ["--c" as string]: entryColor(data, r.entry) ?? c?.colorHex ?? "var(--accent)" }}
       onDragStart={(e) => e.dataTransfer.setData("text/plain", `occ:${r.entry.id}|${r.date.getTime()}`)} title="Drag to another day to move just this session"
-      onContextMenu={(e) => menu.open(e, [{ label: "Copy", onClick: () => copyEntry(r.entry) }, { label: r.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone(ref, r.date) },
+      onContextMenu={(e) => menu.open(e, [{ label: "Edit…", onClick: () => setEditing(true) }, { separator: true }, { label: "Copy", onClick: () => copyEntry(r.entry) }, { label: r.isDone ? "Mark as not done" : "Mark as done", onClick: () => actions.toggleDone(ref, r.date) },
         { label: r.isSkipped ? "Bring back to to-do" : "Skip (won't do)", onClick: () => actions.setSkipped(ref, r.date, !r.isSkipped) },
         { label: "▶ Study now", disabled: timer.active, onClick: () => { timer.setTarget(ref); nav.go("timer"); } }, { separator: true },
         ...moveMenu(r.date, (d) => actions.moveOccurrence(r.entry.id, r.date, d))])}>
@@ -127,6 +129,7 @@ function OccCard({ r }: { r: ScheduleRow }) {
         <div className="small muted">{slotTitle(r.slot)} {RECURRENCE_BADGE[r.entry.recurrence] ? <b>{RECURRENCE_BADGE[r.entry.recurrence]}</b> : c?.name}</div>
       </div>
       {menu.node}
+      {editing && <EntryEditor entryID={r.entry.id} day={r.date} onClose={() => setEditing(false)} />}
     </div>
   );
 }

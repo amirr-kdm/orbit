@@ -190,10 +190,12 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const pauseRef = useRef(pause); pauseRef.current = pause;
   const startRef = useRef(start); startRef.current = start;
   const askedAt = useRef<number | null>(null);
+  const lastPresence = useRef(Date.now());   // timer started or the member answered: not asked again before the chosen time has passed
   useEffect(() => {
     const guardMin = data.settings.guardMinutes ?? 0, apps = (data.settings.pauseApps ?? []).map((a) => a.toLowerCase());
     if (!running || !inTauri() || (!guardMin && !apps.length)) { askedAt.current = null; setAskingLeft(null); return; }
     let alive = true;
+    lastPresence.current = Date.now();
     const tick = async () => {
       try {
         const { invoke } = await import("@tauri-apps/api/core");
@@ -205,7 +207,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         if (guardMin) {
           const idle = await invoke<number>("idle_seconds");
           if (!alive) return;
-          if (idle < guardMin * 60) { if (askedAt.current !== null) { askedAt.current = null; setAskingLeft(null); } return; }
+          if (idle < guardMin * 60 || Date.now() - lastPresence.current < guardMin * 60_000) { if (askedAt.current !== null) { askedAt.current = null; setAskingLeft(null); } return; }
           if (askedAt.current === null) askedAt.current = Date.now();
           const left = GUARD_ANSWER - Math.floor((Date.now() - askedAt.current) / 1000);
           if (left <= 0) { askedAt.current = null; setAskingLeft(null); pauseRef.current(); } else setAskingLeft(left);
@@ -224,7 +226,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   }, [running, active]);
 
   const value: Timer = {
-    askingLeft, imHere: () => { askedAt.current = null; setAskingLeft(null); },
+    askingLeft, imHere: () => { askedAt.current = null; lastPresence.current = Date.now(); setAskingLeft(null); },
     mode, setMode, target, setTarget: (r) => { if (!active) setTargetState(r); }, categoryID, setCategoryID, note, setNote,
     phase, running, active, elapsed, display, phaseLength, completed, start, pause, stop,
     skipBreak: () => { reset(); setPhase("focus"); }, targetTitle,

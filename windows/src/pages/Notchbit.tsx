@@ -1,6 +1,6 @@
 import { PlanetCanvas } from "../components";
 import { inTauri } from "../lib/notify";
-import { PLANETS, planetByID, unlockLevel } from "../lib/planets";
+import { NOTCH_ONLY, PLANETS, planetByID, unlockLevel } from "../lib/planets";
 import { STORE } from "../lib/storePlanets";
 import { progress, useStore } from "../lib/store";
 
@@ -14,6 +14,7 @@ export default function Notchbit() {
   const owned = new Set(data.purchases.map((p) => p.planetID));
   // planets unlocked by level, then the ones bought in the Store (each once)
   const planets = [...PLANETS.filter((p) => unlockLevel(p.group) <= level), ...[...owned].map((id) => STORE.find((p) => p.id === id) ?? planetByID(id)).filter((p): p is NonNullable<typeof p> => !!p)]
+    .concat(NOTCH_ONLY)
     .filter((p, i, a) => a.findIndex((q) => q.id === p.id) === i);
   const chosen = s.islandPlanet || data.avatarPlanet || "terra";
   const planet = planetByID(chosen) ?? PLANETS[0];
@@ -67,6 +68,10 @@ export default function Notchbit() {
                 <PlanetCanvas planet={p} size={44} />
               </button>))}
           </div>
+        </div>
+
+        <div className="card"><h3><span className="t2-ico">⏻</span>Always on</h3>
+          {toggle("Keep the island when I close the window", "Closing Orbit's window hides it and the island stays. The Orbit icon near the clock (system tray) opens it again, or quits Orbit for real: right-click it → Quit Orbit.", s.islandKeep !== false, (v) => set((x) => { x.islandKeep = v; }))}
         </div>
 
         <div className="card"><h3><span className="t2-ico">🎛</span>What it shows</h3>

@@ -87,7 +87,16 @@ export const PLANETS: PlanetDef[] = [
   P("claude", "Claude's Cosmos", 10, "The final reward. ✨", { shape: "burst", colors: ["#FED7AA", "#D97757", "#7C2D12"], pattern: "swirl", accent: "#FFEDD5", ring: { color: "#FED7AA", tilt: -20, width: 0.12, double: true }, moons: 3, features: ["face"], glow: true }),
 ];
 
-export const planetByID = (id?: string | null) => PLANETS.find((p) => p.id === id) ?? STORE.find((p) => p.id === id) ?? REWARDS.find((p) => p.id === id) ?? GIFTS.find((p) => p.id === id);
+/** Pictures that only the island offers as its planet (not in the galaxy, the store or the level list) */
+export const NOTCH_ONLY: PlanetDef[] = [
+  P("notch_octopus", "DJ Octopus", 1, "Listening to music with its headphones on.", { colors: ["#FDBA74", "#F97316", "#1E3A8A"], accent: "#FB923C", image: "n1_octopus" }),
+  P("notch_fire", "Claude on Fire", 1, "Burning through the work.", { colors: ["#FED7AA", "#F97316", "#7C2D12"], accent: "#F97316", image: "s6_notchfire" }),
+  P("notch_window1", "Sleepy Window", 1, "Two tired friends watching through the window.", { colors: ["#BFDBFE", "#60A5FA", "#1E3A8A"], accent: "#93C5FD", image: "s6_notchwindow1" }),
+  P("notch_window2", "Grumpy Window", 1, "Not in the mood for anything.", { colors: ["#BFDBFE", "#64748B", "#1E293B"], accent: "#94A3B8", image: "s6_notchwindow2" }),
+  P("notch_batman", "Couch Knight", 1, "Off duty on the sofa.", { colors: ["#FDE68A", "#B45309", "#451A03"], accent: "#FBBF24", image: "s6_notchbatman" }),
+];
+
+export const planetByID = (id?: string | null) => PLANETS.find((p) => p.id === id) ?? NOTCH_ONLY.find((p) => p.id === id) ?? STORE.find((p) => p.id === id) ?? REWARDS.find((p) => p.id === id) ?? GIFTS.find((p) => p.id === id);
 export const isStorePlanet = (id?: string | null) => STORE.some((p) => p.id === id);
 
 // ---------- Painter ----------

@@ -3,7 +3,7 @@ import { dateText } from "../pages/Countdown";
 import { shown as shownCountdown, when } from "./countdown";
 import { dayKey, startOfDay } from "./dates";
 import { dueCount } from "./leitner";
-import { AppData } from "./model";
+import { ANYTIME_ID, AppData } from "./model";
 import { parity, scheduleRows, todosOn, useStore, entryColor, titleOf, slotTitle } from "./store";
 import { useTimer } from "./timer";
 import { monthDay, WEEKDAYS_SHORT, weekdayIndex } from "./dates";
@@ -14,7 +14,7 @@ export function islandSnapshot(d: AppData, now: Date, _tick: number): string {
   const todos = todosOn(d, now).filter((x) => !x.isDone && !x.isSkipped).map((x) => ({ kind: x.ref.kind, id: x.ref.id, title: x.title, color: x.color }));
   // the next weekly-schedule item that starts within the lead time (10 min)
   const lead = (d.settings.islandLead ?? 10) * 60_000, mins = now.getHours() * 60 + now.getMinutes();
-  const next = d.settings.islandNextUp === false ? undefined : scheduleRows(d, now).filter((r) => !r.isDone && !r.isSkipped && r.slot.startMinute > mins && (r.slot.startMinute - mins) * 60_000 <= lead)
+  const next = d.settings.islandNextUp === false ? undefined : scheduleRows(d, now).filter((r) => r.slot.id !== ANYTIME_ID && !r.isDone && !r.isSkipped && r.slot.startMinute > mins && (r.slot.startMinute - mins) * 60_000 <= lead)
     .sort((a, b) => a.slot.startMinute - b.slot.startMinute)[0];
   const par = parity(d, now);
   return JSON.stringify({

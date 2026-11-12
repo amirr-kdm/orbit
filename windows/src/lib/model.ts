@@ -90,6 +90,8 @@ export interface Settings {
   guardMinutes?: number;
   /** Show the always-on-top island at the top of the screen (Windows app) */
   islandOn?: boolean;
+  /** Closing the window only hides it while the island is on (default on); the tray icon quits */
+  islandKeep?: boolean;
   /** "Next up" card minutes before a schedule item starts (default 10) and whether it shows */
   islandLead?: number; islandNextUp?: boolean;
   /** Island look and feel (same settings as the Mac Notchbit page) */
@@ -162,6 +164,10 @@ export interface Countdown { id: string; title: string; date: string /* ISO date
 /** box 1…5 = the 1/2/4/8/16 day sections, 6 = learned. `due` is a yyyy-MM-dd day */
 export interface LeitnerWord { id: string; term: string; meaning: string; box: number; due: string; /** Spelling section 1…5 (6 = spelled well) and its due day */ sBox?: number; sDue?: string }
 export interface LeitnerBox { id: string; name: string; words: LeitnerWord[] }
+
+/** A weekly to-do with a day but no time uses this fixed id instead of one of the real time slots */
+export const ANYTIME_ID = "00000000-0000-0000-0000-00000000A117";
+export const ANYTIME_SLOT: TimeSlot = { id: ANYTIME_ID, startMinute: 24 * 60, endMinute: 24 * 60 };
 
 export const uid = () =>
   (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).toUpperCase();

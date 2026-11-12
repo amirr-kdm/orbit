@@ -84,6 +84,8 @@ export default function App() {
   // The island window: open/close with the setting, and keep what it shows up to date (it reads this from storage and sends its buttons back as commands)
   const islandOn = !!data.settings.islandOn;
   useEffect(() => { if (inTauri()) void import("@tauri-apps/api/core").then((m) => m.invoke("island_show", { show: islandOn })).catch(() => {}); }, [islandOn]);
+  const islandKeep = data.settings.islandKeep !== false;
+  useEffect(() => { if (inTauri()) void import("@tauri-apps/api/core").then((m) => m.invoke("set_keep_running", { keep: islandKeep })).catch(() => {}); }, [islandKeep]);
   const [nextTick, setNextTick] = useState(0);
   const islandInfo = useMemo(() => islandSnapshot(data, new Date(), nextTick), [data, nextTick]);
   useEffect(() => { try { localStorage.setItem("orbit-island-info", islandInfo); } catch { /* blocked */ } }, [islandInfo]);

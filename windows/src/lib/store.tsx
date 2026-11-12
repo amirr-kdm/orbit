@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   AppData, Category, defaultData, PALETTE, Planner, PlannerNote, defaultSlots, EntryKind, PlacedPlanet, Recurrence, recurrencePriority,
-  ScheduleEntry, SolarSystem, StudySession, SunType, SYSTEM_NAMES, TaskItem, TimeSlot, uid,
+  ANYTIME_ID, ANYTIME_SLOT, ScheduleEntry, SolarSystem, StudySession, SunType, SYSTEM_NAMES, TaskItem, TimeSlot, uid,
 } from "./model";
 import { addDays, dayKey, minuteOfDay, sameDay, startOfDay, weekDays, weekStart, weekdayIndex, weeksBetween } from "./dates";
 import { PLANETS, unlockLevel } from "./planets";
@@ -53,7 +53,8 @@ export function entryAt(d: AppData, weekday: number, slotID: string, date: Date)
     .sort((a, b) => recurrencePriority(b.recurrence) - recurrencePriority(a.recurrence))[0];
 }
 
-const isShown = (d: AppData, e: ScheduleEntry, date: Date) => entryAt(d, e.weekday, e.slotID, date)?.id === e.id;
+// "no specific time" to-dos do not share a cell: each one shows on its day
+const isShown = (d: AppData, e: ScheduleEntry, date: Date) => e.slotID === ANYTIME_ID ? applies(d, e, date) : entryAt(d, e.weekday, e.slotID, date)?.id === e.id;
 export const titleOf = (e: ScheduleEntry) => e.text.split("\n")[0].trim();
 export const categoryOf = (d: AppData, id?: string) => d.categories.find((c) => c.id === id);
 /** "IELTS › Speaking" for a subcategory, just the name otherwise */
@@ -69,8 +70,9 @@ export const isInside = (d: AppData, id: string | undefined, filter: string) => 
 /** The colour a schedule cell shows: its category's colour for to-dos when that setting is on, else its own */
 export const entryColor = (d: AppData, e: ScheduleEntry) =>
   d.settings.categoryColors && e.kind === "todo" && categoryOf(d, e.categoryID) ? categoryOf(d, e.categoryID)!.colorHex : e.colorHex;
-export const slotOf = (d: AppData, id: string) => d.settings.timeSlots.find((s) => s.id === id);
+export const slotOf = (d: AppData, id: string) => (id === ANYTIME_ID ? ANYTIME_SLOT : d.settings.timeSlots.find((s) => s.id === id));
 export const slotTitle = (s: TimeSlot) => {
+  if (s.id === ANYTIME_ID) return "Any time";
   const f = (m: number) => (m % 60 === 0 ? `${m / 60}` : `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`);
   return `${f(s.startMinute)}-${f(s.endMinute)}`;
 };
@@ -84,7 +86,7 @@ export function isSkipped(d: AppData, ref: TodoRef, day: Date): boolean {
  *  so it becomes odd-only (even-only). Nothing visible changes, but it no longer silently disappears. */
 export function normalized(schedule: ScheduleEntry[]): ScheduleEntry[] {
   const groups = new Map<string, ScheduleEntry[]>();
-  for (const e of schedule) { const k = `${e.weekday}|${e.slotID}`; groups.set(k, [...(groups.get(k) ?? []), e]); }
+  for (const e of schedule.filter((x) => x.slotID !== ANYTIME_ID)) { const k = `${e.weekday}|${e.slotID}`; groups.set(k, [...(groups.get(k) ?? []), e]); }
   const fix = new Map<string, Recurrence>();
   for (const list of groups.values()) {
     if (list.length < 2) continue;
@@ -354,9 +356,10 @@ function makeActions(update: Store["update"]) {
       d.scheduleDone = d.scheduleDone.filter((x) => x !== k);
       const slot = slotOf(d, e.slotID);
       let due: string | undefined;
-      if (to && slot) { const b = startOfDay(to); b.setMinutes(slot.startMinute); due = b.toISOString(); }
+      if (to && slot && slot.id === ANYTIME_ID) due = startOfDay(to).toISOString();
+      else if (to && slot) { const b = startOfDay(to); b.setMinutes(slot.startMinute); due = b.toISOString(); }
       d.tasks.push({ id: uid(), title: titleOf(e), notes: "", categoryID: e.categoryID, priority: 1, dueDate: due,
-        hasTime: !!due, estimatedMinutes: slot ? slot.endMinute - slot.startMinute : 30, isDone: wasDone,
+        hasTime: !!due && slot?.id !== ANYTIME_ID, estimatedMinutes: slot && slot.id !== ANYTIME_ID ? slot.endMinute - slot.startMinute : (e.minutes ?? 30), isDone: wasDone,
         createdAt: new Date().toISOString(), completedAt: wasDone ? new Date().toISOString() : undefined });
     }),
 

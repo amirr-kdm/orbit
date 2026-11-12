@@ -57,7 +57,7 @@ export default function TimerPage() {
         <div style={{ position: "absolute", inset: 0, transition: "opacity .8s", opacity: rest ? 1 : 0, background: "linear-gradient(rgba(11,27,74,.85), rgba(31,95,58,.75))" }} />
       </div>
 
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "18px 28px", position: "relative" }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "safe center", gap: "min(12px, 1.4vh)", padding: "min(18px, 2vh) 28px", position: "relative", overflowY: "auto" }}>
         <div style={{ textAlign: "center", maxWidth: "100%" }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 3, color }}>{label.toUpperCase()}</div>
           <div style={{ fontSize: 30, fontWeight: 800, textShadow: day ? "0 1px 6px rgba(255,255,255,.7)" : "0 0 8px rgba(0,0,0,.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rest ? "Break time" : t.targetTitle ?? "Free study"}</div>
@@ -73,14 +73,14 @@ export default function TimerPage() {
           Break <input type="number" min={1} max={60} disabled={t.active} style={{ width: 54 }} value={data.settings.breakMinutes}
             onChange={(e) => update((d) => { d.settings.breakMinutes = Math.max(1, Math.min(60, Number(e.target.value) || 5)); })} /> min
         </div>}
-        <div style={{ position: "relative", width: "min(330px, 42vh)", aspectRatio: "1", flexShrink: 0 }}>
+        <div style={{ position: "relative", width: "min(330px, 34vh)", aspectRatio: "1", flexShrink: 0 }}>
           <SolarDial time={t.display} spin={t.elapsed} progress={progress} tint={color} moving={t.running} rest={rest} day={day} />
           <img src={breakUrl} alt="" style={{ position: "absolute", left: "27%", top: "27%", width: "46%", height: "46%", borderRadius: "50%", objectFit: "cover",
             border: "2px solid rgba(126,224,129,.7)", boxShadow: "0 0 18px rgba(126,224,129,.5)", transition: "transform .5s, opacity .5s",
             transform: rest ? "scale(1)" : "scale(.6)", opacity: rest ? 1 : 0, pointerEvents: "none" }} />
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "min(56px, 7vh)", fontWeight: 600, fontFamily: "ui-monospace, Consolas, monospace", fontVariantNumeric: "tabular-nums", lineHeight: 1.1,
+          <div style={{ fontSize: "min(56px, 6vh)", fontWeight: 600, fontFamily: "ui-monospace, Consolas, monospace", fontVariantNumeric: "tabular-nums", lineHeight: 1.1,
             textShadow: t.running ? `0 0 16px ${color}8C` : undefined }}>{clock(t.display)}</div>
           <div className="small" style={{ opacity: 0.6 }}>{subtitle}</div>
         </div>
