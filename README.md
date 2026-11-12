@@ -121,6 +121,12 @@ The table that your whole week is built on: **days down the side, time slots acr
 
 Everything you have to do, in four views (the switch at the top): **Day · Week · List · Graph.**
 
+<img src="docs/screenshots/tasks-day.png" alt="Tasks: Day" width="49%"> <img src="docs/screenshots/tasks-list.png" alt="Tasks: List" width="49%">
+<img src="docs/screenshots/tasks-graph.png" alt="Tasks: Graph" width="100%">
+
+- **Day view.** One day in focus: a ring with what is left, the weekly-schedule to-dos of that day, one-off tasks, and the *No date* tasks you can move onto the day with **Move Here**. Add a task for the day with the field at the top.
+- **List view.** Every task in one list with filter chips: **Today, Upcoming, No Date, All Open, Done, Skipped**, plus *weekly schedule · this week* for the schedule's to-dos. Each row shows its category, how it repeats, its time and its date.
+- **Graph view.** Tasks and to-dos grouped by category as a graph (a node per category, with a small node per task). Switch the scope between **All, Day, Week and Month**, show or hide done items, zoom and drag the nodes. Click a node to read and edit its details and notes.
 - **Week board.** One column per day, with a progress bar and *done / total* for each. Weekly-schedule to-dos and one-off tasks sit side by side. **Drag and drop** a card to another day to move just that day's session. The columns for "No date" tasks sit under the board.
 - **Status.** Tap the circle: done ✓; tap again: skipped (won't do). Skipped to-dos can be brought back.
 - **Right-click a one-off task**: *Edit, Mark as Done, Skip, Move to, Study Now, Copy, Delete.*
@@ -282,13 +288,15 @@ Days in a row with study. Orbit gives you **3 automatic streak freezes every mon
 
 # Social
 
-> The Friends, Groups, Challenges and Fight Club pages are shown inside Orbit with live data, so they are described here without pictures of other people's accounts.
-
 ## 👥 Friends
+
+<img src="docs/screenshots/friends.png" alt="Friends" width="100%">
 
 Add friends with your **friend code**. See who is **studying right now** (live, with what they study and for how long), compare weekly **leaderboards** (all Orbiters or just friends), and look at each other's galaxy. A badge on the sidebar counts friends studying now.
 
 ## 🫂 Groups
+
+<img src="docs/screenshots/groups.png" alt="Groups" width="100%">
 
 Make a group for your class or study team (a name, an invite code). Members' study is shown side by side, the **top studier of the week wins 100 rockets**, and groups can run their own **group challenges** that only members can join.
 
@@ -308,6 +316,8 @@ Set a study goal and compete.
 Promise a friend you will study **X hours by a deadline**, with rockets at stake. Keep it and you win; miss it and your friend does.
 
 ## 💥 Fight Club
+
+<img src="docs/screenshots/fight-club.png" alt="Fight Club" width="100%">
 
 A **World Boss** appears every week for the whole community, and you can summon monsters for your own goals.
 
@@ -368,7 +378,9 @@ Settings are grouped in six tabs:
 | **Words** | The **reading voice** for the Leitner box, and the 📖 word count in the menu bar. |
 | **Data** | Shows where your data file is saved on this computer, with a *Show in Finder* button. (The schedule's *Reset to Default* button on the Schedule tab clears the table and restores the default time slots.) |
 
+<img src="docs/screenshots/settings-schedule.png" alt="Settings: Schedule" width="49%"> <img src="docs/screenshots/settings-categories.png" alt="Settings: Categories" width="49%">
 <img src="docs/screenshots/settings-timer.png" alt="Settings: Timer" width="49%"> <img src="docs/screenshots/settings-words.png" alt="Settings: Words" width="49%">
+<img src="docs/screenshots/settings-data.png" alt="Settings: Data" width="49%">
 
 ## ☁️ Account and sync
 
