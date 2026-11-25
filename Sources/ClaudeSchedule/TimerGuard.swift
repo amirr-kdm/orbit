@@ -151,7 +151,12 @@ final class TimerGuard {
 
     private func closePanel() {
         guard let p = panel else { return }
-        NSAnimationContext.runAnimationGroup({ $0.duration = 0.15; p.animator().alphaValue = 0 }) { p.orderOut(nil) }
+        // Throw the window away once it has faded: a hidden window still runs its 15-pictures-a-second animation and keeps a core busy
+        NSAnimationContext.runAnimationGroup({ $0.duration = 0.15; p.animator().alphaValue = 0 }) { [weak self] in
+            p.orderOut(nil)
+            p.contentView = nil
+            if self?.panel === p { self?.panel = nil }
+        }
     }
 
     var remaining: TimeInterval { max(0, deadline.timeIntervalSinceNow) }

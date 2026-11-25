@@ -557,6 +557,17 @@ final class AppStore {
         change(&schedule[i])
     }
 
+    /// Removes every To-do cell (all weeks) and its done / skipped / moved marks; classes stay. The file is copied aside first.
+    func clearScheduleTodos() {
+        try? FileManager.default.copyItem(at: fileURL, to: dataFolder.appendingPathComponent("data-before-clear-todos-\(Int(Date().timeIntervalSince1970)).json"))
+        let ids = Set(schedule.filter { $0.kind == .todo }.map { $0.id.uuidString })
+        let mine: (String) -> Bool = { k in ids.contains(String(k.split(separator: "|").first ?? "")) }
+        scheduleDone = scheduleDone.filter { !mine($0) }
+        scheduleSkipped = scheduleSkipped.filter { !mine($0) }
+        scheduleMoved = scheduleMoved.filter { !mine($0) }
+        schedule.removeAll { $0.kind == .todo }
+    }
+
     func deleteEntry(_ id: UUID) {
         schedule.removeAll { $0.id == id }
     }

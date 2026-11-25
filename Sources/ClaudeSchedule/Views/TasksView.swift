@@ -48,6 +48,8 @@ struct TasksView: View {
     @State private var categoryFilter: UUID?
     @State private var search = ""
     @State private var editing: TaskItem?
+    @State private var newTodo: NewTodo?
+    @AppStorage("tasks.noDateOpen") private var noDateOpen = true
 
     private var kind: CalendarKind { store.settings.primaryCalendar }
 
@@ -74,6 +76,7 @@ struct TasksView: View {
             .keyboardShortcut("n")
         }
         .sheet(item: $editing) { TaskEditor(task: $0) }
+        .sheet(item: $newTodo) { NewTodoSheet(todo: $0, categoryID: categoryFilter) }
         .onAppear {
             if let m = ProcessInfo.processInfo.environment["CS_TASKS_MODE"].flatMap(TasksMode.init(rawValue:)) { mode = m }
             consumeFocusDate()
@@ -185,6 +188,13 @@ struct TasksView: View {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
+    /// Typing a title and pressing Return on a day asks whether it repeats before anything is created
+    private func askNew(_ title: String, on day: Date) {
+        let t = title.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        newTodo = NewTodo(title: t, day: day)
+    }
+
     private func addTask(_ title: String, on day: Date?) {
         store.upsertTask(TaskItem(title: title, categoryID: categoryFilter,
                                   dueDate: day.map { Cal.persian.startOfDay(for: $0) }))
@@ -227,7 +237,7 @@ struct TasksView: View {
                     }
                 }
 
-                QuickAddField(placeholder: "Add a task for this day and press Enter…") { addTask($0, on: anchor) }
+                QuickAddField(placeholder: "Add a task for this day and press Enter…") { askNew($0, on: anchor) }
 
                 Card(title: "From your weekly schedule", systemImage: "tablecells") {
                     if rows.isEmpty {
@@ -277,23 +287,38 @@ struct TasksView: View {
                         DayColumn(day: day,
                                   rows: scheduleTodos(on: day),
                                   tasks: tasks(on: day),
-                                  onAdd: { addTask($0, on: day) },
+                                  onAdd: { askNew($0, on: day) },
                                   onEdit: { editing = $0 },
                                   onOpenDay: { anchor = day; mode = .day })
                     }
                 }
                 .padding(.bottom, 4)
+                .environment(\.weekOver, (days.last ?? Date()) < Cal.persian.startOfDay(for: Date()))
             }
+
+            LeftoversBar(days: days, scheduleTodos: { scheduleTodos(on: $0) }, tasks: { tasks(on: $0) }, onEdit: { editing = $0 })
 
             if !inbox.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("No date — drag a task onto a day", systemImage: "tray")
-                        .font(.caption.weight(.semibold))
+                    Button { withAnimation(.snappy) { noDateOpen.toggle() } } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: noDateOpen ? "chevron.down" : "chevron.right").font(.caption.weight(.bold))
+                            Label("No date — drag a task onto a day", systemImage: "tray")
+                                .font(.caption.weight(.semibold))
+                            Text("\(inbox.count)").font(.caption2.weight(.heavy)).padding(.horizontal, 6).padding(.vertical, 1)
+                                .background(Capsule().fill(.secondary.opacity(0.3)))
+                            Spacer()
+                        }
                         .foregroundStyle(.secondary)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 8)],
-                              alignment: .leading, spacing: 8) {
-                        ForEach(inbox) { task in
-                            BoardTaskCard(task: task) { editing = task }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if noDateOpen {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 8)],
+                                  alignment: .leading, spacing: 8) {
+                            ForEach(inbox) { task in
+                                BoardTaskCard(task: task) { editing = task }
+                            }
                         }
                     }
                 }
@@ -421,12 +446,32 @@ struct DayColumn: View {
     @State private var newTitle = ""
     @State private var isTargeted = false
 
+    /// The study time of the day: what its to-dos need and how much of it is already studied (each to-do counts at most what it needs)
+    private var studyPlan: (need: Double, got: Double) {
+        var need = 0.0, got = 0.0
+        for r in rows where !r.isSkipped {
+            if let m = r.entry.minutes {
+                let n = Double(m * 60)
+                need += n; got += min(n, store.studiedSeconds(for: .schedule(r.entry.id), on: r.date))
+            }
+        }
+        for t in tasks where !t.isSkipped {
+            if let m = t.needMinutes {
+                let n = Double(m * 60)
+                need += n; got += min(n, store.studiedSeconds(for: .task(t.id), on: day))
+            }
+        }
+        return (need, got)
+    }
+
     var body: some View {
         let isToday = Cal.persian.isDateInToday(day)
         let total = rows.count + tasks.count
         let done = rows.filter(\.isDone).count + tasks.filter(\.isDone).count
         let accent = store.settings.template.style.accent
         let kind = store.settings.primaryCalendar
+        let (needTotal, gotTotal) = studyPlan
+        let leftTotal = max(0, needTotal - gotTotal)
 
         VStack(alignment: .leading, spacing: 8) {
             Button(action: onOpenDay) {
@@ -449,7 +494,24 @@ struct DayColumn: View {
                     Text(Fmt.date(day, "MMM d", kind.other))
                         .font(.caption2)
                         .foregroundStyle(isToday ? Color.white.opacity(0.8) : Color.secondary)
-                    if total > 0 {
+                    if needTotal > 0 {
+                        // study-time bar for the day, with how much is studied, needed and left
+                        GeometryReader { geo in
+                            Capsule().fill((isToday ? Color.white : accent).opacity(0.2))
+                                .overlay(alignment: .leading) {
+                                    Capsule().fill(leftTotal == 0 ? Color.green : (isToday ? Color.white : accent))
+                                        .frame(width: geo.size.width * min(1, gotTotal / needTotal))
+                                }
+                        }
+                        .frame(height: 6)
+                        .padding(.top, 4)
+                        Text("\(Fmt.duration(gotTotal)) of \(Fmt.duration(needTotal))")
+                            .font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(isToday ? Color.white.opacity(0.9) : Color.secondary)
+                        Text(leftTotal == 0 ? "All studied ✓" : "\(Fmt.duration(leftTotal)) left")
+                            .font(.system(size: 10, weight: .bold)).monospacedDigit()
+                            .foregroundStyle(leftTotal == 0 ? Color.green : (isToday ? Color.white : Color.orange))
+                    } else if total > 0 {
                         GeometryReader { geo in
                             Capsule().fill((isToday ? Color.white : accent).opacity(0.2))
                                 .overlay(alignment: .leading) {
@@ -532,7 +594,8 @@ struct BoardScheduleCard: View {
                   play: row.isDone || row.isSkipped ? nil : {
                       if !timer.isActive { timer.select(.schedule(e.id)) }
                       router.selection = .timer
-                  }) {
+                  },
+                  progress: e.minutes.map { (store.studiedSeconds(for: .schedule(e.id), on: row.date), $0) }) {
             Text(e.title).strikethrough(row.isDone || row.isSkipped)
         } meta: {
             Text(row.slot.title).monospacedDigit()
@@ -579,7 +642,8 @@ struct BoardTaskCard: View {
                   play: task.isDone || task.isSkipped ? nil : {
                       if !timer.isActive { timer.select(.task(task.id)) }
                       router.selection = .timer
-                  }) {
+                  },
+                  progress: task.needMinutes.map { (store.studiedSeconds(for: .task(task.id), on: Date()), $0) }) {
             Text(task.title).strikethrough(task.isDone || task.isSkipped)
         } meta: {
             if task.hasTime, let d = task.dueDate { Label(Fmt.time(d), systemImage: "clock") }
@@ -604,7 +668,14 @@ struct BoardTaskCard: View {
 }
 
 /// Shared look of the week-board cards
+private struct WeekOverKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues { var weekOver: Bool { get { self[WeekOverKey.self] } set { self[WeekOverKey.self] = newValue } } }
+
 struct BoardCard<Title: View, Meta: View>: View {
+    /// The week is over: what was not done is shown in red as missed
+    @Environment(\.weekOver) private var weekOver
+    private var missed: Bool { weekOver && !isDone && !isSkipped }
+
     let color: Color
     let isDone: Bool
     var isSkipped = false
@@ -613,6 +684,7 @@ struct BoardCard<Title: View, Meta: View>: View {
     var edit: (() -> Void)? = nil
     var playHelp = "Study in the timer"
     var play: (() -> Void)?
+    var progress: (studied: TimeInterval, needed: Int)? = nil
     @ViewBuilder var title: Title
     @ViewBuilder var meta: Meta
 
@@ -633,6 +705,8 @@ struct BoardCard<Title: View, Meta: View>: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if let progress { NeedProgress(studied: progress.studied, needed: progress.needed) }
+                if missed { Label("Not done", systemImage: "xmark.circle.fill").font(.caption2.weight(.bold)).foregroundStyle(.red) }
             }
             Spacer(minLength: 0)
             if hovering, let edit {
@@ -652,12 +726,13 @@ struct BoardCard<Title: View, Meta: View>: View {
         .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(missed ? Color.red.opacity(0.16) : Color(nsColor: .controlBackgroundColor))
                 .shadow(color: .black.opacity(hovering ? 0.12 : 0.05), radius: hovering ? 5 : 2, y: 1)
         )
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Color.red.opacity(missed ? 0.5 : 0), lineWidth: 1))
         .overlay(alignment: .leading) {
             UnevenRoundedRectangle(topLeadingRadius: 9, bottomLeadingRadius: 9)
-                .fill(color)
+                .fill(missed ? Color.red : color)
                 .frame(width: 4)
         }
         .opacity(isDone || isSkipped ? 0.7 : 1)
@@ -711,8 +786,14 @@ struct TaskEditor: View {
                     }
                 }
 
-                Stepper(value: $task.estimatedMinutes, in: 5...720, step: 5) {
-                    LabeledContent("Estimate", value: Fmt.duration(TimeInterval(task.estimatedMinutes * 60)))
+                Toggle("Time needed", isOn: Binding(get: { task.needMinutes != nil },
+                                                    set: { on in task.needMinutes = on ? task.estimatedMinutes : nil }))
+                if let m = task.needMinutes {
+                    Stepper(value: Binding(get: { m }, set: { task.needMinutes = $0; task.estimatedMinutes = $0 }), in: 5...720, step: 5) {
+                        LabeledContent("Study time", value: Fmt.duration(TimeInterval(m * 60)))
+                    }
+                    Text("In the Pomodoro this task sets the focus length by itself, and a bar shows how much of it is done.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 TextField("Notes", text: $task.notes, axis: .vertical)
                     .lineLimit(3...6)
@@ -763,6 +844,8 @@ struct ScheduleTaskRow: View {
     @Environment(AppStore.self) private var store
     @Environment(TimerEngine.self) private var timer
     @Environment(Router.self) private var router
+    /// Not done, and its week is over: shown in red
+    private var missedRow: Bool { !row.isDone && !row.isSkipped && Cal.weekIsOver(row.date) }
 
     var body: some View {
         let entry = row.entry
@@ -795,6 +878,8 @@ struct ScheduleTaskRow: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                if let m = entry.minutes { NeedProgress(studied: store.studiedSeconds(for: .schedule(entry.id), on: row.date), needed: m).frame(maxWidth: 260) }
+                if missedRow { Label("Not done", systemImage: "xmark.circle.fill").font(.caption.weight(.bold)).foregroundStyle(.red) }
             }
 
             Spacer()
@@ -832,6 +917,9 @@ struct ScheduleTaskRow: View {
             }
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, missedRow ? 8 : 0)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(missedRow ? Color.red.opacity(0.14) : .clear))
+        .overlay(alignment: .leading) { if missedRow { RoundedRectangle(cornerRadius: 2).fill(Color.red).frame(width: 3).padding(.vertical, 3) } }
         .contentShape(Rectangle())
         .sheet(isPresented: $editingEntry) { ScheduleEntryEditor(entryID: entry.id, day: row.date) }
         .contextMenu {
@@ -989,6 +1077,228 @@ struct ScheduleEntryEditor: View {
             $0.notes = notes
         }
         store.normalizeSchedule()
+        dismiss()
+    }
+}
+
+
+/// What was not finished on the days of this week that are already over. Drag a card onto any day to do it there (only that day's
+/// session moves: the weekly cell keeps repeating in the next weeks), or press "Today".
+struct LeftoversBar: View {
+    let days: [Date]
+    let scheduleTodos: (Date) -> [ScheduleTodoRow]
+    let tasks: (Date) -> [TaskItem]
+    let onEdit: (TaskItem) -> Void
+    @Environment(AppStore.self) private var store
+    @AppStorage("tasks.leftoversOpen") private var open = true
+
+    var body: some View {
+        let today = Cal.persian.startOfDay(for: Date())
+        // a week that is already over has nothing left to save: what was not done shows in red on the board instead
+        let weekIsOver = (days.last ?? today) < today
+        let past = weekIsOver ? [] : days.filter { $0 < today }
+        let rows = past.flatMap { scheduleTodos($0) }.filter { !$0.isDone && !$0.isSkipped }
+        let loose = past.flatMap { tasks($0) }.filter { !$0.isDone && !$0.isSkipped }
+        let count = rows.count + loose.count
+        if count > 0 {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Button { withAnimation(.snappy) { open.toggle() } } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: open ? "chevron.down" : "chevron.right").font(.caption.weight(.bold))
+                            Label("Left over this week", systemImage: "arrow.uturn.right.circle.fill")
+                                .font(.callout.weight(.bold)).foregroundStyle(.orange)
+                            Text("\(count)").font(.caption.weight(.heavy)).padding(.horizontal, 7).padding(.vertical, 1)
+                                .background(Capsule().fill(.orange)).foregroundStyle(.white)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    Text("Drag one onto a day to do it there. The weekly plan itself does not change.").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Move all to today") {
+                        withAnimation {
+                            for r in rows { store.moveOccurrence(r.entry.id, from: r.date, to: today) }
+                            for t in loose { store.moveTask(t.id, to: today) }
+                        }
+                    }.controlSize(.small)
+                }
+                if open {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(rows) { r in scheduleChip(r, today: today) }
+                            ForEach(loose) { t in taskChip(t, today: today) }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.orange.opacity(0.10)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.orange.opacity(0.35), lineWidth: 1))
+        }
+    }
+
+    private func chip(color: Color, title: String, detail: String, done: @escaping () -> Void, today: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 4, height: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.callout.weight(.semibold)).lineLimit(1)
+                Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Button(action: done) { Image(systemName: "checkmark.circle") }.buttonStyle(.plain).help("Mark as done")
+            Button(action: today) { Text("Today").font(.caption2.weight(.bold)).padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Capsule().fill(Color.accentColor.opacity(0.25))) }.buttonStyle(.plain).help("Do it today")
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .frame(width: 250)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(nsColor: .controlBackgroundColor)))
+    }
+
+    private func scheduleChip(_ r: ScheduleTodoRow, today: Date) -> some View {
+        let e = r.entry, kind = store.settings.primaryCalendar
+        let color = store.color(of: e) ?? store.category(e.categoryID)?.color ?? .accentColor
+        return chip(color: color, title: e.title, detail: "\(Cal.weekdayNames[Cal.weekdayIndex(r.date)]) \(Fmt.date(r.date, "MMM d", kind)) · \(r.slot.title)",
+                    done: { withAnimation { store.tapStatus(.schedule(e.id), on: r.date) } },
+                    today: { withAnimation { store.moveOccurrence(e.id, from: r.date, to: today) } })
+            .draggable(DragPayload.occurrence(e.id, r.date)) {
+                Label(e.title, systemImage: "arrow.right").padding(8).background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
+            }
+            .contextMenu {
+                StatusMenuItems(ref: .schedule(e.id), day: r.date)
+                MoveToMenu(from: r.date) { day in withAnimation { store.moveOccurrence(e.id, from: r.date, to: day) } }
+            }
+    }
+
+    private func taskChip(_ t: TaskItem, today: Date) -> some View {
+        let kind = store.settings.primaryCalendar
+        let color = store.category(t.categoryID)?.color ?? .gray
+        let due = t.dueDate ?? today
+        return chip(color: color, title: t.title, detail: "\(Cal.weekdayNames[Cal.weekdayIndex(due)]) \(Fmt.date(due, "MMM d", kind))",
+                    done: { withAnimation { store.tapStatus(.task(t.id), on: due) } },
+                    today: { withAnimation { store.moveTask(t.id, to: today) } })
+            .draggable(DragPayload.task(t.id)) {
+                Label(t.title, systemImage: "arrow.right").padding(8).background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
+            }
+            .onTapGesture(count: 2) { onEdit(t) }
+    }
+}
+
+
+struct NewTodo: Identifiable {
+    let id = UUID()
+    var title: String
+    var day: Date
+}
+
+/// Asked after typing a task on a day: a one-off task, or a to-do that comes back on this weekday in the next weeks.
+/// A weekly one is a normal cell of the weekly schedule (without a time, or in a time slot you pick); moving one of its days later
+/// only moves that day, the weekly plan itself stays as it is.
+struct NewTodoSheet: View {
+    let todo: NewTodo
+    let categoryID: UUID?
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    enum Repeat: String, CaseIterable, Identifiable {
+        case once = "Just this once", weekly = "Every week", even = "Even weeks", odd = "Odd weeks"
+        var id: String { rawValue }
+    }
+    @State private var title = ""
+    @State private var rep = Repeat.once
+    @State private var slotID: UUID = TimeSlot.anytimeID
+    @State private var category: UUID?
+    @State private var days: Set<Int> = []
+    @State private var hasNeed = false
+    @State private var need = 30
+    @State private var loaded = false
+
+    private var slots: [TimeSlot] { store.settings.timeSlots.sorted { $0.startMinute < $1.startMinute } }
+    private var weekday: Int { Cal.weekdayIndex(todo.day) }
+    private var recurrence: Recurrence { rep == .even ? .even : rep == .odd ? .odd : .weekly }
+    /// Cells at the same time on the chosen days that this would replace
+    private var clashes: [ScheduleEntry] {
+        guard rep != .once, slotID != TimeSlot.anytimeID else { return [] }
+        return store.schedule.filter { days.contains($0.weekday) && $0.slotID == slotID && $0.recurrence == recurrence }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                TextField("Task", text: $title)
+                Picker("Does it repeat?", selection: $rep) {
+                    ForEach(Repeat.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                if rep == .once {
+                    Text("A normal task on \(Cal.weekdayNames[weekday]) \(Fmt.date(todo.day, "MMM d", store.settings.primaryCalendar)) only.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Picker("Time", selection: $slotID) {
+                        Text("No specific time").tag(TimeSlot.anytimeID)
+                        Divider()
+                        ForEach(slots) { Text($0.title).tag($0.id) }
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            ForEach(0..<7, id: \.self) { d in
+                                Button { if days.contains(d) { if days.count > 1 { days.remove(d) } } else { days.insert(d) } } label: {
+                                    Text(Cal.weekdayShort[d]).font(.caption.weight(.bold)).frame(maxWidth: .infinity).padding(.vertical, 6)
+                                        .background(RoundedRectangle(cornerRadius: 7).fill(days.contains(d) ? Color.accentColor : Color.primary.opacity(0.1)))
+                                        .foregroundStyle(days.contains(d) ? Color.white : Color.primary)
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                        HStack(spacing: 8) {
+                            Button("Every day") { days = Set(0..<7) }.controlSize(.small)
+                            Button("Without Friday") { days = Set(0..<6) }.controlSize(.small)
+                            Button("Only this day") { days = [weekday] }.controlSize(.small)
+                        }
+                    }
+                    Text("It will come back on the days above\(rep == .even ? ", in even weeks" : rep == .odd ? ", in odd weeks" : ", every week"). If you move or skip it on one day, only that day changes.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    if !clashes.isEmpty {
+                        Label("\(clashes.count == 1 ? "This time already has" : "These times already have") “\(clashes[0].title)”\(clashes.count > 1 ? " and \(clashes.count - 1) more" : ""). Adding replaces \(clashes.count == 1 ? "it" : "them").", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Toggle("Time needed", isOn: $hasNeed)
+                if hasNeed {
+                    Stepper(value: $need, in: 5...720, step: 5) { LabeledContent("Study time", value: Fmt.duration(TimeInterval(need * 60))) }
+                    Text("The Pomodoro takes this length when you pick the task, and a bar shows the progress.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Picker("Category", selection: $category) {
+                    Text("None").tag(UUID?.none)
+                    ForEach(store.orderedCategories) { Text(store.categoryLabel($0.id) ?? $0.name).tag(Optional($0.id)) }
+                }
+            }
+            .formStyle(.grouped)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Add") { save() }.keyboardShortcut(.defaultAction).disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding()
+        }
+        .frame(width: 460, height: rep == .once ? (hasNeed ? 440 : 340) : (hasNeed ? 640 : 540))
+        .onAppear { if !loaded { loaded = true; title = todo.title; category = categoryID; days = [weekday] } }
+    }
+
+    private func save() {
+        let t = title.trimmingCharacters(in: .whitespaces)
+        if rep == .once {
+            var item = TaskItem(title: t, categoryID: category, dueDate: Cal.persian.startOfDay(for: todo.day))
+            if hasNeed { item.needMinutes = need; item.estimatedMinutes = need }
+            store.upsertTask(item)
+        } else {
+            for c in clashes { store.deleteEntry(c.id) }
+            for d in days.sorted() {
+                var e = ScheduleEntry(weekday: d, slotID: slotID, text: t, kind: .todo, categoryID: category, recurrence: recurrence)
+                if hasNeed { e.minutes = need }
+                store.schedule.append(e)
+            }
+            store.normalizeSchedule()
+        }
         dismiss()
     }
 }

@@ -74,6 +74,15 @@ struct ClaudeScheduleApp: App {
                 .task { updates.start() }
         }
         .defaultSize(width: 1320, height: 820)
+        .commands {
+            // ⌘B shows / hides the sidebar
+            CommandGroup(replacing: .sidebar) {
+                Button("Toggle Sidebar") {
+                    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("b", modifiers: .command)
+            }
+        }
 
         MenuBarExtra(isInserted: Binding(get: { !notchOn }, set: { _ in })) {
             MenuBarContent()

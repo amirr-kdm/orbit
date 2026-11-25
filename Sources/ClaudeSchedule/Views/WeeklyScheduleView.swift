@@ -14,6 +14,7 @@ struct WeeklyScheduleView: View {
     }
 
     @State private var editing: CellKey?
+    @State private var confirmClearTodos = false
     @State private var selected: CellKey?
     @State private var hovered: CellKey?
     @State private var draft = ""
@@ -476,6 +477,14 @@ struct WeeklyScheduleView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .help("Light / Dark mode")
+
+                Button { confirmClearTodos = true } label: { Image(systemName: "trash") }
+                    .buttonStyle(.borderless)
+                    .help("Clear every to-do from the weekly schedule (classes stay)")
+                    .disabled(!store.schedule.contains { $0.kind == .todo })
+                    .confirmationDialog("Clear all \(store.schedule.filter { $0.kind == .todo }.count) to-dos from the weekly schedule?", isPresented: $confirmClearTodos) {
+                        Button("Clear all to-dos", role: .destructive) { store.clearScheduleTodos() }
+                    } message: { Text("Every To-do cell in every week goes, with its done marks. Fixed cells (classes) stay. A copy of your data is kept next to it first.") }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 9)

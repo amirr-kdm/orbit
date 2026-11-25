@@ -127,6 +127,8 @@ struct TaskRow: View {
     @Environment(AppStore.self) private var store
     @Environment(TimerEngine.self) private var timer
     @Environment(Router.self) private var router
+    /// Not done, and the week of its day is over: shown in red
+    private var missedTask: Bool { !task.isDone && !task.isSkipped && (task.dueDate.map(Cal.weekIsOver) ?? false) }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -158,6 +160,8 @@ struct TaskRow: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                if let m = task.needMinutes { NeedProgress(studied: store.studiedSeconds(for: .task(task.id), on: task.dueDate ?? Date()), needed: m).frame(maxWidth: 260) }
+                if missedTask { Label("Not done", systemImage: "xmark.circle.fill").font(.caption.weight(.bold)).foregroundStyle(.red) }
             }
 
             Spacer()
@@ -180,6 +184,9 @@ struct TaskRow: View {
             }
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, missedTask ? 8 : 0)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(missedTask ? Color.red.opacity(0.14) : .clear))
+        .overlay(alignment: .leading) { if missedTask { RoundedRectangle(cornerRadius: 2).fill(Color.red).frame(width: 3).padding(.vertical, 3) } }
         .contentShape(Rectangle())
         .onTapGesture(count: 2, perform: onEdit)
         .contextMenu {

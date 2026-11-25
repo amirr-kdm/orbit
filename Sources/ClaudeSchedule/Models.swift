@@ -35,6 +35,8 @@ struct TaskItem: Identifiable, Codable, Hashable {
     var dueDate: Date?
     var hasTime = false
     var estimatedMinutes = 30
+    /// The time this task needs (nil = not set): the Pomodoro takes this length and a progress bar shows how much is done
+    var needMinutes: Int?
     var isDone = false
     /// Given up: won't be done (counts as neither done nor left)
     var isSkipped = false
@@ -265,6 +267,8 @@ extension TaskItem {
         dueDate = try c.decodeIfPresent(Date.self, forKey: .dueDate)
         hasTime = try c.decodeIfPresent(Bool.self, forKey: .hasTime) ?? false
         estimatedMinutes = try c.decodeIfPresent(Int.self, forKey: .estimatedMinutes) ?? 30
+        needMinutes = try c.decodeIfPresent(Int.self, forKey: .needMinutes)
+        bossID = try c.decodeIfPresent(UUID.self, forKey: .bossID)
         isDone = try c.decodeIfPresent(Bool.self, forKey: .isDone) ?? false
         isSkipped = try c.decodeIfPresent(Bool.self, forKey: .isSkipped) ?? false
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()

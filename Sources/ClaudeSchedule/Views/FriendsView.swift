@@ -146,7 +146,8 @@ struct FriendsView: View {
                                 Text(f.studyingNow ?? "").font(.headline).foregroundStyle(.green)
                                 Spacer()
                                 if let start = f.live?.started_at {
-                                    Text("for " + Fmt.duration(Date().timeIntervalSince(start)))
+                                    // a friend whose computer clock runs ahead would show a negative time: never below zero
+                                    Text("for " + Fmt.duration(max(0, Date().timeIntervalSince(start))))
                                         .foregroundStyle(.secondary).monospacedDigit()
                                 }
                             }

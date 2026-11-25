@@ -116,9 +116,19 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            VStack(spacing: 0) {
-                banners
-                page
+            // The admin panel is a plain column beside the page. (As a system ".inspector" its drawing sat about 58 points below where
+            // clicks landed, so buttons missed: clicking the message box hit "Send".)
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    banners
+                    page
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if showAdmin && account.isAdmin {
+                    Divider()
+                    AdminPanel().frame(width: 330)
+                        .background(.background)
+                }
             }
             .background(pageColor ?? Color.clear)
         }
@@ -170,9 +180,6 @@ struct ContentView: View {
             LevelPassView(fromHours: m.fromHours)
         }
         // The owner's admin panel (right side) — only for the admin account
-        .inspector(isPresented: Binding(get: { showAdmin && account.isAdmin }, set: { showAdmin = $0 })) {
-            AdminPanel().inspectorColumnWidth(min: 280, ideal: 320, max: 420)
-        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { showQuickTask = true } label: { Image(systemName: "plus") }

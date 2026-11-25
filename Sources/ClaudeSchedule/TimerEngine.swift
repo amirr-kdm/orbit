@@ -160,10 +160,10 @@ final class TimerEngine {
     func select(_ ref: TodoRef?) {
         guard !isActive else { return }
         target = ref
-        // a schedule to-do with a planned time: study it in a Pomodoro of exactly that length
-        if case .schedule(let id)? = ref, let m = store.entry(id)?.minutes {
+        // a to-do with a time it needs (a weekly cell or a task): study it in a Pomodoro of that length, or what is left of it
+        if let ref, let m = store.focusMinutes(for: ref) {
             mode = .pomodoro
-            store.settings.pomodoroMinutes = min(180, max(1, m))
+            store.settings.pomodoroMinutes = m
         }
     }
 

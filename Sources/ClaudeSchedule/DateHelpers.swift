@@ -48,6 +48,12 @@ enum Cal {
         persian.dateInterval(of: .weekOfYear, for: date)?.start ?? persian.startOfDay(for: date)
     }
 
+    /// True when the whole week containing `date` is already over (what was not done in it counts as missed)
+    static func weekIsOver(_ date: Date) -> Bool {
+        guard let w = persian.dateInterval(of: .weekOfYear, for: date) else { return false }
+        return w.end <= persian.startOfDay(for: Date())
+    }
+
     /// Whole weeks from `from` to `to` (negative when going back)
     static func weeksBetween(_ from: Date, _ to: Date) -> Int {
         let days = persian.dateComponents([.day], from: weekStart(from), to: weekStart(to)).day ?? 0

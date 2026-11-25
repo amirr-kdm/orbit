@@ -463,11 +463,15 @@ final class SystemHUD {
         var v = snapped + (up ? step : -step)
         if abs(snapped - cur) > step * 0.5 { v = up ? ceil(cur / step) * step : floor(cur / step) * step }
         v = max(0, min(1, v))
+        // Volume 0 is not silent on its own: the speakers still play at about −63 dB. macOS also turns mute on when the volume reaches
+        // zero with the keys, so do the same (and turn it off again on the way up)
+        let toZero = !up && v <= 0.0001
         if muted && up { setMute(false) }
         setVolume(v)
+        if toZero { setMute(true) }
         lastVolume = v
-        lastMute = muted && !up ? true : false
-        NotchbitModel.shared.showHUD(.volume, Double(v), muted: muted && !up)
+        lastMute = toZero || (muted && !up)
+        NotchbitModel.shared.showHUD(.volume, Double(v), muted: toZero || (muted && !up))
     }
 
     private func setMute(_ on: Bool) {

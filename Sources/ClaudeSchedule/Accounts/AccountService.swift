@@ -18,7 +18,7 @@ final class AccountService {
         case approved
     }
 
-    struct Profile: Decodable, Equatable {
+    struct Profile: Codable, Equatable {
         let id: UUID
         var name: String
         var username: String?
@@ -73,6 +73,7 @@ final class AccountService {
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(6))
             guard let self, self.state == .loading, let session = await self.client.currentSession else { return }
+            if self.profile == nil { self.profile = Self.cachedProfile(session.userID) }
             self.state = (!session.isAnonymous && Self.cachedApproval(session.userID)) ? .approved : .pending
             self.store.accountReady = self.syncedAccount == session.userID.uuidString
             if self.state == .approved && self.loops.isEmpty { self.startLoops() }
@@ -85,7 +86,8 @@ final class AccountService {
         guard SupabaseConfig.isConfigured else { state = .noServer; return }
         guard let session = await client.currentSession else { state = .signedOut; return }
         email = session.email
-        // Approved before on this Mac: open straight away (works offline too)
+        // Approved before on this Mac: open straight away (works offline too), with the name and rights saved last time
+        if profile == nil { profile = Self.cachedProfile(session.userID) }
         if !session.isAnonymous, Self.cachedApproval(session.userID) { state = .approved }
         store.accountReady = syncedAccount == session.userID.uuidString
         await loadProfile()
@@ -105,6 +107,8 @@ final class AccountService {
                 return
             }
             profile = p
+            Self.setCachedProfile(p)
+            profileRetries = 0
             if session.isAnonymous { state = .needsUpgrade; return }
             if p.approved == true {
                 Self.setCachedApproval(session.userID, true)
@@ -124,9 +128,28 @@ final class AccountService {
             }
         } catch {
             // Offline: keep whatever we had; a pending user stays on the waiting screen
+            if profile == nil { profile = Self.cachedProfile(session.userID) }
+            scheduleProfileRetry()
             if state == .loading { state = Self.cachedApproval(session.userID) ? .approved : .pending }
             store.accountReady = syncedAccount == session.userID.uuidString
             if state == .approved && loops.isEmpty { startLoops() }
+        }
+    }
+
+    /// The profile could not be read (no network right after the Mac starts, a slow server): try again a few times, a little later each time,
+    /// so the name and the admin panel come back without restarting Orbit
+    private var profileRetries = 0
+    private var retrying = false
+    private func scheduleProfileRetry() {
+        guard !retrying, profileRetries < 8 else { return }
+        retrying = true
+        let delay = [4.0, 8, 15, 30, 60, 120, 300, 600][profileRetries]
+        profileRetries += 1
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard let self else { return }
+            self.retrying = false
+            if self.state != .signedOut { await self.loadProfile() }
         }
     }
 
@@ -584,6 +607,12 @@ final class AccountService {
         return nil
     }
 
+    private static func cachedProfile(_ id: UUID) -> Profile? {
+        UserDefaults.standard.data(forKey: "profile|\(id.uuidString)").flatMap { try? JSONDecoder().decode(Profile.self, from: $0) }
+    }
+    private static func setCachedProfile(_ p: Profile) {
+        if let d = try? JSONEncoder().encode(p) { UserDefaults.standard.set(d, forKey: "profile|\(p.id.uuidString)") }
+    }
     private static func cachedApproval(_ id: UUID) -> Bool { UserDefaults.standard.bool(forKey: "approved|\(id.uuidString)") }
     private static func setCachedApproval(_ id: UUID, _ v: Bool) { UserDefaults.standard.set(v, forKey: "approved|\(id.uuidString)") }
 
