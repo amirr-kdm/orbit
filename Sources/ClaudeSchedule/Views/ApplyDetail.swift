@@ -15,9 +15,9 @@ struct ApplyDetailView: View {
     let back: () -> Void
     @Environment(AppStore.self) private var store
     @State private var confirmDelete = false
-    @State private var section: Int
-
-    init(id: UUID, section: Int = 0, back: @escaping () -> Void) { self.id = id; self.back = back; _section = State(initialValue: section) }
+    @Environment(Router.self) private var router
+    private var section: Int { router.applySection }
+    private var sectionBinding: Binding<Int> { Binding(get: { router.applySection }, set: { router.applySection = $0 }) }
 
     private var prog: Binding<ApplyProgram> {
         Binding(get: { store.applyProgram(id) ?? ApplyProgram() },
@@ -40,7 +40,7 @@ struct ApplyDetailView: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             Divider()
-            Picker("", selection: $section) {
+            Picker("", selection: sectionBinding) {
                 Text("Program").tag(0)
                 Text("Professors (\(p.professors.count))").tag(1)
             }
@@ -53,7 +53,7 @@ struct ApplyDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     hero
                     ApplyIntakesCard(prog: prog)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 430), spacing: 18, alignment: .top)], spacing: 18) {
+                    FlowGrid(minWidth: 430, spacing: 18, maxColumns: 2) {
                         ApplyWhereCard(prog: prog)
                         ApplyDatesCard(prog: prog)
                         ApplyMoneyCard(prog: prog)
@@ -91,6 +91,7 @@ struct ApplyDetailView: View {
                     HStack(spacing: 8) {
                         Picker("", selection: prog.degree) { ForEach(ApplyDegree.allCases) { Text($0.title).tag($0) } }
                             .pickerStyle(.segmented).labelsHidden().frame(width: 270)
+                        if let q = p.qsRank { ApplyChip(icon: "rosette", text: "QS #\(q)", color: Color(hex: "#E8A33D")) }
                         Menu {
                             ForEach(ApplyTier.allCases) { t in Button { prog.tier.wrappedValue = t } label: { Text("\(t.title) · \(t.hint)") } }
                         } label: {
@@ -117,7 +118,7 @@ struct ApplyDetailView: View {
                 }
             }
             // the key numbers (they wrap onto a second line in a narrow window)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 175), spacing: 12, alignment: .top)], spacing: 12) {
+            FlowGrid(minWidth: 175) {
                 fact("Next deadline", p.nextDeadline.map { ApplyWorld.countdown(ApplyProgram.daysUntil($0.date)) } ?? "none set",
                      p.nextDeadline.map { "\($0.label) · \(applyDate($0.date))" } ?? "add a date below",
                      "alarm.fill", p.nextDeadline.map { ApplyWorld.urgencyColor(ApplyProgram.daysUntil($0.date)) } ?? .gray)
@@ -240,7 +241,7 @@ private struct ApplyIntakesCard: View {
                 }
                 .frame(maxWidth: .infinity).padding(.vertical, 16)
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 380), spacing: 14, alignment: .top)], spacing: 14) {
+                FlowGrid(minWidth: 380, spacing: 14, maxColumns: 3) {
                     ForEach(prog.intakes) { item in intake(elem($prog.intakes, item.id, ApplyIntake())) }
                 }
             }
@@ -311,6 +312,14 @@ private struct ApplyWhereCard: View {
             cardTitle("Where", "mappin.and.ellipse", Color(hex: "#3F7FE0"))
             LabeledRow(title: "Country") { ApplySuggestField(text: $prog.country, placeholder: "Germany", suggestions: countries, flagged: true) }
             LabeledRow(title: "City") { ApplySuggestField(text: $prog.city, placeholder: "Munich", suggestions: cities) }
+            LabeledRow(title: "QS ranking") {
+                HStack(spacing: 4) {
+                    Text("#").foregroundStyle(.secondary)
+                    TextField("e.g. 37", value: Binding(get: { prog.qsRank.map { Double($0) } }, set: { prog.qsRank = $0.map { max(1, Int($0)) } }), format: .number.precision(.fractionLength(0)))
+                        .textFieldStyle(.roundedBorder).frame(width: 90)
+                    Text("QS World University Rankings").font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                }
+            }
             LabeledRow(title: "Website") {
                 plainField("https://…", $prog.website)
                 if let u = url(prog.website) { Link(destination: u) { Image(systemName: "arrow.up.right.square") }.help("Open the website") }
@@ -511,7 +520,7 @@ private struct ApplyRequirementsCard: View {
         return HStack(spacing: 8) {
             Button { r.state.wrappedValue = v.state.next } label: { Image(systemName: v.state.icon).font(.title3).foregroundStyle(v.state.color) }
                 .buttonStyle(.plain).help(v.state.title + " (click to change)")
-            TextField("Requirement", text: r.title).textFieldStyle(.plain).font(.callout.weight(.semibold)).frame(width: 130)
+            TextField("Requirement", text: r.title).textFieldStyle(.plain).font(.callout.weight(.semibold)).frame(width: 165)
             TextField(hint, text: r.value).textFieldStyle(.roundedBorder)
             Button { prog.requirements.removeAll { $0.id == v.id } } label: { Image(systemName: "trash").foregroundStyle(.tertiary) }.buttonStyle(.plain)
         }

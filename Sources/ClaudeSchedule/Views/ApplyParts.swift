@@ -64,6 +64,7 @@ struct ApplyCard: View {
                 ChipFlow(spacing: 6) {
                     ApplyChip(icon: p.funding.icon, text: p.funding.short, color: p.funding.color)
                     if let f = p.fee { ApplyChip(icon: p.feePaid ? "checkmark.circle.fill" : "creditcard", text: f == 0 ? "No fee" : ApplyWorld.money(f, p.currency), color: p.feePaid ? Color(hex: "#34C77B") : .secondary) }
+                    if let q = p.qsRank { ApplyChip(icon: "rosette", text: "QS #\(q)", color: Color(hex: "#E8A33D")) }
                     if let m = p.durationMonths { ApplyChip(icon: "clock", text: m % 12 == 0 ? "\(m / 12) yr" : "\(m) mo") }
                     if p.tier != .none { ApplyChip(icon: "scope", text: p.tier.title, color: p.tier.color) }
                 }
@@ -200,7 +201,7 @@ struct ApplyRow: View {
                     Spacer(minLength: 6)
                     ApplyStatusPill(status: p.status)
                 }
-                Text([p.program, p.city, p.country].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text([p.program, p.city, p.country, p.qsRank.map { "QS #\($0)" } ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 ChipFlow(spacing: 6) {
                     if let n = p.nextDeadline {
                         let days = ApplyProgram.daysUntil(n.date)
@@ -233,7 +234,7 @@ struct ApplyRow: View {
                 .frame(minWidth: 200, maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(p.city.isEmpty ? "—" : p.city).font(.callout).lineLimit(1)
-                    Text(p.country).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(p.qsRank.map { "QS #\($0) · " + p.country } ?? p.country).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .frame(width: 120, alignment: .leading)
                 ApplyStatusPill(status: p.status).frame(width: 120, alignment: .leading)
@@ -444,7 +445,7 @@ struct ApplyOverviewTab: View {
         let next = all.compactMap { p in p.nextDeadline.map { (p, $0) } }.min { $0.1.date < $1.1.date }
         return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12)], spacing: 12) {
+                FlowGrid(minWidth: 170) {
                     tile("Programs", "\(all.count)", "\(active.count) still open", "square.stack.3d.up.fill", applyPurple)
                     tile("Sent", "\(sent.count)", "awaiting answer", "paperplane.fill", Color(hex: "#3F7FE0"))
                     tile("Accepted", "\(accepted.count)", accepted.isEmpty ? "keep going" : "congrats 🎉", "checkmark.seal.fill", Color(hex: "#34C77B"))
@@ -793,5 +794,53 @@ struct ApplyLocationFilters: View {
     private func options(_ list: [ApplyProgram], _ key: KeyPath<ApplyProgram, String>, flag: Bool) -> [(key: String, label: String, count: Int)] {
         let names = Array(Set(list.map { $0[keyPath: key] }.filter { !$0.isEmpty })).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         return names.map { n in (key: n, label: (flag ? ApplyWorld.flag(n) + " " : "") + n, count: list.filter { $0[keyPath: key] == n }.count) }
+    }
+}
+
+
+/// Equal-width columns that never leave empty columns: with 4 tiles in a wide window you get 4 columns that fill the row,
+/// in a narrow window they wrap to 2 or 1 (a LazyVGrid with adaptive columns leaves the right side empty).
+struct FlowGrid: Layout {
+    var minWidth: CGFloat
+    var spacing: CGFloat = 12
+    var maxColumns = 8
+
+    private func columns(_ width: CGFloat, _ count: Int) -> Int {
+        max(1, min(count, maxColumns, Int((width + spacing) / (minWidth + spacing))))
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard !subviews.isEmpty else { return .zero }
+        let width = proposal.width ?? (minWidth * CGFloat(min(subviews.count, maxColumns)))
+        let n = columns(width, subviews.count)
+        let w = (width - spacing * CGFloat(n - 1)) / CGFloat(n)
+        var total: CGFloat = 0
+        var i = 0
+        while i < subviews.count {
+            let row = subviews[i..<min(i + n, subviews.count)]
+            total += row.map { $0.sizeThatFits(ProposedViewSize(width: w, height: nil)).height }.max() ?? 0
+            i += n
+            if i < subviews.count { total += spacing }
+        }
+        return CGSize(width: width, height: total)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard !subviews.isEmpty else { return }
+        let n = columns(bounds.width, subviews.count)
+        let w = (bounds.width - spacing * CGFloat(n - 1)) / CGFloat(n)
+        var y = bounds.minY
+        var i = 0
+        while i < subviews.count {
+            let end = min(i + n, subviews.count)
+            var h: CGFloat = 0
+            for j in i..<end {
+                let sz = subviews[j].sizeThatFits(ProposedViewSize(width: w, height: nil))
+                subviews[j].place(at: CGPoint(x: bounds.minX + CGFloat(j - i) * (w + spacing), y: y), anchor: .topLeading, proposal: ProposedViewSize(width: w, height: sz.height))
+                h = max(h, sz.height)
+            }
+            y += h + spacing
+            i = end
+        }
     }
 }

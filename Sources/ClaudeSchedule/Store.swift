@@ -895,35 +895,77 @@ final class Router {
 
     // CS_START_TAB opens a given screen (handy for testing)
     var selection: SidebarItem? = ProcessInfo.processInfo.environment["CS_START_TAB"]
-        .flatMap(SidebarItem.init(rawValue:)) ?? .today {
-        didSet {
-            // keep the pages you visited, for ⌘← (back) and ⌘→ (forward)
-            guard !travelling, let old = oldValue, old != selection else { return }
-            backStack.append(old)
-            if backStack.count > 60 { backStack.removeFirst() }
-            forwardStack.removeAll()
-        }
+        .flatMap(SidebarItem.init(rawValue:)) ?? .today
+
+    // MARK: Where you are inside Mission Control (kept here so back / forward can return to it)
+    var missionRoute: MissionRoute = .home
+    var applyTab = 0
+    var applyOpen: UUID?
+    var applySection = 0
+    var ieltsTab = 0
+
+    /// Everything that says "which page am I on", for the back and forward shortcuts
+    var snapshot: NavState {
+        let inMission = selection == .planner
+        return NavState(item: selection, route: inMission ? missionRoute : .home, applyTab: inMission ? applyTab : 0,
+                        applyOpen: inMission ? applyOpen : nil, applySection: inMission ? applySection : 0, ieltsTab: inMission ? ieltsTab : 0)
     }
 
-    // MARK: Back and forward between pages
-    private(set) var backStack: [SidebarItem] = []
-    private(set) var forwardStack: [SidebarItem] = []
-    @ObservationIgnored private var travelling = false
+    private(set) var backStack: [NavState] = []
+    private(set) var forwardStack: [NavState] = []
+    @ObservationIgnored private var suppress = false
 
     var canGoBack: Bool { !backStack.isEmpty }
     var canGoForward: Bool { !forwardStack.isEmpty }
 
+    /// Called by the app whenever `snapshot` changed: the page you left goes on the back list
+    func record(old: NavState, new: NavState) {
+        if suppress { suppress = false; return }
+        guard old != new else { return }
+        backStack.append(old)
+        if backStack.count > 80 { backStack.removeFirst() }
+        forwardStack.removeAll()
+        // coming back to Mission Control later starts at its first page
+        if old.item == .planner && new.item != .planner { resetMission() }
+    }
+
     func goBack() {
-        guard let prev = backStack.popLast() else { return }
-        if let now = selection { forwardStack.append(now) }
-        travelling = true; selection = prev; travelling = false
+        while let prev = backStack.popLast() {
+            if prev == snapshot { continue }
+            forwardStack.append(snapshot)
+            apply(prev)
+            return
+        }
     }
 
     func goForward() {
-        guard let next = forwardStack.popLast() else { return }
-        if let now = selection { backStack.append(now) }
-        travelling = true; selection = next; travelling = false
+        while let next = forwardStack.popLast() {
+            if next == snapshot { continue }
+            backStack.append(snapshot)
+            apply(next)
+            return
+        }
     }
+
+    private func apply(_ s: NavState) {
+        suppress = snapshot != s     // the change this causes must not be written into the history
+        selection = s.item
+        missionRoute = s.route; applyTab = s.applyTab; applyOpen = s.applyOpen; applySection = s.applySection; ieltsTab = s.ieltsTab
+    }
+
+    func resetMission() { missionRoute = .home; applyTab = 0; applyOpen = nil; applySection = 0; ieltsTab = 0 }
+}
+
+enum MissionRoute: Hashable { case home, notes, exams, ielts, apply }
+
+/// One place in the app: a sidebar page and, in Mission Control, the page inside it
+struct NavState: Equatable {
+    var item: SidebarItem?
+    var route: MissionRoute = .home
+    var applyTab = 0
+    var applyOpen: UUID?
+    var applySection = 0
+    var ieltsTab = 0
 }
 
 /// A study session was just saved: animate the ship from where it was to where it is now

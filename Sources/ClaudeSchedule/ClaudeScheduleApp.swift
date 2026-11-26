@@ -88,18 +88,21 @@ struct ClaudeScheduleApp: App {
                 }
                 .keyboardShortcut("b", modifiers: .command)
             }
-            // ⌘← goes back to the page you were on, ⌘→ forward again (inside a text box they keep moving the cursor)
+            // ⌘← goes back to the page you were on (also inside Mission Control), ⌘→ forward again.
+            // Inside a text box ⌘← and ⌘→ keep moving the cursor; ⌘[ and ⌘] always work.
             CommandGroup(after: .sidebar) {
                 Button("Back") {
-                    if NSApp.keyWindow?.firstResponder is NSText { NSApp.sendAction(#selector(NSResponder.moveToBeginningOfLine(_:)), to: nil, from: nil) }
-                    else { router.goBack() }
+                    if let t = NSApp.keyWindow?.firstResponder as? NSTextView, t.isEditable { t.moveToBeginningOfLine(nil) } else { router.goBack() }
                 }
-                .keyboardShortcut(.leftArrow, modifiers: .command)
+                .keyboardShortcut(.leftArrow, modifiers: .command).disabled(!router.canGoBack)
                 Button("Forward") {
-                    if NSApp.keyWindow?.firstResponder is NSText { NSApp.sendAction(#selector(NSResponder.moveToEndOfLine(_:)), to: nil, from: nil) }
-                    else { router.goForward() }
+                    if let t = NSApp.keyWindow?.firstResponder as? NSTextView, t.isEditable { t.moveToEndOfLine(nil) } else { router.goForward() }
                 }
-                .keyboardShortcut(.rightArrow, modifiers: .command)
+                .keyboardShortcut(.rightArrow, modifiers: .command).disabled(!router.canGoForward)
+                Button("Previous Page") { router.goBack() }
+                    .keyboardShortcut("[", modifiers: .command).disabled(!router.canGoBack)
+                Button("Next Page") { router.goForward() }
+                    .keyboardShortcut("]", modifiers: .command).disabled(!router.canGoForward)
             }
         }
 

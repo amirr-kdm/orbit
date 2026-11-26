@@ -12,18 +12,21 @@ enum PageSheet {
         let pages: [(String, AnyView)] = [
             ("home", AnyView(MissionControlView())),
             ("apply-programs", AnyView(ApplyView())),
-            ("apply-professors", AnyView(ApplyView(tab: 1))),
-            ("apply-deadlines", AnyView(ApplyView(tab: 2))),
-            ("apply-overview", AnyView(ApplyView(tab: 3))),
+            ("apply-professors", AnyView(ApplyView())),
+            ("apply-deadlines", AnyView(ApplyView())),
+            ("apply-overview", AnyView(ApplyView())),
             ("apply-detail", AnyView(first.map { AnyView(ApplyDetailView(id: $0) {}) } ?? AnyView(EmptyView()))),
-            ("apply-detail-profs", AnyView(first.map { AnyView(ApplyDetailView(id: $0, section: 1) {}) } ?? AnyView(EmptyView()))),
+            ("apply-detail-profs", AnyView(first.map { AnyView(ApplyDetailView(id: $0) {}) } ?? AnyView(EmptyView()))),
             ("ielts", AnyView(IELTSView())),
-            ("ielts-report", AnyView(IELTSView(tab: 1))),
+            ("ielts-report", AnyView(IELTSView())),
         ]
         // (this tool runs in its own defaults domain: the app's saved choices are not touched)
-        let listPages: [(String, AnyView)] = [("apply-programs-list", AnyView(ApplyView())), ("apply-professors-list", AnyView(ApplyView(tab: 1)))]
-        for width in [800, 1000, 1400] {
+        let listPages: [(String, AnyView)] = [("apply-programs-list", AnyView(ApplyView())), ("apply-professors-list", AnyView(ApplyView()))]
+        for width in [800, 1400, 1800] {
             for (name, view) in pages + listPages {
+                router.applyTab = name.contains("professors") ? 1 : (name.contains("deadlines") ? 2 : (name.contains("overview") ? 3 : 0))
+                router.applySection = name == "apply-detail-profs" ? 1 : 0
+                router.ieltsTab = name == "ielts-report" ? 1 : 0
                 UserDefaults.standard.set(name.hasSuffix("-list") ? "list" : "grid", forKey: "apply.view")
                 UserDefaults.standard.set(name.hasSuffix("-list") ? "list" : "grid", forKey: "apply.profView")
                 let content = view.environment(store).environment(router)

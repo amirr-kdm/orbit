@@ -225,7 +225,7 @@ struct ProfessorList: View {
 
     private static let sorts: [(String, String)] = [
         ("priority", "Priority (top first)"), ("followUp", "Follow-up date (soonest)"), ("lastOld", "Last contact (longest ago)"),
-        ("lastNew", "Last contact (most recent)"), ("name", "Name A → Z"), ("accepting", "Taking students first"), ("university", "University")
+        ("lastNew", "Last contact (most recent)"), ("name", "Name A → Z"), ("accepting", "Taking students first"), ("qs", "University QS ranking (best first)"), ("university", "University")
     ]
 
     private var shown: [(program: ApplyProgram, prof: ApplyProfessor)] {
@@ -246,6 +246,7 @@ struct ProfessorList: View {
         case "lastNew": return list.sorted { opt(nil, false, ($0.program, $0.prof), ($1.program, $1.prof)) { $0.1.lastContact } }
         case "name": return list.sorted { $0.prof.name.localizedCaseInsensitiveCompare($1.prof.name) == .orderedAscending }
         case "accepting": return list.sorted { rank($0.prof.accepting) < rank($1.prof.accepting) }
+        case "qs": return list.sorted { ($0.program.qsRank ?? Int.max) < ($1.program.qsRank ?? Int.max) }
         case "university": return list.sorted { $0.program.university.localizedCaseInsensitiveCompare($1.program.university) == .orderedAscending }
         default: return list.sorted { ($0.prof.priority.rank, $0.prof.name) < ($1.prof.priority.rank, $1.prof.name) }
         }

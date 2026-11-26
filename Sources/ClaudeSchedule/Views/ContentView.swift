@@ -194,6 +194,8 @@ struct ContentView: View {
             TaskDonePrompt(finished: f)
         }
         .onAppear { SidebarReclick.install(router: router) }
+        // every change of page (also inside Mission Control) is remembered for ⌘← and ⌘→
+        .onChange(of: router.snapshot) { old, new in router.record(old: old, new: new) }
         .onChange(of: timer.finished) { _, _ in showDonePromptWhenFree() }
         .onChange(of: store.passMoment == nil) { _, _ in showDonePromptWhenFree() }
         // The owner's admin panel (right side) — only for the admin account

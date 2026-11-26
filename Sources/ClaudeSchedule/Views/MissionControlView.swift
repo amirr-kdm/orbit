@@ -4,9 +4,13 @@ import Charts
 /// Mission Control: the home of notes, English exam preparation and (soon) university applications.
 /// Three big doors; each opens a page of its own, with a way back at the top.
 struct MissionControlView: View {
-    enum Route { case home, notes, exams, ielts, apply }
-    @State private var route = Route.home
+    typealias Route = MissionRoute
     @Environment(Router.self) private var router
+    /// Which page of Mission Control is open (kept in the router so ⌘← and ⌘→ can come back to it)
+    private var route: MissionRoute {
+        get { router.missionRoute }
+        nonmutating set { router.missionRoute = newValue }
+    }
     /// The exam you chose ("ielts"); its door on the first page then shows its name and picture
     @AppStorage("mission.exam") private var exam = ""
 
@@ -23,7 +27,7 @@ struct MissionControlView: View {
             }
         }
         .navigationTitle("Mission Control")
-        .onChange(of: router.missionHome) { _, _ in route = .home }
+        .onChange(of: router.missionHome) { _, _ in router.resetMission() }
     }
 
     private func page<C: View>(_ title: String, back: Route, trailing: AnyView? = nil, @ViewBuilder _ content: () -> C) -> some View {
@@ -131,7 +135,9 @@ struct IELTSView: View {
     private func targetBinding(_ s: IELTSSkill) -> Binding<Double> {
         switch s { case .listening: $tL; case .reading: $tR; case .writing: $tW; case .speaking: $tS }
     }
-    @State private var tab: Int
+    @Environment(Router.self) private var router
+    private var tabBinding: Binding<Int> { Binding(get: { router.ieltsTab }, set: { router.ieltsTab = $0 }) }
+    private var tab: Int { router.ieltsTab }
     @State private var editing: IELTSTest?
     @State private var hidden: Set<IELTSSkill> = []
     @State private var confirmClear = false
@@ -139,7 +145,6 @@ struct IELTSView: View {
     @State private var showCategories = false
     @AppStorage("ielts.sort") private var sortRaw = "newest"
 
-    init(tab: Int = 0) { _tab = State(initialValue: tab) }
 
     /// How the list is ordered: by date, or by name with numbers in order (19-2 before 19-10, 12-1 before 19-2)
     private var shownTests: [IELTSTest] {
@@ -167,7 +172,7 @@ struct IELTSView: View {
             VStack(alignment: .leading, spacing: 18) {
                 summary
                 HStack {
-                    Picker("", selection: $tab) { Text("Tests").tag(0); Text("Exam report").tag(1) }
+                    Picker("", selection: tabBinding) { Text("Tests").tag(0); Text("Exam report").tag(1) }
                         .pickerStyle(.segmented).labelsHidden().frame(width: 240)
                     Spacer()
                     if !store.ieltsTests.isEmpty {
@@ -200,7 +205,7 @@ struct IELTSView: View {
         let latest = store.ieltsByDate.first(where: { $0.overall != nil })?.overall
         let best = store.ieltsTests.compactMap(\.overall).max()
         return VStack(spacing: 12) {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12, alignment: .top)], spacing: 12) {
+            FlowGrid(minWidth: 170) {
                 tile("Your overall", IELTSTest.format(store.ieltsOverall), "average of all your tests", Color(hex: "#E8384F"), big: true)
                 tile("Latest test", IELTSTest.format(latest), "overall of the newest test", .accentColor)
                 tile("Best test", IELTSTest.format(best), "highest overall", .green)
@@ -213,7 +218,7 @@ struct IELTSView: View {
                 .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 14).fill(Color.green.opacity(0.08)))
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 175), spacing: 12, alignment: .top)], spacing: 12) {
+            FlowGrid(minWidth: 175) {
                 ForEach(IELTSSkill.allCases) { s in
                     let avg = store.ieltsAverage(s)
                     VStack(spacing: 8) {

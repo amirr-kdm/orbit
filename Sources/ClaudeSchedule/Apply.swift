@@ -264,6 +264,8 @@ struct ApplyProgram: Identifiable, Codable, Hashable {
     var city = ""
     var website = ""
     var portal = ""
+    /// The university's place in the QS World University Rankings (1 = best)
+    var qsRank: Int?
     var contactName = ""
     var contactEmail = ""
 
@@ -305,7 +307,7 @@ struct ApplyProgram: Identifiable, Codable, Hashable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.d(.id, UUID()); university = c.d(.university, ""); program = c.d(.program, ""); degree = c.d(.degree, .master)
-        country = c.d(.country, ""); city = c.d(.city, ""); website = c.d(.website, ""); portal = c.d(.portal, "")
+        country = c.d(.country, ""); city = c.d(.city, ""); website = c.d(.website, ""); portal = c.d(.portal, ""); qsRank = c.d(.qsRank, nil as Int?)
         contactName = c.d(.contactName, ""); contactEmail = c.d(.contactEmail, "")
         status = c.d(.status, .considering); tier = c.d(.tier, .none); starred = c.d(.starred, false)
         intakes = c.d(.intakes, []); appliedIntake = c.d(.appliedIntake, nil as UUID?)

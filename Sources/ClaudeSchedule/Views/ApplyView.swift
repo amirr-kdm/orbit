@@ -5,8 +5,11 @@ import Charts
 /// follow deadlines and see money and progress at a glance. A click opens one program (ApplyDetailView).
 struct ApplyView: View {
     @Environment(AppStore.self) private var store
-    @State private var openID: UUID?
-    @State private var tab: Int
+    @Environment(Router.self) private var router
+    /// The open program and the tab live in the router, so back / forward can return to them
+    private var openID: UUID? { get { router.applyOpen } nonmutating set { router.applyOpen = newValue } }
+    private var tab: Int { router.applyTab }
+    private var tabBinding: Binding<Int> { Binding(get: { router.applyTab }, set: { router.applyTab = $0 }) }
     @State private var country: String?
     @State private var city: String?
     @State private var university: String?
@@ -21,7 +24,6 @@ struct ApplyView: View {
 
     private var all: [ApplyProgram] { store.applyPrograms }
 
-    init(tab: Int = 0, open: UUID? = nil) { _tab = State(initialValue: tab); _openID = State(initialValue: open) }
 
     var body: some View {
         Group {
@@ -31,7 +33,7 @@ struct ApplyView: View {
                 main
             }
         }
-        .sheet(isPresented: $showAdd) { AddApplySheet(country: country, city: city) { openID = $0; tab = 0 } }
+        .sheet(isPresented: $showAdd) { AddApplySheet(country: country, city: city) { router.applyOpen = $0; router.applyTab = 0 } }
     }
 
     // MARK: main page
@@ -39,7 +41,7 @@ struct ApplyView: View {
     private var main: some View {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
-                Picker("", selection: $tab) {
+                Picker("", selection: tabBinding) {
                     Text("Programs").tag(0); Text("Professors").tag(1); Text("Deadlines").tag(2); Text("Overview").tag(3)
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 430)
@@ -186,7 +188,7 @@ struct ApplyView: View {
         ("deadline", "Next deadline (soonest)"), ("feeLow", "Application fee (low → high)"), ("feeHigh", "Application fee (high → low)"),
         ("costLow", "Total cost (low → high)"), ("costHigh", "Total cost (high → low)"), ("tuitionLow", "Tuition per year (low → high)"),
         ("progressHigh", "Checklist (most done)"), ("progressLow", "Checklist (least done)"), ("status", "Status"),
-        ("term", "Term start"), ("name", "University A → Z"), ("country", "Country, city, university"), ("newest", "Recently added"), ("starred", "Starred first")
+        ("qsBest", "QS ranking (best first)"), ("qsWorst", "QS ranking (lowest first)"), ("term", "Term start"), ("name", "University A → Z"), ("country", "Country, city, university"), ("newest", "Recently added"), ("starred", "Starred first")
     ]
 
     /// Sorts by a key; programs without that value go last
@@ -207,6 +209,8 @@ struct ApplyView: View {
         case "progressHigh": return by(list, desc: true) { $0.docs.isEmpty ? nil : $0.progress }
         case "progressLow": return by(list) { $0.docs.isEmpty ? nil : $0.progress }
         case "status": return list.sorted { (ApplyStatus.allCases.firstIndex(of: $0.status) ?? 0) < (ApplyStatus.allCases.firstIndex(of: $1.status) ?? 0) }
+        case "qsBest": return by(list) { $0.qsRank }
+        case "qsWorst": return by(list, desc: true) { $0.qsRank }
         case "term": return by(list) { $0.termStart }
         case "name": return list.sorted { $0.university.localizedCaseInsensitiveCompare($1.university) == .orderedAscending }
         case "country":
