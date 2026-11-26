@@ -4,7 +4,7 @@ import Charts
 /// Mission Control: the home of notes, English exam preparation and (soon) university applications.
 /// Three big doors; each opens a page of its own, with a way back at the top.
 struct MissionControlView: View {
-    enum Route { case home, notes, exams, ielts }
+    enum Route { case home, notes, exams, ielts, apply }
     @State private var route = Route.home
     @Environment(Router.self) private var router
     /// The exam you chose ("ielts"); its door on the first page then shows its name and picture
@@ -14,6 +14,7 @@ struct MissionControlView: View {
         Group {
             switch route {
             case .home: home
+            case .apply: page("Apply", back: .home) { ApplyView() }
             case .notes: page("Notes", back: .home) { PlannerView() }
             case .exams: page("English Exam", back: .home) { ExamPicker(open: { exam = "ielts"; route = .ielts }) }
             case .ielts: page("IELTS", back: .home, trailing: AnyView(
@@ -55,7 +56,7 @@ struct MissionControlView: View {
                 } else {
                     BigDoor(title: "English Exam", subtitle: "IELTS and TOEFL: scores and progress", icon: "graduationcap.fill", tint: Color(hex: "#3F7FE0")) { route = .exams }
                 }
-                BigDoor(title: "Apply", subtitle: "University applications", icon: "paperplane.fill", tint: Color(hex: "#8E6BD8"), soon: true) {}
+                BigDoor(title: "Apply", subtitle: "Universities, deadlines, fees and checklists", icon: "paperplane.fill", tint: Color(hex: "#8E6BD8")) { route = .apply }
             }
             .padding(.horizontal, 40)
         }
@@ -80,7 +81,7 @@ struct BigDoor: View {
                     .frame(width: 96, height: 96)
                     .background(Circle().fill(LinearGradient(colors: [tint, tint.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
                     .shadow(color: tint.opacity(0.5), radius: hover && !soon ? 18 : 8)
-                Text(title).font(.system(size: 24, weight: .bold, design: .rounded))
+                Text(title).font(.system(size: 24, weight: .bold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7)
                 Text(subtitle).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 if soon { Text("COMING SOON").font(.caption.weight(.heavy)).tracking(2).foregroundStyle(tint) }
             }
@@ -130,14 +131,36 @@ struct IELTSView: View {
     private func targetBinding(_ s: IELTSSkill) -> Binding<Double> {
         switch s { case .listening: $tL; case .reading: $tR; case .writing: $tW; case .speaking: $tS }
     }
-    @State private var tab = 0
+    @State private var tab: Int
     @State private var editing: IELTSTest?
     @State private var hidden: Set<IELTSSkill> = []
     @State private var confirmClear = false
     @State private var filter: UUID?          // nil = all tests
     @State private var showCategories = false
+    @AppStorage("ielts.sort") private var sortRaw = "newest"
 
-    private var shownTests: [IELTSTest] { store.ieltsByDate.filter { filter == nil || $0.categoryID == filter } }
+    init(tab: Int = 0) { _tab = State(initialValue: tab) }
+
+    /// How the list is ordered: by date, or by name with numbers in order (19-2 before 19-10, 12-1 before 19-2)
+    private var shownTests: [IELTSTest] {
+        let list = store.ieltsTests.filter { filter == nil || $0.categoryID == filter }
+        func byName(_ a: IELTSTest, _ b: IELTSTest) -> Bool { a.name.compare(b.name, options: [.numeric, .caseInsensitive]) == .orderedAscending }
+        // "best.overall", "worst.writing", … : highest or lowest band first (tests without that score go last)
+        let parts = sortRaw.split(separator: ".").map(String.init)
+        if parts.count == 2, parts[0] == "best" || parts[0] == "worst" {
+            let skill = IELTSSkill(rawValue: parts[1])
+            func score(_ t: IELTSTest) -> Double? { skill.map { t.band($0) } ?? t.overall }
+            let have = list.filter { score($0) != nil }, none = list.filter { score($0) == nil }
+            let sorted = have.sorted { parts[0] == "best" ? score($0)! > score($1)! : score($0)! < score($1)! }
+            return sorted + none
+        }
+        switch sortRaw {
+        case "oldest": return list.sorted { $0.date < $1.date }
+        case "nameAZ": return list.sorted(by: byName)
+        case "nameZA": return list.sorted { byName($1, $0) }
+        default: return list.sorted { $0.date > $1.date }
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -177,7 +200,7 @@ struct IELTSView: View {
         let latest = store.ieltsByDate.first(where: { $0.overall != nil })?.overall
         let best = store.ieltsTests.compactMap(\.overall).max()
         return VStack(spacing: 12) {
-            HStack(spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 12, alignment: .top)], spacing: 12) {
                 tile("Your overall", IELTSTest.format(store.ieltsOverall), "average of all your tests", Color(hex: "#E8384F"), big: true)
                 tile("Latest test", IELTSTest.format(latest), "overall of the newest test", .accentColor)
                 tile("Best test", IELTSTest.format(best), "highest overall", .green)
@@ -190,7 +213,7 @@ struct IELTSView: View {
                 .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 14).fill(Color.green.opacity(0.08)))
             }
-            HStack(spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 175), spacing: 12, alignment: .top)], spacing: 12) {
                 ForEach(IELTSSkill.allCases) { s in
                     let avg = store.ieltsAverage(s)
                     VStack(spacing: 8) {
@@ -233,12 +256,30 @@ struct IELTSView: View {
 
     /// All / Cambridge / Mocks / … with a button to manage the list
     private var categoryBar: some View {
-        HStack(spacing: 8) {
+        ChipFlow(spacing: 8) {
             chip("All", nil)
             ForEach(store.ieltsCategories) { chip($0.name, $0.id) }
+            Menu {
+                Picker("Date", selection: $sortRaw) {
+                    Text("Newest first").tag("newest")
+                    Text("Oldest first").tag("oldest")
+                }.pickerStyle(.inline)
+                Picker("Name", selection: $sortRaw) {
+                    Text("Name A → Z (12-1, 19-2, 19-3…)").tag("nameAZ")
+                    Text("Name Z → A").tag("nameZA")
+                }.pickerStyle(.inline)
+                Picker("Best first", selection: $sortRaw) {
+                    Text("Best overall").tag("best.overall")
+                    ForEach(IELTSSkill.allCases) { Text("Best \($0.title)").tag("best.\($0.rawValue)") }
+                }.pickerStyle(.inline)
+                Picker("Worst first", selection: $sortRaw) {
+                    Text("Worst overall").tag("worst.overall")
+                    ForEach(IELTSSkill.allCases) { Text("Worst \($0.title)").tag("worst.\($0.rawValue)") }
+                }.pickerStyle(.inline)
+            } label: { Label("Sort", systemImage: "arrow.up.arrow.down").font(.caption.weight(.semibold)) }
+                .menuStyle(.borderlessButton).fixedSize()
             Button { showCategories = true } label: { Label("Categories", systemImage: "slider.horizontal.3").font(.caption.weight(.semibold)) }
                 .buttonStyle(.borderless)
-            Spacer()
         }
     }
 

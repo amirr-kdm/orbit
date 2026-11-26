@@ -36,6 +36,12 @@ struct ClaudeScheduleApp: App {
             }
             exit(0)
         }
+        // Developer tool: CS_RENDER_APPLY=/folder renders the Mission Control pages at several window widths to PNG files and quits
+        // (nothing is shown on screen; the data folder is the one in CS_DATA_DIR)
+        if let out = ProcessInfo.processInfo.environment["CS_RENDER_APPLY"] {
+            PageSheet.render(to: out)
+            exit(0)
+        }
         let store = AppStore()
         _store = State(initialValue: store)
         let engine = TimerEngine(store: store)
@@ -81,6 +87,19 @@ struct ClaudeScheduleApp: App {
                     NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
                 }
                 .keyboardShortcut("b", modifiers: .command)
+            }
+            // ⌘← goes back to the page you were on, ⌘→ forward again (inside a text box they keep moving the cursor)
+            CommandGroup(after: .sidebar) {
+                Button("Back") {
+                    if NSApp.keyWindow?.firstResponder is NSText { NSApp.sendAction(#selector(NSResponder.moveToBeginningOfLine(_:)), to: nil, from: nil) }
+                    else { router.goBack() }
+                }
+                .keyboardShortcut(.leftArrow, modifiers: .command)
+                Button("Forward") {
+                    if NSApp.keyWindow?.firstResponder is NSText { NSApp.sendAction(#selector(NSResponder.moveToEndOfLine(_:)), to: nil, from: nil) }
+                    else { router.goForward() }
+                }
+                .keyboardShortcut(.rightArrow, modifiers: .command)
             }
         }
 

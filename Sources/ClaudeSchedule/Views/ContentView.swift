@@ -111,7 +111,6 @@ struct ContentView: View {
                                 }
                             }
                             .tag(item)
-                            .simultaneousGesture(TapGesture().onEnded { if item == .planner { router.missionHome += 1 } })
                         }
                     }
                 }
@@ -122,7 +121,7 @@ struct ContentView: View {
             .safeAreaInset(edge: .top) { SidebarCountdown() }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
-                    if timer.isActive { miniTimer }
+                    if timer.isActive { MiniTimer() }
                     AccountChip()
                 }
             }
@@ -194,6 +193,7 @@ struct ContentView: View {
         .sheet(item: $donePrompt, onDismiss: { timer.finished = nil }) { f in
             TaskDonePrompt(finished: f)
         }
+        .onAppear { SidebarReclick.install(router: router) }
         .onChange(of: timer.finished) { _, _ in showDonePromptWhenFree() }
         .onChange(of: store.passMoment == nil) { _, _ in showDonePromptWhenFree() }
         // The owner's admin panel (right side) — only for the admin account
@@ -317,26 +317,6 @@ struct ContentView: View {
         .background(tint.opacity(0.15))
     }
 
-    private var miniTimer: some View {
-        Button {
-            router.selection = .timer
-        } label: {
-            HStack {
-                Image(systemName: timer.isRunning ? "timer" : "pause.circle")
-                    .foregroundStyle(timer.phase == .rest ? .green : .accentColor)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(Fmt.clock(timer.displayTime)).font(.headline.monospacedDigit())
-                    Text(timer.phase == .rest ? "Break" : (timer.targetTitle ?? "Free study"))
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer()
-            }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10).fill(.quaternary))
-        }
-        .buttonStyle(.plain)
-        .padding(10)
-    }
 }
 
 
@@ -364,5 +344,61 @@ struct TaskDonePrompt: View {
             }
         }
         .padding(24).frame(width: 320)
+    }
+}
+
+
+/// The small timer at the bottom of the sidebar. It is a view of its own so that only it redraws while the clock runs
+/// (the sidebar list around it used to be rebuilt four times a second, and clicks on its rows were lost).
+struct MiniTimer: View {
+    @Environment(Router.self) private var router
+    @Environment(TimerEngine.self) private var timer
+
+    var body: some View {
+        Button {
+            router.selection = .timer
+        } label: {
+            HStack {
+                Image(systemName: timer.isRunning ? "timer" : "pause.circle")
+                    .foregroundStyle(timer.phase == .rest ? .green : .accentColor)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(Fmt.clock(timer.displayTime)).font(.headline.monospacedDigit())
+                    Text(timer.phase == .rest ? "Break" : (timer.targetTitle ?? "Free study"))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer()
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 10).fill(.quaternary))
+        }
+        .buttonStyle(.plain)
+        .padding(10)
+    }
+}
+
+
+/// Clicking the row that is already selected (Mission Control) sends that page back to its first screen.
+/// It only watches mouse-downs on the sidebar and never touches the click itself, so selecting rows works as the system does it.
+@MainActor
+enum SidebarReclick {
+    private static var monitor: Any?
+
+    static func install(router: Router) {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            if router.selection == .planner, let content = event.window?.contentView, let outline = findOutline(in: content),
+               outline.selectedRow >= 0 {
+                // is the click on the selected row? (compared in window coordinates)
+                let row = outline.convert(outline.rect(ofRow: outline.selectedRow), to: nil)
+                if row.contains(event.locationInWindow) { router.missionHome += 1 }
+            }
+            return event
+        }
+    }
+
+    private static func findOutline(in view: NSView) -> NSOutlineView? {
+        if let o = view as? NSOutlineView { return o }
+        for v in view.subviews { if let o = findOutline(in: v) { return o } }
+        return nil
     }
 }

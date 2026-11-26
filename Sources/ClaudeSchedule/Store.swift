@@ -57,6 +57,8 @@ final class AppStore {
     /// IELTS practice tests with the band of each skill (Mission Control → English Exam)
     var ieltsTests: [IELTSTest] = [] { didSet { save() } }
     var ieltsCategories: [IELTSCategory] = IELTSCategory.defaults { didSet { save() } }
+    /// Universities and programs you apply to (Mission Control → Apply)
+    var applyPrograms: [ApplyProgram] = [] { didSet { save() } }
     /// Level Pass rewards taken
     var claimedLevels: [Int] = [] { didSet { save() } }
     /// Set after a study session is saved, to show the Level Pass (not saved)
@@ -97,11 +99,13 @@ final class AppStore {
         var claimedLevels: [Int] = []
         var ieltsTests: [IELTSTest] = []
         var ieltsCategories: [IELTSCategory] = IELTSCategory.defaults
+        var applyPrograms: [ApplyProgram] = []
 
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
              galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner],
-             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String], plannerFolders: [PlannerFolder], claimedLevels: [Int], ieltsTests: [IELTSTest], ieltsCategories: [IELTSCategory]) {
+             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String], plannerFolders: [PlannerFolder], claimedLevels: [Int], ieltsTests: [IELTSTest], ieltsCategories: [IELTSCategory], applyPrograms: [ApplyProgram]) {
+            self.applyPrograms = applyPrograms
             self.ieltsCategories = ieltsCategories
             self.ieltsTests = ieltsTests
             self.claimedLevels = claimedLevels
@@ -148,6 +152,7 @@ final class AppStore {
             claimedLevels = try c.decodeIfPresent([Int].self, forKey: .claimedLevels) ?? []
             ieltsTests = try c.decodeIfPresent([IELTSTest].self, forKey: .ieltsTests) ?? []
             ieltsCategories = try c.decodeIfPresent([IELTSCategory].self, forKey: .ieltsCategories) ?? IELTSCategory.defaults
+            applyPrograms = try c.decodeIfPresent([ApplyProgram].self, forKey: .applyPrograms) ?? []
         }
     }
 
@@ -219,6 +224,7 @@ final class AppStore {
             claimedLevels = snap.claimedLevels
             ieltsTests = snap.ieltsTests
             ieltsCategories = snap.ieltsCategories
+            applyPrograms = snap.applyPrograms
         }
     }
 
@@ -275,7 +281,7 @@ final class AppStore {
                             galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
                             planners: planners, scheduleSkipped: scheduleSkipped,
                             purchases: purchases, refundsUsed: refundsUsed,
-                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts, plannerFolders: plannerFolders, claimedLevels: claimedLevels, ieltsTests: ieltsTests, ieltsCategories: ieltsCategories)
+                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts, plannerFolders: plannerFolders, claimedLevels: claimedLevels, ieltsTests: ieltsTests, ieltsCategories: ieltsCategories, applyPrograms: applyPrograms)
         return try? encoder.encode(snap)
     }
 
@@ -889,7 +895,35 @@ final class Router {
 
     // CS_START_TAB opens a given screen (handy for testing)
     var selection: SidebarItem? = ProcessInfo.processInfo.environment["CS_START_TAB"]
-        .flatMap(SidebarItem.init(rawValue:)) ?? .today
+        .flatMap(SidebarItem.init(rawValue:)) ?? .today {
+        didSet {
+            // keep the pages you visited, for ⌘← (back) and ⌘→ (forward)
+            guard !travelling, let old = oldValue, old != selection else { return }
+            backStack.append(old)
+            if backStack.count > 60 { backStack.removeFirst() }
+            forwardStack.removeAll()
+        }
+    }
+
+    // MARK: Back and forward between pages
+    private(set) var backStack: [SidebarItem] = []
+    private(set) var forwardStack: [SidebarItem] = []
+    @ObservationIgnored private var travelling = false
+
+    var canGoBack: Bool { !backStack.isEmpty }
+    var canGoForward: Bool { !forwardStack.isEmpty }
+
+    func goBack() {
+        guard let prev = backStack.popLast() else { return }
+        if let now = selection { forwardStack.append(now) }
+        travelling = true; selection = prev; travelling = false
+    }
+
+    func goForward() {
+        guard let next = forwardStack.popLast() else { return }
+        if let now = selection { backStack.append(now) }
+        travelling = true; selection = next; travelling = false
+    }
 }
 
 /// A study session was just saved: animate the ship from where it was to where it is now
