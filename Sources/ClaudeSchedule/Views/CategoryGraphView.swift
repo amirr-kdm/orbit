@@ -703,7 +703,7 @@ private struct GraphDetails: View {
                     }
                 }
                 Button("Study") {
-                    timer.select(ref)
+                    timer.studyNow(ref)
                     router.selection = .timer
                 }
                 .buttonStyle(.borderedProminent)

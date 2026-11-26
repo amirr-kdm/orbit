@@ -205,7 +205,7 @@ struct WeeklyScheduleView: View {
                     .tint(.white)
                 if let entry, entry.kind == .todo {
                     Button {
-                        timer.select(.schedule(entry.id))
+                        timer.studyNow(.schedule(entry.id))
                         router.selection = .timer
                     } label: {
                         Label("Study now", systemImage: "play.fill").font(.caption.weight(.semibold))
@@ -282,13 +282,13 @@ struct WeeklyScheduleView: View {
                             onCommit: { commit(key) },
                             onCancel: { cancel(key) },
                             onToggleDone: entry.map { e in { store.tapStatus(.schedule(e.id), on: date) } },
-                            onStart: entry.map { e in { timer.select(.schedule(e.id)); router.selection = .timer } }
+                            onStart: entry.map { e in { timer.studyNow(.schedule(e.id)); router.selection = .timer } }
                         )
                         .popover(isPresented: Binding(get: { infoKey == key && entry != nil && editing == nil },
                                                       set: { if !$0 && infoKey == key { infoKey = nil; infoPinned = false; overInfo = false } }), arrowEdge: .bottom) {
                             if let entry {
                                 ScheduleHoverCard(entryID: entry.id, isDone: store.isDone(.schedule(entry.id), on: date),
-                                                  onStart: { infoKey = nil; timer.select(.schedule(entry.id)); router.selection = .timer },
+                                                  onStart: { infoKey = nil; timer.studyNow(.schedule(entry.id)); router.selection = .timer },
                                                   onEdit: { infoKey = nil; infoPinned = false; beginEditing(key) })
                                     .onHover { inside in overInfo = inside; if !inside { closeInfoSoon(key) } }
                                     .simultaneousGesture(TapGesture().onEnded { infoPinned = true })
@@ -555,7 +555,7 @@ struct WeeklyScheduleView: View {
                 Divider()
                 StatusMenuItems(ref: .schedule(entry.id), day: store.occurrence(of: entry, inWeekOf: viewDate))
                 Button("Study This Now") {
-                    timer.select(.schedule(entry.id))
+                    timer.studyNow(.schedule(entry.id))
                     router.selection = .timer
                 }
             }

@@ -62,7 +62,7 @@ struct AnytimeBox: View {
             Button { withAnimation { store.tapStatus(.task(t.id), on: Date()) } } label: { Image(systemName: "circle") }
                 .buttonStyle(.plain)
             Text(t.title).lineLimit(1).font(.caption)
-            Button { timer.select(.task(t.id)); router.selection = .timer } label: { Image(systemName: "play.circle") }
+            Button { timer.studyNow(.task(t.id)); router.selection = .timer } label: { Image(systemName: "play.circle") }
                 .buttonStyle(.plain).help("Study this")
         }
         .padding(.horizontal, 8).padding(.vertical, 4)
@@ -113,7 +113,7 @@ struct QuickTaskSheet: View {
         var item = TaskItem(title: t, dueDate: when == 1 ? Cal.persian.startOfDay(for: Date()) : nil)
         item.categoryID = category
         store.upsertTask(item)
-        if start { timer.select(.task(item.id)); router.selection = .timer }
+        if start { timer.studyNow(.task(item.id)); router.selection = .timer }
         dismiss()
     }
 }

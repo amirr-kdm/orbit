@@ -54,6 +54,8 @@ struct TimerView: View {
         for t in store.anytimeTasks where !todos.contains(where: { $0.ref == .task(t.id) }) {
             if let item = store.todoItem(for: .task(t.id)) { todos.append(item) }
         }
+        // done (or given-up) to-dos are not offered again, except the one that is picked right now
+        todos.removeAll { ($0.isDone || $0.isSkipped) && $0.ref != timer.target }
         if let ref = timer.target, !todos.contains(where: { $0.ref == ref }), let item = store.todoItem(for: ref) {
             todos.insert(item, at: 0)
         }
@@ -71,15 +73,20 @@ struct TimerView: View {
                 if let targetItem, timer.phase == .focus {
                     Text(targetItem.detail).font(.callout).foregroundStyle(ink.opacity(0.7))
                 }
+                // the time this to-do needs: fills as you study (the running session counts too), and shows the extra past it
+                if let ref = timer.target, timer.phase == .focus, let m = store.neededMinutes(for: ref) {
+                    NeedProgress(studied: store.studiedSeconds(for: ref, on: Date()) + (timer.isActive ? timer.elapsed : 0), needed: m)
+                        .frame(width: 240).padding(.top, 4)
+                }
             }
 
-            Picker("", selection: $timer.mode) {
+            Picker("", selection: Binding(get: { timer.mode }, set: { timer.setMode($0) })) {
                 ForEach(TimerEngine.Mode.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(width: 240)
-            .disabled(timer.isActive)
+            .disabled(timer.isActive && timer.phase == .rest)
 
             // Pomodoro: pick the focus and break lengths right here (locked while a session is running)
             if timer.mode == .pomodoro {
@@ -124,7 +131,7 @@ struct TimerView: View {
                     Picker("Studying", selection: Binding(get: { timer.target }, set: { timer.select($0) })) {
                         Text("Free study").tag(TodoRef?.none)
                         ForEach(todos) { item in
-                            Text(item.isDone ? "✓ \(item.title) (\(item.detail))" : "\(item.title) (\(item.detail))")
+                            Text("\(item.title) (\(item.detail))")
                                 .tag(Optional(item.ref))
                         }
                     }

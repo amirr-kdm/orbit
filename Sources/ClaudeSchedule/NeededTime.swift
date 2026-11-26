@@ -27,23 +27,30 @@ extension AppStore {
     }
 }
 
-/// A thin bar with "studied / needed" minutes
+/// A thin bar with "studied / needed" minutes. Past the needed time the bar is full and the extra shows in another colour with "+Xm".
 struct NeedProgress: View {
     let studied: TimeInterval
     let needed: Int
 
     var body: some View {
-        let total = Double(max(1, needed) * 60), frac = min(1, studied / total)
+        let total = Double(max(1, needed) * 60)
+        let over = studied > total
+        let base = over ? total / studied : min(1, studied / total)   // share of the bar that is "the needed time"
         HStack(spacing: 6) {
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.12))
-                    if frac > 0 { Capsule().fill(frac >= 1 ? Color.green : Color.accentColor).frame(width: max(5, g.size.width * frac)) }
+                    if studied > 0 {
+                        Capsule().fill(Color.orange).frame(width: over ? g.size.width : 0)
+                        Capsule().fill(studied >= total ? Color.green : Color.accentColor)
+                            .frame(width: max(5, g.size.width * base))
+                    }
                 }
             }
             .frame(height: 5)
-            Text("\(Int(studied / 60))/\(needed)m").font(.system(size: 9, weight: .semibold)).monospacedDigit()
-                .foregroundStyle(frac >= 1 ? Color.green : Color.secondary).fixedSize()
+            Text(over ? "\(Int(studied / 60))/\(needed)m  +\(Int((studied - total) / 60))m" : "\(Int(studied / 60))/\(needed)m")
+                .font(.system(size: 9, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(over ? Color.orange : (studied >= total ? Color.green : Color.secondary)).fixedSize()
         }
     }
 }

@@ -173,7 +173,7 @@ struct TaskRow: View {
                 Text("Skipped").font(.caption.weight(.semibold)).foregroundStyle(.orange)
             } else if !task.isDone {
                 Button {
-                    timer.select(.task(task.id))
+                    timer.studyNow(.task(task.id))
                     router.selection = .timer
                 } label: {
                     Image(systemName: "play.circle").font(.title3)

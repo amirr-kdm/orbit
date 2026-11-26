@@ -144,7 +144,7 @@ struct TodayView: View {
             Spacer()
             if entry.kind == .todo {
                 Button {
-                    timer.select(.schedule(entry.id))
+                    timer.studyNow(.schedule(entry.id))
                     router.selection = .timer
                 } label: {
                     Label("Study Now", systemImage: "play.fill")
@@ -214,7 +214,7 @@ struct TodoRow: View {
                 Text("Skipped").font(.caption.weight(.semibold)).foregroundStyle(.orange)
             } else if !item.isDone {
                 Button {
-                    timer.select(item.ref)
+                    timer.studyNow(item.ref)
                     router.selection = .timer
                 } label: {
                     Label(isCurrent && timer.isActive ? "In Progress" : "Study",

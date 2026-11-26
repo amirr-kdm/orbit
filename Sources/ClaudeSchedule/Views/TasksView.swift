@@ -592,7 +592,7 @@ struct BoardScheduleCard: View {
                   toggle: { store.tapStatus(.schedule(e.id), on: row.date) },
                   playHelp: timer.isActive ? "A timer is running — open it" : "Study in the timer",
                   play: row.isDone || row.isSkipped ? nil : {
-                      if !timer.isActive { timer.select(.schedule(e.id)) }
+                      if !timer.isActive { timer.studyNow(.schedule(e.id)) }
                       router.selection = .timer
                   },
                   progress: e.minutes.map { (store.studiedSeconds(for: .schedule(e.id), on: row.date), $0) }) {
@@ -615,7 +615,7 @@ struct BoardScheduleCard: View {
             Divider()
             StatusMenuItems(ref: .schedule(e.id), day: row.date)
             MoveToMenu(from: row.date) { day in withAnimation { store.moveOccurrence(e.id, from: row.date, to: day) } }
-            Button("Study Now") { timer.select(.schedule(e.id)); router.selection = .timer }
+            Button("Study Now") { timer.studyNow(.schedule(e.id)); router.selection = .timer }
                 .disabled(timer.isActive)
             Button("Copy") { store.copyEntry(e.id) }
             Button("Show in Weekly Schedule") { router.selection = .schedule }
@@ -640,7 +640,7 @@ struct BoardTaskCard: View {
                   edit: onEdit,
                   playHelp: timer.isActive ? "A timer is running — open it" : "Study in the timer",
                   play: task.isDone || task.isSkipped ? nil : {
-                      if !timer.isActive { timer.select(.task(task.id)) }
+                      if !timer.isActive { timer.studyNow(.task(task.id)) }
                       router.selection = .timer
                   },
                   progress: task.needMinutes.map { (store.studiedSeconds(for: .task(task.id), on: Date()), $0) }) {
@@ -905,7 +905,7 @@ struct ScheduleTaskRow: View {
                 Text("Skipped").font(.caption.weight(.semibold)).foregroundStyle(.orange)
             } else if !row.isDone {
                 Button {
-                    timer.select(.schedule(entry.id))
+                    timer.studyNow(.schedule(entry.id))
                     router.selection = .timer
                 } label: {
                     Image(systemName: "play.circle").font(.title3)

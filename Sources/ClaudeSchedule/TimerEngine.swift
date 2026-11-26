@@ -15,6 +15,12 @@ final class TimerEngine {
 
     enum Phase { case focus, rest }
 
+    struct FinishedTask: Equatable, Identifiable {
+        let ref: TodoRef
+        let title: String
+        var id: TodoRef { ref }
+    }
+
     var mode: Mode = .stopwatch
     /// What is being studied (a to-do from today's list); nil = free study
     var target: TodoRef?
@@ -143,9 +149,28 @@ final class TimerEngine {
     /// Finish and save the session
     func stop(save: Bool = true) {
         now = Date()
-        if save, phase == .focus { saveSession(duration: elapsed) }
+        let ref = target
+        if save, phase == .focus, saveSession(duration: elapsed), let ref, let title = store.title(of: ref),
+           !store.isDone(ref, on: Date()), !store.isSkipped(ref, on: Date()) {
+            // a to-do was studied: ask once whether it is finished (members forget to tick it)
+            finished = FinishedTask(ref: ref, title: title)
+        }
         reset()
         phase = .focus
+    }
+
+    /// Set after "Finish & Save" on a to-do that is not ticked yet; the app asks "Is it done?" and clears it
+    var finished: FinishedTask?
+
+    /// The play button of a to-do: picks it in the timer (you press Launch yourself; does nothing to a timer that is already running)
+    func studyNow(_ ref: TodoRef) { select(ref) }
+
+    /// Switch between Pomodoro and Stopwatch, also while a focus is running (the time so far is kept)
+    func setMode(_ m: Mode) {
+        guard m != mode else { return }
+        mode = m
+        now = Date()
+        if isRunning { scheduleAlarm() } else { cancelAlarm() }
     }
 
     /// The member didn't answer "Are you still there?": stop, keeping only the time up to the question
@@ -160,11 +185,6 @@ final class TimerEngine {
     func select(_ ref: TodoRef?) {
         guard !isActive else { return }
         target = ref
-        // a to-do with a time it needs (a weekly cell or a task): study it in a Pomodoro of that length, or what is left of it
-        if let ref, let m = store.focusMinutes(for: ref) {
-            mode = .pomodoro
-            store.settings.pomodoroMinutes = m
-        }
     }
 
     func skipBreak() {
@@ -185,11 +205,13 @@ final class TimerEngine {
         persist()
     }
 
-    private func saveSession(duration: TimeInterval) {
-        guard duration >= Self.minimumSession, let start = sessionStart else { return }
+    @discardableResult
+    private func saveSession(duration: TimeInterval) -> Bool {
+        guard duration >= Self.minimumSession, let start = sessionStart else { return false }
         store.addSession(store.makeSession(ref: target, categoryID: categoryID,
                                            start: start, duration: duration, note: note))
         note = ""
+        return true
     }
 
     private func tick() {

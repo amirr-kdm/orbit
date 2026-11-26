@@ -17,7 +17,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: "Today"
         case .schedule: "Weekly Schedule"
-        case .planner: "Notes & Brainstorm"
+        case .planner: "Mission Control"
         case .timer: "Timer"
         case .leitner: "Leitner Box"
         case .spelling: "Spelling"
@@ -41,7 +41,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .today: "checklist"
         case .schedule: "tablecells"
-        case .planner: "brain.head.profile"
+        case .planner: "square.grid.2x2.fill"
         case .timer: "timer"
         case .leitner: "archivebox.fill"
         case .spelling: "ear.and.waveform"
@@ -76,6 +76,16 @@ struct ContentView: View {
     @State private var gifts = PlanetGiftService.shared
     @State private var showQuickTask = false
     @State private var showAbout = false
+    @State private var donePrompt: TimerEngine.FinishedTask?
+
+    /// Opens "Is it done?" once no other window (the Level Pass) is up; a little later, so the other one has finished closing
+    private func showDonePromptWhenFree() {
+        guard timer.finished != nil, donePrompt == nil, store.passMoment == nil else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            if donePrompt == nil, store.passMoment == nil, let f = timer.finished { donePrompt = f }
+        }
+    }
     @Environment(\.colorScheme) private var scheme
     /// Midnight Black in dark mode: the whole app turns pure black (sidebar and pages)
     private var allBlack: Bool { store.settings.template == .midnight && scheme == .dark }
@@ -101,6 +111,7 @@ struct ContentView: View {
                                 }
                             }
                             .tag(item)
+                            .simultaneousGesture(TapGesture().onEnded { if item == .planner { router.missionHome += 1 } })
                         }
                     }
                 }
@@ -179,6 +190,12 @@ struct ContentView: View {
         .sheet(item: Binding(get: { store.passMoment }, set: { store.passMoment = $0 })) { m in
             LevelPassView(fromHours: m.fromHours)
         }
+        // After "Finish & Save" on a to-do: is it finished? (waits for the Level Pass window, so the two never collide)
+        .sheet(item: $donePrompt, onDismiss: { timer.finished = nil }) { f in
+            TaskDonePrompt(finished: f)
+        }
+        .onChange(of: timer.finished) { _, _ in showDonePromptWhenFree() }
+        .onChange(of: store.passMoment == nil) { _, _ in showDonePromptWhenFree() }
         // The owner's admin panel (right side) — only for the admin account
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -255,7 +272,7 @@ struct ContentView: View {
             switch router.selection ?? .today {
             case .today: TodayView()
             case .schedule: WeeklyScheduleView()
-            case .planner: PlannerView()
+            case .planner: MissionControlView()
             case .timer: TimerView()
             case .leitner: LeitnerView()
             case .spelling: LeitnerSpellingPage()
@@ -319,5 +336,33 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .padding(10)
+    }
+}
+
+
+/// Small window after "Finish & Save" on a to-do: tick it as done, or leave it
+struct TaskDonePrompt: View {
+    let finished: TimerEngine.FinishedTask
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "checkmark.circle").font(.system(size: 34)).foregroundStyle(.green)
+            Text("Is this task finished?").font(.headline)
+            Text(finished.title).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(3)
+            if let m = store.neededMinutes(for: finished.ref) {
+                NeedProgress(studied: store.studiedSeconds(for: finished.ref, on: Date()), needed: m).frame(width: 200)
+            }
+            HStack {
+                Button("Not yet") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Yes, tick it ✓") {
+                    if !store.isDone(finished.ref, on: Date()) { withAnimation { store.toggleDone(finished.ref, on: Date()) } }
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).tint(.green)
+            }
+        }
+        .padding(24).frame(width: 320)
     }
 }

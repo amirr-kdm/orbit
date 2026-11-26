@@ -54,6 +54,9 @@ final class AppStore {
     var solarSystems: [SolarSystem] = [] { didSet { save() } }
     var planners: [Planner] = [] { didSet { save() } }
     var plannerFolders: [PlannerFolder] = [] { didSet { save() } }
+    /// IELTS practice tests with the band of each skill (Mission Control → English Exam)
+    var ieltsTests: [IELTSTest] = [] { didSet { save() } }
+    var ieltsCategories: [IELTSCategory] = IELTSCategory.defaults { didSet { save() } }
     /// Level Pass rewards taken
     var claimedLevels: [Int] = [] { didSet { save() } }
     /// Set after a study session is saved, to show the Level Pass (not saved)
@@ -92,11 +95,15 @@ final class AppStore {
         var planners: [Planner] = []
         var plannerFolders: [PlannerFolder] = []
         var claimedLevels: [Int] = []
+        var ieltsTests: [IELTSTest] = []
+        var ieltsCategories: [IELTSCategory] = IELTSCategory.defaults
 
         init(tasks: [TaskItem], categories: [Category], sessions: [StudySession], settings: AppSettings,
              schedule: [ScheduleEntry], scheduleDone: Set<String>, scheduleMoved: Set<String>,
              galaxy: [PlacedPlanet], avatarPlanet: String?, solarSystems: [SolarSystem], planners: [Planner],
-             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String], plannerFolders: [PlannerFolder], claimedLevels: [Int]) {
+             scheduleSkipped: Set<String>, purchases: [Purchase], refundsUsed: Int, rocketGrant: Int, groupWins: [String], claimedGifts: [String], plannerFolders: [PlannerFolder], claimedLevels: [Int], ieltsTests: [IELTSTest], ieltsCategories: [IELTSCategory]) {
+            self.ieltsCategories = ieltsCategories
+            self.ieltsTests = ieltsTests
             self.claimedLevels = claimedLevels
             self.plannerFolders = plannerFolders
             self.groupWins = groupWins
@@ -139,6 +146,8 @@ final class AppStore {
             planners = try c.decodeIfPresent([Planner].self, forKey: .planners) ?? []
             plannerFolders = try c.decodeIfPresent([PlannerFolder].self, forKey: .plannerFolders) ?? []
             claimedLevels = try c.decodeIfPresent([Int].self, forKey: .claimedLevels) ?? []
+            ieltsTests = try c.decodeIfPresent([IELTSTest].self, forKey: .ieltsTests) ?? []
+            ieltsCategories = try c.decodeIfPresent([IELTSCategory].self, forKey: .ieltsCategories) ?? IELTSCategory.defaults
         }
     }
 
@@ -208,6 +217,8 @@ final class AppStore {
             planners = snap.planners
             plannerFolders = snap.plannerFolders
             claimedLevels = snap.claimedLevels
+            ieltsTests = snap.ieltsTests
+            ieltsCategories = snap.ieltsCategories
         }
     }
 
@@ -264,7 +275,7 @@ final class AppStore {
                             galaxy: galaxy, avatarPlanet: avatarPlanet, solarSystems: solarSystems,
                             planners: planners, scheduleSkipped: scheduleSkipped,
                             purchases: purchases, refundsUsed: refundsUsed,
-                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts, plannerFolders: plannerFolders, claimedLevels: claimedLevels)
+                            rocketGrant: rocketGrant, groupWins: groupWins, claimedGifts: claimedGifts, plannerFolders: plannerFolders, claimedLevels: claimedLevels, ieltsTests: ieltsTests, ieltsCategories: ieltsCategories)
         return try? encoder.encode(snap)
     }
 
@@ -873,6 +884,8 @@ final class Router {
     /// A challenge or group another screen (a notification, a group page) asked to open
     var openChallenge: UUID?
     var openGroup: UUID?
+    /// Bumped when Mission Control is clicked again in the sidebar: it goes back to its first page
+    var missionHome = 0
 
     // CS_START_TAB opens a given screen (handy for testing)
     var selection: SidebarItem? = ProcessInfo.processInfo.environment["CS_START_TAB"]
